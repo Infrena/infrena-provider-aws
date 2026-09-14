@@ -1,0 +1,190 @@
+AWS::ApiGateway::DomainNameV2.Policy: kind guessed as string
+AWS::ApiGateway::Model.Schema: kind guessed as string
+AWS::ApiGateway::RestApi.Body: kind guessed as string
+AWS::ApiGateway::RestApi.Parameters: kind guessed as string
+AWS::ApiGateway::RestApi.Policy: kind guessed as string
+AWS::ApiGatewayV2::Api.CredentialsArn: write-only and looks secret; consider the overlay's sensitive list
+AWS::ApiGatewayV2::Authorizer.AuthorizerCredentialsArn: write-only and looks secret; consider the overlay's sensitive list
+AWS::B2BI::Capability.Configuration: kind guessed as string
+AWS::B2BI::Transformer.EdiType: kind guessed as string
+AWS::BCMDataExports::Export: 2 nested create-only pointers cannot be expressed
+AWS::Backup::BackupVault.AccessPolicy: kind guessed as string
+AWS::Backup::LogicallyAirGappedBackupVault.AccessPolicy: kind guessed as string
+AWS::Batch::ComputeEnvironment: 3 nested create-only pointers cannot be expressed
+AWS::Bedrock::ApplicationInferenceProfile.ModelSource: kind guessed as string
+AWS::Bedrock::DataSource: 3 nested create-only pointers cannot be expressed
+AWS::Bedrock::KnowledgeBase: 7 nested create-only pointers cannot be expressed
+AWS::BedrockAgentCore::ApiKeyCredentialProvider.ApiKeySecretConfig: write-only and looks secret; consider the overlay's sensitive list
+AWS::BedrockAgentCore::ApiKeyCredentialProvider.ApiKeySecretSource: write-only and looks secret; consider the overlay's sensitive list
+AWS::BedrockAgentCore::Gateway.AuthorizerConfiguration: kind guessed as string
+AWS::BedrockAgentCore::Gateway.ProtocolConfiguration: kind guessed as string
+AWS::BedrockAgentCore::Gateway.ProtocolType: kind guessed as string
+AWS::BedrockAgentCore::GatewayTarget.AuthorizationData: kind guessed as string
+AWS::BedrockAgentCore::GatewayTarget.PrivateEndpoint: kind guessed as string
+AWS::BedrockAgentCore::GatewayTarget.TargetConfiguration: kind guessed as string
+AWS::BedrockAgentCore::Harness: 1 nested create-only pointers cannot be expressed
+AWS::BillingConductor::CustomLineItem: 3 nested create-only pointers cannot be expressed
+AWS::Cases::CaseRule.Rule: kind guessed as string
+AWS::Cases::Layout.Content: kind guessed as string
+AWS::CertificateManager::AcmeDomainValidation: 1 nested create-only pointers cannot be expressed
+AWS::Chime::MediaPipelineKinesisVideoStreamPool: 1 nested create-only pointers cannot be expressed
+AWS::CleanRooms::AnalysisTemplate.Source: kind guessed as string
+AWS::CleanRooms::AnalysisTemplate.SourceMetadata: kind guessed as string
+AWS::CleanRooms::AnalysisTemplate.SyntheticDataParameters: kind guessed as string
+AWS::CleanRooms::ConfiguredTable.TableReference: kind guessed as string
+AWS::CleanRooms::PrivacyBudgetTemplate: 1 nested create-only pointers cannot be expressed
+AWS::CloudFormation::Stack.TemplateBody: kind guessed as string
+AWS::CloudFront::ConnectionFunction: 1 nested create-only pointers cannot be expressed
+AWS::CloudTrail::ResourcePolicy.ResourcePolicy: kind guessed as string
+AWS::Config::ConfigRule.InputParameters: kind guessed as string
+AWS::ControlTower::LandingZone.Manifest: kind guessed as string
+AWS::CustomerProfiles::CalculatedAttributeDefinition: 2 nested create-only pointers cannot be expressed
+AWS::DMS::Endpoint: 2 nested create-only pointers cannot be expressed
+AWS::DataZone::Connection.Props: kind guessed as string
+AWS::DataZone::DataSource.Configuration: kind guessed as string
+AWS::DataZone::PolicyGrant.Detail: kind guessed as string
+AWS::DataZone::PolicyGrant.Principal: kind guessed as string
+AWS::DataZone::ProjectMembership.Member: kind guessed as string
+AWS::DataZone::UserProfile.Details: kind guessed as string
+AWS::Deadline::Fleet.Configuration: kind guessed as string
+AWS::DevOpsAgent::Service: 5 nested create-only pointers cannot be expressed
+AWS::DynamoDB::Table.KeySchema: kind guessed as string
+AWS::EC2::EC2Fleet: 2 nested create-only pointers cannot be expressed
+AWS::EC2::InstanceConnectEndpoint.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::EC2::SpotFleet: 17 nested create-only pointers cannot be expressed
+AWS::EC2::TransitGatewayConnectPeer: 4 nested create-only pointers cannot be expressed
+AWS::EC2::VPCEndpoint.PolicyDocument: kind guessed as string
+AWS::EC2::VPCEndpoint: 2 nested create-only pointers cannot be expressed
+AWS::EC2::VerifiedAccessEndpoint: 9 nested create-only pointers cannot be expressed
+AWS::ECR::PublicRepository.RepositoryPolicyText: kind guessed as string
+AWS::ECR::PullThroughCacheRule.CredentialArn: write-only and looks secret; consider the overlay's sensitive list
+AWS::ECR::Repository.RepositoryPolicyText: kind guessed as string
+AWS::ECR::Repository: 2 nested create-only pointers cannot be expressed
+AWS::ECS::CapacityProvider: 2 nested create-only pointers cannot be expressed
+AWS::EFS::AccessPoint: 8 nested create-only pointers cannot be expressed
+AWS::EKS::Capability: 2 nested create-only pointers cannot be expressed
+AWS::EKS::Cluster: 3 nested create-only pointers cannot be expressed
+AWS::EMR::SecurityConfiguration.SecurityConfiguration: kind guessed as string
+AWS::ElastiCache::User.NoPasswordRequired: write-only and looks secret; consider the overlay's sensitive list
+AWS::ElasticBeanstalk::Environment: 2 nested create-only pointers cannot be expressed
+AWS::EntityResolution::MatchingWorkflow: 1 nested create-only pointers cannot be expressed
+AWS::Events::EventBus.Policy: kind guessed as string
+AWS::Events::Rule.EventPattern: kind guessed as string
+AWS::FIS::ExperimentTemplate: 1 nested create-only pointers cannot be expressed
+AWS::Glue::Classifier: 4 nested create-only pointers cannot be expressed
+AWS::Glue::Connection: 1 nested create-only pointers cannot be expressed
+AWS::Glue::DataQualityRuleset.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::Glue::Integration: 1 nested create-only pointers cannot be expressed
+AWS::Glue::MLTransform: 1 nested create-only pointers cannot be expressed
+AWS::Grafana::Workspace.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::IAM::ManagedPolicy.PolicyDocument: kind guessed as string
+AWS::IAM::Role.AssumeRolePolicyDocument: kind guessed as string
+AWS::IAM::SAMLProvider.RemovePrivateKey: write-only and looks secret; consider the overlay's sensitive list
+AWS::IVS::EncoderConfiguration: 4 nested create-only pointers cannot be expressed
+AWS::IVS::RecordingConfiguration: 8 nested create-only pointers cannot be expressed
+AWS::IVS::StorageConfiguration: 1 nested create-only pointers cannot be expressed
+AWS::InspectorV2::Connector: 1 nested create-only pointers cannot be expressed
+AWS::IoT::Policy.PolicyDocument: kind guessed as string
+AWS::IoTFleetWise::Campaign.CollectionScheme: kind guessed as string
+AWS::KMS::Key.KeyPolicy: kind guessed as string
+AWS::KMS::ReplicaKey.KeyPolicy: kind guessed as string
+AWS::KinesisFirehose::DeliveryStream: 5 nested create-only pointers cannot be expressed
+AWS::Lightsail::Database.RotateMasterUserPassword: write-only and looks secret; consider the overlay's sensitive list
+AWS::Logs::ResourcePolicy.PolicyDocument: kind guessed as string
+AWS::M2::Application.Definition: kind guessed as string
+AWS::MPA::ApprovalTeam: 1 nested create-only pointers cannot be expressed
+AWS::MPA::IdentitySource: 3 nested create-only pointers cannot be expressed
+AWS::MSK::Channel: 33 nested create-only pointers cannot be expressed
+AWS::MSK::Cluster: 5 nested create-only pointers cannot be expressed
+AWS::MSK::Replicator: 8 nested create-only pointers cannot be expressed
+AWS::MWAA::Environment: 1 nested create-only pointers cannot be expressed
+AWS::MediaConnect::Flow: 1 nested create-only pointers cannot be expressed
+AWS::MediaConnect::RouterInput.Configuration: kind guessed as string
+AWS::MediaConnect::RouterInput.ContentQualityAnalysisConfiguration: kind guessed as string
+AWS::MediaConnect::RouterInput.MaintenanceConfiguration: kind guessed as string
+AWS::MediaConnect::RouterInput: 3 nested create-only pointers cannot be expressed
+AWS::MediaConnect::RouterNetworkInterface.Configuration: kind guessed as string
+AWS::MediaConnect::RouterOutput.Configuration: kind guessed as string
+AWS::MediaConnect::RouterOutput.MaintenanceConfiguration: kind guessed as string
+AWS::MediaConnect::RouterOutput: 1 nested create-only pointers cannot be expressed
+AWS::MediaPackageV2::ChannelPolicy.Policy: kind guessed as string
+AWS::MediaPackageV2::OriginEndpointPolicy.Policy: kind guessed as string
+AWS::MediaTailor::ChannelPolicy.Policy: kind guessed as string
+AWS::ODB::CloudVmCluster: 1 nested create-only pointers cannot be expressed
+AWS::ObservabilityAdmin::OrganizationTelemetryRule: 1 nested create-only pointers cannot be expressed
+AWS::ObservabilityAdmin::TelemetryRule: 1 nested create-only pointers cannot be expressed
+AWS::Omics::AnnotationStore.StoreOptions: kind guessed as string
+AWS::OpenSearchServerless::Index: 1 nested create-only pointers cannot be expressed
+AWS::OpenSearchServerless::SecurityConfig: 1 nested create-only pointers cannot be expressed
+AWS::Organizations::Policy.Content: kind guessed as string
+AWS::Organizations::ResourcePolicy.Content: kind guessed as string
+AWS::PCAConnectorAD::Template.Definition: kind guessed as string
+AWS::Pipes::Pipe: 13 nested create-only pointers cannot be expressed
+AWS::QBusiness::DataSource.Configuration: kind guessed as string
+AWS::QBusiness::Plugin.AuthConfiguration: kind guessed as string
+AWS::QBusiness::Retriever.Configuration: kind guessed as string
+AWS::QBusiness::WebExperience.IdentityProviderConfiguration: kind guessed as string
+AWS::QuickSight::DLPSetting.ProviderConfig: kind guessed as string
+AWS::QuickSight::Flow.FlowDefinition: kind guessed as string
+AWS::QuickSight::RefreshSchedule: 1 nested create-only pointers cannot be expressed
+AWS::RAM::ResourceShare: 1 nested create-only pointers cannot be expressed
+AWS::Redshift::Cluster.ManageMasterPassword: write-only and looks secret; consider the overlay's sensitive list
+AWS::RedshiftServerless::Namespace.ManageAdminPassword: write-only and looks secret; consider the overlay's sensitive list
+AWS::RedshiftServerless::Snapshot: 2 nested create-only pointers cannot be expressed
+AWS::RefactorSpaces::Route: 4 nested create-only pointers cannot be expressed
+AWS::Route53::HealthCheck: 3 nested create-only pointers cannot be expressed
+AWS::Route53GlobalResolver::AccessSource.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::Route53GlobalResolver::AccessToken.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::Route53GlobalResolver::DnsView.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::Route53GlobalResolver::FirewallDomainList.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::Route53GlobalResolver::FirewallRule.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::Route53GlobalResolver::GlobalResolver.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::S3::BucketPolicy.PolicyDocument: kind guessed as string
+AWS::S3::StorageLens: 1 nested create-only pointers cannot be expressed
+AWS::S3Express::BucketPolicy.PolicyDocument: kind guessed as string
+AWS::S3Files::AccessPoint: 8 nested create-only pointers cannot be expressed
+AWS::S3Tables::TableBucketPolicy.ResourcePolicy: kind guessed as string
+AWS::S3Tables::TablePolicy.ResourcePolicy: kind guessed as string
+AWS::S3Vectors::VectorBucketPolicy.Policy: kind guessed as string
+AWS::SES::MailManagerArchive.Retention: kind guessed as string
+AWS::SES::MailManagerIngressPoint.IngressPointConfiguration: kind guessed as string
+AWS::SES::MailManagerIngressPoint.NetworkConfiguration: kind guessed as string
+AWS::SES::MailManagerRelay.Authentication: kind guessed as string
+AWS::SES::ReceiptFilter: 4 nested create-only pointers cannot be expressed
+AWS::SES::ReceiptRule: 1 nested create-only pointers cannot be expressed
+AWS::SES::Template: 1 nested create-only pointers cannot be expressed
+AWS::SNS::Subscription.DeliveryPolicy: kind guessed as string
+AWS::SNS::Subscription.FilterPolicy: kind guessed as string
+AWS::SNS::Subscription.RedrivePolicy: kind guessed as string
+AWS::SNS::Subscription.ReplayPolicy: kind guessed as string
+AWS::SQS::Queue.RedriveAllowPolicy: kind guessed as string
+AWS::SQS::Queue.RedrivePolicy: kind guessed as string
+AWS::SSM::CloudConnector: 1 nested create-only pointers cannot be expressed
+AWS::SSM::Document.Content: kind guessed as string
+AWS::SSM::ResourcePolicy.Policy: kind guessed as string
+AWS::SSMQuickSetup::ConfigurationManager: 2 nested create-only pointers cannot be expressed
+AWS::SSO::PermissionSet.InlinePolicy: kind guessed as string
+AWS::SageMaker::Cluster: 1 nested create-only pointers cannot be expressed
+AWS::SageMaker::Device: 1 nested create-only pointers cannot be expressed
+AWS::SageMaker::Domain: 1 nested create-only pointers cannot be expressed
+AWS::SageMaker::FeatureGroup: 3 nested create-only pointers cannot be expressed
+AWS::SageMaker::ModelPackage.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::SageMaker::ModelPackageGroup.ModelPackageGroupPolicy: kind guessed as string
+AWS::SageMaker::PartnerApp.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::SageMaker::UserProfile: 2 nested create-only pointers cannot be expressed
+AWS::SecretsManager::ResourcePolicy.ResourcePolicy: kind guessed as string
+AWS::SecretsManager::Secret.GenerateSecretString: write-only and looks secret; consider the overlay's sensitive list
+AWS::SecurityAgent::Application: 1 nested create-only pointers cannot be expressed
+AWS::SecurityHub::Connector: 1 nested create-only pointers cannot be expressed
+AWS::SecurityHub::ConnectorV2: 2 nested create-only pointers cannot be expressed
+AWS::Timestream::ScheduledQuery.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::Transfer::WebApp.WebAppUnits: kind guessed as string
+AWS::Transfer::WebApp: 3 nested create-only pointers cannot be expressed
+AWS::VerifiedPermissions::IdentitySource.Configuration: kind guessed as string
+AWS::VerifiedPermissions::Policy.Definition: kind guessed as string
+AWS::VpcLattice::TargetGroup: 6 nested create-only pointers cannot be expressed
+AWS::Wisdom::AIAgent.Configuration: kind guessed as string
+AWS::Wisdom::AssistantAssociation.Association: kind guessed as string
+AWS::Wisdom::KnowledgeBase.SourceConfiguration: kind guessed as string
+AWS::WorkSpacesWeb::SessionLogger.EventFilter: kind guessed as string
+AWS::XRay::SamplingRule: 1 nested create-only pointers cannot be expressed

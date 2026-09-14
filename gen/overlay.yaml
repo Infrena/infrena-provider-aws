@@ -1,0 +1,114 @@
+# The hand-maintained part of generation (spec §3.2). Every name here is validated against the schema bundle; a
+# misspelt type or property fails generation.
+
+# Types that are not regional. They get no region attribute, their provider IDs start with "global/", and Cloud
+# Control is called in us-east-1 for them.
+global:
+  - "AWS::IAM::*"
+  - "AWS::Organizations::*"
+  - "AWS::CloudFront::*"
+  - "AWS::Route53::*"
+
+# What `discover`, and `import` (which discovers first), look at when an instance sets no discover_types (P4).
+discover_default:
+  - AWS::EC2::VPC
+  - AWS::EC2::Subnet
+  - AWS::EC2::SecurityGroup
+  - AWS::EC2::InternetGateway
+  - AWS::EC2::RouteTable
+  - AWS::EC2::Route
+  - AWS::EC2::Instance
+  - AWS::S3::Bucket
+  - AWS::IAM::Role
+  - AWS::IAM::ManagedPolicy
+  - AWS::RDS::DBInstance
+  - AWS::RDS::DBSubnetGroup
+  - AWS::Lambda::Function
+  - AWS::ECS::Cluster
+  - AWS::ECS::Service
+
+# Friendly names, shown in plans (J5, J10). Listed first, so infrata's Display picks them.
+aliases:
+  AWS::EC2::VPC:
+    CidrBlock: [cidr]
+  AWS::EC2::Subnet:
+    CidrBlock: [cidr]
+    AvailabilityZone: [az]
+  AWS::EC2::SecurityGroup:
+    GroupName: [name]
+    GroupDescription: [description]
+    SecurityGroupIngress: [ingress]
+    SecurityGroupEgress: [egress]
+  AWS::EC2::Route:
+    DestinationCidrBlock: [destination_cidr]
+  AWS::EC2::Instance:
+    ImageId: [ami]
+  AWS::S3::Bucket:
+    BucketName: [name]
+  AWS::IAM::Role:
+    RoleName: [name]
+    AssumeRolePolicyDocument: [assume_role_policy]
+  AWS::IAM::ManagedPolicy:
+    ManagedPolicyName: [name]
+    PolicyDocument: [policy]
+  AWS::RDS::DBInstance:
+    DBInstanceIdentifier: [identifier]
+    DBInstanceClass: [instance_class]
+    MasterUsername: [username]
+    MasterUserPassword: [password]
+  AWS::RDS::DBSubnetGroup:
+    DBSubnetGroupName: [name]
+    DBSubnetGroupDescription: [description]
+  AWS::Lambda::Function:
+    FunctionName: [name]
+  AWS::ECS::Cluster:
+    ClusterName: [name]
+
+# Secrets. Seeded from the write-only properties whose names look secret, excluding client tokens, ARNs and
+# on/off flags. The generator warns about new candidates in gen/warnings.txt.
+sensitive:
+  AWS::Amplify::App: [AccessToken, OauthToken]
+  AWS::BackupGateway::Hypervisor: [Password]
+  AWS::CodeBuild::SourceCredential: [Token]
+  AWS::Connect::User: [Password]
+  AWS::DMS::Endpoint: [Password]
+  AWS::DataSync::LocationFSxWindows: [Password]
+  AWS::DataSync::LocationObjectStorage: [SecretKey]
+  AWS::DataSync::LocationSMB: [Password]
+  AWS::DirectoryService::SimpleAD: [Password]
+  AWS::DocDBElastic::Cluster: [AdminUserPassword]
+  AWS::ElastiCache::ReplicationGroup: [AuthToken]
+  AWS::ElastiCache::User: [Passwords]
+  AWS::IAM::SAMLProvider: [AddPrivateKey]
+  AWS::IAM::ServerCertificate: [PrivateKey]
+  AWS::Invoicing::ProcurementPortalPreference: [ProcurementPortalSharedSecret]
+  AWS::Lightsail::Database: [MasterUserPassword]
+  AWS::QuickSight::DataSource: [Credentials]
+  AWS::QuickSight::OAuthClientApplication: [ClientSecret]
+  AWS::RDS::DBCluster: [MasterUserPassword]
+  AWS::RDS::DBInstance: [MasterUserPassword, TdeCredentialPassword]
+  AWS::Redshift::Cluster: [MasterUserPassword]
+  AWS::RedshiftServerless::Namespace: [AdminUserPassword]
+  AWS::SecretsManager::Secret: [SecretString]
+  AWS::SystemsManagerSAP::Application: [Credentials]
+  AWS::Timestream::InfluxDBCluster: [Password]
+  AWS::Timestream::InfluxDBInstance: [Password]
+  AWS::Transfer::Certificate: [PrivateKey]
+
+requirements:
+  AWS::EC2::Subnet:
+    - name: vpc
+      types: [AWS::EC2::VPC]
+      description: A subnet must be created inside a VPC
+  AWS::EC2::RouteTable:
+    - name: vpc
+      types: [AWS::EC2::VPC]
+      description: A route table belongs to a VPC
+  AWS::EC2::Route:
+    - name: route_table
+      types: [AWS::EC2::RouteTable]
+      description: A route belongs to a route table
+  AWS::RDS::DBSubnetGroup:
+    - name: subnets
+      types: [AWS::EC2::Subnet]
+      description: A DB subnet group needs subnets
