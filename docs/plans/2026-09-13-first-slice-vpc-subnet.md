@@ -96,7 +96,7 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
 | F7 | infrata, minor | `selectForImport`'s doc comment says a selector "splits at the LAST dot"; the code looks the whole selector up in a map. | `internal/cli/import.go`, `selectForImport`. |
 | F9 | infrata, for the infrata session | `discover` refuses an unresolved value in an instance's `defaults:`, though discovery never applies defaults. `defaults: {region: ${aws_region}}` with a per-environment-only value therefore breaks `discover` for no benefit. Either intended (say so in §12.1) or refuse configuration only. | `internal/cli/context.go` `refuseUnresolvedInstances` loops `inst.Config` and `inst.Defaults`; `discover` reaches it through `discoveryRegistry(opts, "")` → `registerStateInstances`. |
 | F10 | infrata, for James (**resolved**: `v0.2.0` on `959817b` contains all four, and `2c1bbb6`, `ca9db09`) | The only infrata tag at planning time, `v0.1.0` (`cfe996f`), contains none of `5895f8a`, `76c3f28`, `6e968a8`, `a1efc85`. A plugin pinned to it would lose per-environment `providers:` variables on refresh/destroy/import, per-instance requirements and `import --provider`. D19 needs a newer tag. | `git merge-base --is-ancestor <commit> v0.1.0` false for all four; `git ls-remote --tags origin` lists only `v0.1.0`. |
-| F8 | infrata, known | `DiscoverRequest.Region` / `pluginproto` `region` still exist and are never set. Already a follow-up; this plugin's model needs neither (evidence for removal). | `pkg/provider/provider.go:64-67`; `internal/discovery/walk.go` builds `{Types: ask}`. |
+| F8 | infrata (**resolved** on `main` in `5bc47a3`, unreleased: both fields removed, and `region`/`account` are now ordinary variable names) | `DiscoverRequest.Region` / `pluginproto` `region` still exist and are never set. Already a follow-up; this plugin's model needs neither (evidence for removal). | `pkg/provider/provider.go:64-67`; `internal/discovery/walk.go` builds `{Types: ask}`. |
 
 ## Verification log
 
@@ -2149,6 +2149,8 @@ git commit -m "aws: classify SDK errors by what AWS may have done, and say where
 ---
 ### Task 5: `aws.vpc` — create, read, update, delete
 
+> **Done 2026-09-13, `0b0baa2` on `first-slice`.** Everything passed on the first run. **The strongest evidence in the slice so far:** with `createOnce` sabotaged away and `AWS_MAX_ATTEMPTS=5`, the SDK resent a `CreateVpc` whose connection had dropped after the fake acted, and the resend succeeded. The duplicate-VPC hazard behind D6 is real, and the one-attempt option is what prevents it. Workspace builds ran against infrata `main` at `5bc47a3` (region plumbing removed), pinned builds against `v0.2.0`; both green.
+
 **Files:**
 - Create: `internal/awsprov/vpc.go`, `internal/awsprov/tags.go`, `internal/awsprov/attrs.go`
 - Modify: `internal/awsprov/patience.go` (add `wait`), `internal/awsprov/provider.go` (dispatch)
@@ -2167,7 +2169,7 @@ git commit -m "aws: classify SDK errors by what AWS may have done, and say where
   - vpc: `createVPC`, `readVPC(ctx, providerID string, pt patience)`, `updateVPC`, `deleteVPC`, `vpcState(region string, v types.Vpc) *resource.ResourceState`
   - test helpers: `fakeProvider(t, values) (*Provider, *ec2fake.Server)`, `desired(typ string, attrs map[string]value.Value) *resource.DesiredResource`, `tagsValue(kv ...string) value.Value`
 
-- [ ] **Step 1: Write the test helpers and failing tests**
+- [x] **Step 1: Write the test helpers and failing tests**
 
 `internal/awsprov/helpers_test.go`:
 
@@ -2467,12 +2469,12 @@ func TestTagsMustBeAMapOfStrings(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `go test -count=1 -run 'VPC|Create|Read|Update|Reserved|Delet|Tags' ./internal/awsprov/`
 Expected: FAIL — `undefined: tagsFrom` and friends.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `internal/awsprov/attrs.go`:
 
@@ -2839,12 +2841,12 @@ func (p *Provider) Delete(ctx context.Context, current *resource.ResourceState) 
 
 (add `"fmt"` to `provider.go`'s imports.)
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
 
 Run: `go test -count=1 ./... && go vet ./... && gofmt -l .`
 Expected: PASS.
 
-- [ ] **Step 5: Sabotage, then commit**
+- [x] **Step 5: Sabotage, then commit**
 
 Sabotages: drop `createOnce` from `CreateVpc` (`TestACreateIsSentOnce…` — 5 calls under `AWS_MAX_ATTEMPTS=5`);
 `patience.wait` returns after the first miss (`TestAReadWaitsFor…`); `syncTags` skips `DeleteTags`
