@@ -2,6 +2,7 @@ package awsprov
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/infrata/infrata/pkg/provider"
@@ -26,23 +27,41 @@ func newProvider(instance string, ic instanceConfig, cfg aws.Config) *Provider {
 func (p *Provider) Name() string                              { return PluginName }
 func (p *Provider) Definitions() []*schema.ResourceDefinition { return definitions() }
 
-// The operations arrive type by type in later changes. Until then each says so rather than guessing.
+func unknownType(t string) error { return fmt.Errorf("the aws plugin does not serve %q", t) }
 
 func (p *Provider) Read(ctx context.Context, current *resource.ResourceState) (*resource.ResourceState, error) {
-	return nil, provider.ErrNotImplemented
+	switch current.Type {
+	case typeVPC:
+		return p.readVPC(ctx, current.ProviderID, p.patience)
+	}
+	return nil, unknownType(current.Type)
 }
 
 func (p *Provider) Create(ctx context.Context, desired *resource.DesiredResource) (*resource.ResourceState, error) {
-	return nil, provider.ErrNotImplemented
+	switch desired.Type {
+	case typeVPC:
+		return p.createVPC(ctx, desired.Attrs)
+	}
+	return nil, unknownType(desired.Type)
 }
 
 func (p *Provider) Update(ctx context.Context, current *resource.ResourceState, desired *resource.DesiredResource) (*resource.ResourceState, error) {
-	return nil, provider.ErrNotImplemented
+	switch current.Type {
+	case typeVPC:
+		return p.updateVPC(ctx, current, desired)
+	}
+	return nil, unknownType(current.Type)
 }
 
 func (p *Provider) Delete(ctx context.Context, current *resource.ResourceState) error {
-	return provider.ErrNotImplemented
+	switch current.Type {
+	case typeVPC:
+		return p.deleteVPC(ctx, current)
+	}
+	return unknownType(current.Type)
 }
+
+// Discover and Import arrive with discovery; until then each says so rather than guessing.
 
 func (p *Provider) Discover(ctx context.Context, req provider.DiscoverRequest) ([]provider.DiscoveredResource, error) {
 	return nil, provider.ErrNotImplemented
