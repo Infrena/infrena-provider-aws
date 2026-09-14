@@ -36,7 +36,7 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
 - No test reaches real AWS outside `-tags live`.
 - Every test command uses `-count=1`. Every test is sabotage-verified; the sabotage goes in the commit message.
 - Stage explicit paths only. Never `git add -A` / `git add .` / `git commit -am`. Ask James before any push or tag.
-- **Prerequisite for Task 1:** git credentials that can fetch `github.com/infrata/infrata` (e.g. `gh auth setup-git`): `go get` and `go mod tidy` ignore `go.work`. On 2026-09-13 this machine had none.
+- **Prerequisite for Task 1:** git credentials that can fetch `github.com/infrata/infrata` (`gh auth setup-git`): `go get` and `go mod tidy` ignore `go.work`. Set up on James's machine 2026-09-13.
 - Do not modify `../infrata`. infrata defects go to Findings and the vault note's follow-ups.
 
 ---
@@ -141,7 +141,7 @@ Every claim the design rests on, what it was checked against on 2026-09-13, and 
 | SDK modules' `go` directives (1.24) are below this module's 1.27.0 | module `go.mod`s | ✔ |
 | A `go.work` using `../infrata` substitutes for a required infrata version with no network and no `go.sum` | scratch module requiring `v0.1.0`, `GOPROXY=off go build` in workspace mode | ✔ (and `-mod=mod` is refused in workspace mode) |
 | `go mod tidy` honours `go.work` | same scratch module, `GOPROXY=off go mod tidy` | ✘ **it ignores the workspace and fetches** — needs credentials |
-| This machine can fetch the private module by version | `GOPRIVATE=github.com/infrata/* go list -m -versions` | ✘ **no git credentials** (`could not read Username for 'https://github.com'`) |
+| This machine can fetch the private module by version | `GOPRIVATE=github.com/infrata/* go list -m -versions` | ✘ at first (`could not read Username for 'https://github.com'`); ✔ after James ran `gh auth setup-git`: `v0.1.0` listed, and `@a1efc85` resolves to `v0.1.1-0.20260914001411-a1efc85211fc` |
 | `@upgrade` never moves from a newer pseudo-version to an older tag | Go toolchain source `cmd/go/internal/modload/query.go:45,66,315` (1.24.13 checkout; 1.27 not re-read) | ✔ |
 | A PR opened with `GITHUB_TOKEN` does not trigger CI | docs.github.com, "GITHUB_TOKEN" concept page | ✘ **partly**: `opened`/`synchronize`/`reopened` create runs in an approval-required state |
 | `discover` refuses an unresolved `defaults:` value | `internal/cli/context.go` `refuseUnresolvedInstances`, `discoveryRegistry` | ✔ (F9) |
