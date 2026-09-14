@@ -32,8 +32,8 @@ against an in-process fake (`internal/ccfake`). This replaces the handwritten `a
 slice entirely — `docs/plans/2026-09-13-first-slice-vpc-subnet.md` is history. The project (module,
 CLI, binary, env vars) was renamed from infrata to infrena partway through this work; every name below
 is the current one. The e2e suite passes against a real infrena binary; the live suite against real AWS
-has not run as of this writing — it needs James's approval each time, and see "Changing infrena" and
-`live/README.md` before attempting it.
+first passed on 2026-09-14 (VPC, subnet, security group, IAM role). It still needs James's approval each
+time; see `live/README.md` before attempting it.
 
 ## Where the contract lives
 
@@ -157,6 +157,9 @@ These are the ones that are easy to get wrong and expensive to get wrong.
   against stale state). The infrena team has confirmed this and plans to fix it on their side after the
   rename; once the Verification log says that's landed, drop the extra read here — don't do it
   preemptively.
+- **JSON text in a string attribute is kept as written when AWS returns the same document as an object**
+  (`sameJSONText`, commit `973d4a5`). Schemas type object-or-string properties such as IAM policy documents as
+  strings; without this, spacing or key order plans a change forever. Found by the first live run.
 - **Update's patch only adds or replaces, never removes**, and never touches a `readOnly` property:
   every settable property is `Optional`+`Computed`, so a property dropped from configuration produces
   no diff and keeps AWS's current value, per PLAN §14.1. For the same reason, omit `tags` entirely when
@@ -205,9 +208,10 @@ Verification log or Findings and in the project note's follow-ups, and tell Jame
 "Update sees persisted state, not a fresh read" behaviour above is exactly this kind of finding: this
 repository works around it, and the workaround comes out once infrena's side changes.
 
-The live suite against real AWS has never been run. Running it needs James's explicit approval each
-time, and a dedicated AWS profile that is not the `infrata` profile — that one holds root keys, which
-`live/live_test.go`'s `guard` refuses before making any Cloud Control call.
+The live suite against real AWS needs James's explicit approval each time. It runs as the `infrena-live`
+IAM user (profile `infrena-live`), never root keys, which `live/live_test.go`'s `guard` refuses before
+making any Cloud Control call. Cloud Control's IAM actions are named `cloudformation:CreateResource` and
+so on, not `cloudcontrol:*`.
 
 ## Commit discipline
 

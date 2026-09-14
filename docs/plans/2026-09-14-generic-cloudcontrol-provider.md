@@ -8757,3 +8757,11 @@ the Cloud Control design, and the spec and plan brought up to date." -- \
 
 Ask James before pushing `generic-cloudcontrol`, before merging it, and before any tag (a tag starts the release
 workflow).
+
+### Verification log additions: first live runs (2026-09-14)
+
+| Claim | Checked against | Result |
+| --- | --- | --- |
+| Cloud Control's IAM actions are `cloudcontrol:*` (Task 16 README) | first live run, `AccessDeniedException` naming `cloudformation:CreateResource` | ✘ corrected: the actions are `cloudformation:CreateResource`, `GetResource`, `UpdateResource`, `DeleteResource`, `ListResources`, `GetResourceRequestStatus`, `ListResourceRequests`, `CancelResourceRequest` (`a1d6a32`) |
+| Every configured value reads back equal from real AWS | live run 3 | ✘ `AWS::IAM::Role.AssumeRolePolicyDocument` (object-or-string, so a string attribute) came back as an object; fixed by keeping equivalent JSON text as written (`973d4a5`) |
+| Create, update, discover, import and delete converge against real AWS for VPC, subnet, security group and IAM role | live run 4, after `973d4a5` | ✔ passed in 298 s; creates VPC 15.7 s, subnet 3.4 s, security group 10.0 s, role 24.7 s; one subnet delete took 2 m 52 s on AWS's side |
