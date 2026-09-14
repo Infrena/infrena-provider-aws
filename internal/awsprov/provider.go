@@ -52,5 +52,5 @@ func (p *Provider) Import(ctx context.Context, resourceType, id string) (*resour
 	return nil, provider.ErrNotImplemented
 }
 
-// ClassifyError answers NotSafeToRetry, the safe default, until classification is built.
-func (p *Provider) ClassifyError(err error) provider.Retryability { return provider.NotSafeToRetry }
+// ClassifyError delegates to classify, a pure function of the error.
+func (p *Provider) ClassifyError(err error) provider.Retryability { return classify(err) }
