@@ -1807,6 +1807,8 @@ git commit -m "ec2fake: a fake EC2 endpoint the real SDK decodes, so tests fake 
 
 ### Task 4: Provider IDs and error classification
 
+> **Done 2026-09-13, `1753c22` on `first-slice`.** Every classification case passed on the first run, including "dropped after acting" — no extra error type was needed in the `ConditionallyRetryable` branch. A refused connection reaches `classify` wrapped in a `ResponseError` with status 0, which the `>= 500` check correctly ignores. Deviation: `sdkClient` builds `retry.NewStandard` with a zero `Backoff` (`retry.BackoffDelayerFunc`), because the gave-up-on throttle test otherwise took 3.9s of real SDK backoff.
+
 **Files:**
 - Create: `internal/awsprov/ids.go`, `internal/awsprov/errors.go`
 - Modify: `internal/awsprov/provider.go` (`ClassifyError` → `classify`)
@@ -1820,7 +1822,7 @@ git commit -m "ec2fake: a fake EC2 endpoint the real SDK decodes, so tests fake 
   - `func (p *Provider) failed(op, region, awsID string, err error) error` — the D8 message wrapper (type `apiFailure`, with `Unwrap`)
   - `func hasCode(err error, codes ...string) bool`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `internal/awsprov/ids_test.go`:
 
@@ -1977,12 +1979,12 @@ func TestAFailureMessageSaysWhatAndWhereAndKeepsItsCause(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `go test -count=1 -run 'ID|Classif|SDKGave|Refused|Cancellation|FailureMessage' ./internal/awsprov/`
 Expected: FAIL — `undefined: parseID`, `undefined: classify`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `internal/awsprov/ids.go`:
 
@@ -2125,14 +2127,14 @@ In `provider.go`, replace `ClassifyError`:
 func (p *Provider) ClassifyError(err error) provider.Retryability { return classify(err) }
 ```
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
 
 Run: `go test -count=1 ./... && go vet ./...`
 Expected: PASS. If "dropped after acting" classifies as `NotSafeToRetry`, print the error chain
 (`fmt.Printf("%#v", err)`) and add the concrete type it carries to the `ConditionallyRetryable` branch; record
 what it was in the Verification log.
 
-- [ ] **Step 5: Sabotage, then commit**
+- [x] **Step 5: Sabotage, then commit**
 
 Sabotages: move the throttle check after the 5xx check ("throttle" case fails); drop the dial case (refused
 connection → `ConditionallyRetryable`); classify every `smithy.APIError` as `SafeToRetry` ("validation" fails);
