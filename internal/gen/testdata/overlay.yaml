@@ -1,0 +1,15 @@
+# Test overlay: exercises every section the generator reads.
+global:
+  - "AWS::IAM::*"
+discover_default:
+  - AWS::EC2::VPC
+aliases:
+  AWS::EC2::VPC:
+    CidrBlock: [cidr]
+sensitive:
+  AWS::RDS::DBInstance: [MasterUserPassword]
+requirements:
+  AWS::EC2::Subnet:
+    - name: vpc
+      types: [AWS::EC2::VPC]
+      description: A subnet must be created inside a VPC

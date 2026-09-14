@@ -152,6 +152,14 @@ func (s *Schema) Resolve(n *Node) *Node {
 	return n
 }
 
+// DescriptionOr returns the node's description, or fallback when the node is nil or has none.
+func (n *Node) DescriptionOr(fallback string) string {
+	if n == nil || n.Description == "" {
+		return fallback
+	}
+	return n.Description
+}
+
 func (s *Schema) pointer(ref string) *Node {
 	path, ok := strings.CutPrefix(ref, "#/")
 	if !ok {

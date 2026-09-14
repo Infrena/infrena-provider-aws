@@ -14,6 +14,7 @@ require (
 	// infrata is private: fetch it with GOPRIVATE=github.com/infrata/* and git credentials. Local work
 	// builds against ../infrata through a gitignored go.work; CI builds this exact version (GOWORK=off).
 	github.com/infrata/infrata v0.2.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
