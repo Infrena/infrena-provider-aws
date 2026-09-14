@@ -13,7 +13,7 @@ classification and provider-ID handling. `internal/ec2fake` is an `httptest` ser
 `pkg/plugintest` protocol tests), `-tags e2e` (a real infrata binary against this binary and the fake), and
 `-tags live` (real AWS, opt-in, never in CI).
 
-**Tech Stack:** Go 1.27.0; `github.com/infrata/infrata` via `replace => ../infrata`; AWS SDK for Go v2 —
+**Tech Stack:** Go 1.27.0; `github.com/infrata/infrata` required by version (local `go.work` over `../infrata`); AWS SDK for Go v2 —
 `aws-sdk-go-v2 v1.47.0`, `config v1.33.4`, `credentials v1.20.4`, `service/ec2 v1.332.0`, `service/sts v1.50.0`,
 `smithy-go v1.28.1` (the versions current on 2026-09-13, the ones every SDK claim below was checked against).
 
@@ -25,17 +25,18 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
 ## Global Constraints
 
 - Module `github.com/infrata/infrata-provider-aws`. Never under `github.com/infrata/infrata/`.
-- `go 1.27.0`; `require github.com/infrata/infrata v0.0.0` + `replace github.com/infrata/infrata => ../infrata`.
+- `go 1.27.0`; `require github.com/infrata/infrata <real version>` and **no `replace`**; a gitignored `go.work` (`use . ../infrata`) for local work (D19).
 - Plugin name `aws`; binary `infrata-plugin-aws`; every type prefixed `aws.`.
 - `Version` defaults to `"0.0.0-dev"`, stamped only by `-ldflags -X` at release.
 - Nothing writes to stdout. No credential, signed request or sensitive value is ever logged.
 - `Create`/`Update` never return `(nil, nil)`; `Create` never returns an error once AWS created something.
 - Do not reimplement host rules (sensitivity, provenance, bookkeeping, undeclared-attribute refusal).
 - Regional types declare `region` `Required` + `ForceNew`. Provider IDs are `<region>/<aws id>`.
-- Examples and fixtures keep `providers:` literal (owner decision; see Open question Q1).
+- A variable in `providers:` must resolve without an environment where `discover` is used: declare it with a `default:`; `discover_regions` stays literal (D20).
 - No test reaches real AWS outside `-tags live`.
 - Every test command uses `-count=1`. Every test is sabotage-verified; the sabotage goes in the commit message.
 - Stage explicit paths only. Never `git add -A` / `git add .` / `git commit -am`. Ask James before any push or tag.
+- **Prerequisite for Task 1:** git credentials that can fetch `github.com/infrata/infrata` (e.g. `gh auth setup-git`): `go get` and `go mod tidy` ignore `go.work`. On 2026-09-13 this machine had none.
 - Do not modify `../infrata`. infrata defects go to Findings and the vault note's follow-ups.
 
 ---
@@ -62,21 +63,19 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
 | D16 | **Real-AWS suite: yes, behind `//go:build live`, in `live/`, run by hand only.** Requires `INFRATA_AWS_LIVE_PROFILE` and `INFRATA_AWS_LIVE_ACCOUNT`; refuses to run unless STS `GetCallerIdentity` returns that account. Everything it creates is tagged `infrata-live-run=<run id>` and deleted in `t.Cleanup`; `TestSweepLeftovers` deletes tagged resources older than an hour. Not in CI. | The only suite that can catch real eventual-consistency and IAM behaviour. The account guard stops a contributor's default profile from being used by accident. VPCs and subnets cost nothing. | Needs a dedicated account (Q2). |
 | D17 | **CI**: `.github/workflows/ci.yml` on push and pull request (gofmt, vet including `-tags e2e,live`, the plain suite, the e2e suite), plus `release.yml` copied from the fake plugin with the same three-way version gate | The fake plugin only tests at release; this plugin changes more often and a tag should not be the first time e2e runs in CI. Vetting the tagged files keeps `live/` compiling though it never runs. | One more workflow using `INFRATA_CHECKOUT_TOKEN`. |
 | D18 | **Package name `internal/awsprov`** | `internal/aws` would shadow the SDK's `aws` package at every import site; `internal/provider` would shadow infrata's `pkg/provider`. | — |
+| D19 | **infrata is required by version, not replaced** (James, 2026-09-13, answering Q3). `go.mod` requires the newest infrata tag that contains what this plugin relies on, or a pseudo-version of a commit until such a tag exists; no `replace`. Locally a gitignored `go.work` uses `../infrata`. CI: a **blocking `pinned` job** (`GOWORK=off`, `GOPRIVATE=github.com/infrata/*`, git credentials from `INFRATA_CHECKOUT_TOKEN`; e2e builds the infrata CLI from a checkout at the same version) and a **non-blocking `infrata-main` job** (workspace over infrata `main`). Releases build pinned. **`bump-infrata.yml`** runs daily: `go get github.com/infrata/infrata@upgrade`, tests, and opens a PR. | A `replace` makes every build compile infrata's working tree, so a green suite proves nothing about a released infrata, and the release ships an SDK nobody can name. `go.work` keeps the fast local loop without committing it. `@upgrade` never moves from a newer pseudo-version back to an older tag. infrata versions will move often until its first official release, and James wants to keep up, so the bump is automated rather than remembered. | Contributors need credentials for the private module even to `go mod tidy`. The only tag, `v0.1.0`, predates every infrata change this plugin relies on (F10), so Task 1 pins a pseudo-version until infrata tags again. A bump PR opened with `GITHUB_TOKEN` gets CI runs in an approval-required state, so the bump workflow runs the suite itself before opening it. Releases are no longer tested against infrata `main` (a change from the fake plugin): the non-blocking job covers that signal. |
+| D20 | **Examples use `defaults: {region: ${aws_region}}`, with `aws_region` declared with a `default:`** and overridden per environment; `discover_regions` stays literal (James, 2026-09-13: "probably", answering Q1) | infrata resolves `providers:` variables for every command given an environment (`5895f8a`, `76c3f28`). `discover` takes none and refuses any value still unknown, `defaults:` included, though discovery never applies defaults (F9). A variable with a `default:` resolves without an environment, so `discover` keeps working. | A region set only per environment breaks `discover` until F9 is answered. The README's example and the e2e `basic` fixture change together (Task 9, Task 12). |
 
-## Open questions for James
+## James's answers (2026-09-13)
 
-- **Q1 — `providers:` variables in examples.** Your rule was "until infrata changes it, keep `providers:` literal".
-  It changed while this plan was written: `5895f8a` (refresh/destroy), `76c3f28` (import), both verified against
-  the code. Only `discover` still refuses a value that only an environment sets (literal, `default:`,
-  `variables.yml`, `vars/default.yml` or `--var` all work there). This plan keeps fixtures literal as you decided,
-  and Task 9 adds `TestProviderVariablesReachEnvironmentCommands`, which pins infrata's new behaviour against a
-  real binary so the switch can be made on evidence. The fake plugin's guide already switched its AWS example to
-  `${aws_region}` (`b221ac8`). Recommendation: after that test is green, switch the README example to
-  `defaults: {region: ${aws_region}}` and keep `discover_regions` literal.
-- **Q2 — live account.** Is there a dedicated, empty AWS account (or should one be created in an org) for
-  `-tags live`? Until then the suite exists, compiles in CI, and is run by nobody.
-- **Q3 — requiring infrata v0.1.0 in CI.** infrata is tagged `v0.1.0`; CI could `require` it with
-  `GOPRIVATE=github.com/infrata/*`. This plan keeps `replace` everywhere, as the fake plugin does, until you decide.
+- **Q1 — `providers:` variables in examples: "Probably."** Adopted as D20. Task 9's `basic` fixture and the README use
+  `defaults: {region: ${aws_region}}` with a `default:`; `TestProviderVariablesReachEnvironmentCommands` pins the
+  environment-only case, including `discover`'s refusal (F9).
+- **Q2 — live account: "Not yet."** The live suite (Task 11) is still built, compiles in CI (`go vet -tags live`),
+  and skips without its variables. It has never run; its unconfirmed Verification log rows stay unconfirmed.
+- **Q3 — require an infrata version in CI: "Yes, although the version will likely increase frequently and we need
+  to keep up until we make our first official release."** Adopted as D19, with `bump-infrata.yml` for keeping up.
+  Blocked on F10 for a tag; a pseudo-version works meanwhile.
 
 ## Findings (to report, not to fix here)
 
@@ -89,6 +88,8 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
 | F5 | fake repo docs | The guide documents "configuration sets it, state lacks it → change" but not the converse, which is what forces AWS-reported optional attributes to be Required, Computed or defaulted. | infrata `internal/planner/diff.go` `diffAttributes`, the `!inConfig` branch: "removed from configuration". |
 | F6 | fake repo docs, §14 retries | `o.RetryMaxAttempts = 1` per call is correct but has a subtlety worth one sentence: the SDK ignores a per-call value equal to the client's (`finalizeOperationRetryMaxAttempts`), which is harmless only because equal means already 1. | `service/ec2@v1.332.0/api_client.go:602-608`. |
 | F7 | infrata, minor | `selectForImport`'s doc comment says a selector "splits at the LAST dot"; the code looks the whole selector up in a map. | `internal/cli/import.go`, `selectForImport`. |
+| F9 | infrata, for the infrata session | `discover` refuses an unresolved value in an instance's `defaults:`, though discovery never applies defaults. `defaults: {region: ${aws_region}}` with a per-environment-only value therefore breaks `discover` for no benefit. Either intended (say so in §12.1) or refuse configuration only. | `internal/cli/context.go` `refuseUnresolvedInstances` loops `inst.Config` and `inst.Defaults`; `discover` reaches it through `discoveryRegistry(opts, "")` → `registerStateInstances`. |
+| F10 | infrata, for James | The only infrata tag, `v0.1.0` (`cfe996f`), contains none of `5895f8a`, `76c3f28`, `6e968a8`, `a1efc85`. A plugin pinned to it would lose per-environment `providers:` variables on refresh/destroy/import, per-instance requirements and `import --provider`. D19 needs a newer tag. | `git merge-base --is-ancestor <commit> v0.1.0` false for all four; `git ls-remote --tags origin` lists only `v0.1.0`. |
 | F8 | infrata, known | `DiscoverRequest.Region` / `pluginproto` `region` still exist and are never set. Already a follow-up; this plugin's model needs neither (evidence for removal). | `pkg/provider/provider.go:64-67`; `internal/discovery/walk.go` builds `{Types: ask}`. |
 
 ## Verification log
@@ -138,12 +139,20 @@ Every claim the design rests on, what it was checked against on 2026-09-13, and 
 | EC2 API is eventually consistent; `NotFound` shortly after create "does not mean the instance does not exist"; retry describe with exponential backoff | docs.aws.amazon.com/ec2/latest/devguide/eventual-consistency.html | ✔ |
 | `aws:` tag prefix reserved, can't be edited or deleted; 50 tags, key 128 / value 256 chars | docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html | ✔ |
 | SDK modules' `go` directives (1.24) are below this module's 1.27.0 | module `go.mod`s | ✔ |
+| A `go.work` using `../infrata` substitutes for a required infrata version with no network and no `go.sum` | scratch module requiring `v0.1.0`, `GOPROXY=off go build` in workspace mode | ✔ (and `-mod=mod` is refused in workspace mode) |
+| `go mod tidy` honours `go.work` | same scratch module, `GOPROXY=off go mod tidy` | ✘ **it ignores the workspace and fetches** — needs credentials |
+| This machine can fetch the private module by version | `GOPRIVATE=github.com/infrata/* go list -m -versions` | ✘ **no git credentials** (`could not read Username for 'https://github.com'`) |
+| `@upgrade` never moves from a newer pseudo-version to an older tag | Go toolchain source `cmd/go/internal/modload/query.go:45,66,315` (1.24.13 checkout; 1.27 not re-read) | ✔ |
+| A PR opened with `GITHUB_TOKEN` does not trigger CI | docs.github.com, "GITHUB_TOKEN" concept page | ✘ **partly**: `opened`/`synchronize`/`reopened` create runs in an approval-required state |
+| `discover` refuses an unresolved `defaults:` value | `internal/cli/context.go` `refuseUnresolvedInstances`, `discoveryRegistry` | ✔ (F9) |
+| A declared variable takes `type:` and `default:` | infrata `examples/shop/modules/app-stack/module.yml`; PLAN §12.1 "a declared `default:`" | ✔ for module inputs; confirmed for top-level `variables:` by Task 9 |
+| infrata tags and what they contain | `git tag`, `git merge-base --is-ancestor`, `git ls-remote --tags origin` | only `v0.1.0`, lacking all four needed commits (F10) |
 
 ## File structure
 
 ```text
-go.mod, go.sum                        module, infrata replace, SDK requires
-.gitignore                            /infrata-plugin-aws, /bin/, /dist/
+go.mod, go.sum                        module, infrata required by version (no replace), SDK requires
+.gitignore                            /infrata-plugin-aws, /bin/, /dist/, /go.work, /go.work.sum
 cmd/infrata-plugin-aws/main.go        pluginsdk.Main(awsprov.NewPlugin())
 internal/awsprov/
   plugin.go        Plugin: Name, Version, Definitions, New (config → aws.Config → Provider)
@@ -168,7 +177,7 @@ e2e/e2e_test.go, e2e/testdata/{basic,variables}/infra.yml   -tags e2e
 live/live_test.go, live/README.md                           -tags live
 plugin.yaml, scripts/release-check, scripts/build-release, scripts/scripts_test.go
 internal/awsprov/manifest_test.go, internal/awsprov/readme_test.go
-.github/workflows/ci.yml, .github/workflows/release.yml
+.github/workflows/ci.yml, .github/workflows/release.yml, .github/workflows/bump-infrata.yml
 README.md
 ```
 
@@ -188,21 +197,29 @@ README.md
 
 - [ ] **Step 1: Create the module**
 
+Prerequisite: git credentials for `github.com/infrata/infrata` (`gh auth setup-git`, or an SSH `insteadOf`).
+Check with `GOWORK=off GOPRIVATE='github.com/infrata/*' go list -m -versions github.com/infrata/infrata`.
+
 ```bash
 cd /home/james/projects/infrata-provider-aws
+export GOPRIVATE='github.com/infrata/*'
 go mod init github.com/infrata/infrata-provider-aws
-go mod edit -go=1.27.0 -require=github.com/infrata/infrata@v0.0.0 -replace=github.com/infrata/infrata=../infrata
+go mod edit -go=1.27.0
+# The newest infrata TAG containing a1efc85 (import --provider). Until one exists (F10), pin that commit:
+# `go get` turns it into a pseudo-version. Check first: git -C ../infrata tag --contains a1efc85
+GOWORK=off go get github.com/infrata/infrata@a1efc85
 go get github.com/aws/aws-sdk-go-v2@v1.47.0 github.com/aws/aws-sdk-go-v2/config@v1.33.4 \
   github.com/aws/aws-sdk-go-v2/credentials@v1.20.4 github.com/aws/aws-sdk-go-v2/service/ec2@v1.332.0 \
   github.com/aws/aws-sdk-go-v2/service/sts@v1.50.0 github.com/aws/smithy-go@v1.28.1
-git -C ../infrata status --short   # must be empty, or record what the build is compiling against
+go work init . ../infrata                 # local builds use the sibling checkout; go.work is never committed
+git -C ../infrata status --short          # must be empty, or record what the build is compiling against
 ```
 
-Add above the `replace` line in `go.mod`:
+`go.mod` gets no `replace`. Above the infrata `require`, add:
 
 ```
-// infrata stays private until it is feature complete (infrata PLAN.md §31.1), so this plugin builds
-// against a sibling checkout at ../infrata — the directory `git clone` creates.
+// infrata is private: fetch it with GOPRIVATE=github.com/infrata/* and git credentials. Local work
+// builds against ../infrata through a gitignored go.work; CI builds this exact version (GOWORK=off).
 ```
 
 `.gitignore`:
@@ -211,6 +228,8 @@ Add above the `replace` line in `go.mod`:
 /infrata-plugin-aws
 /bin/
 /dist/
+/go.work
+/go.work.sum
 ```
 
 - [ ] **Step 2: Write the failing schema test**
@@ -501,6 +520,7 @@ Sabotages (each must compile and fail a test): drop `ForceNew` from `subnet.vpc_
 rename the type to `awsx.vpc` (both tests).
 
 ```bash
+GOWORK=off go test -count=1 ./...   # the pinned build passes too, not only the workspace one
 git add go.mod go.sum .gitignore cmd/infrata-plugin-aws/main.go internal/awsprov/plugin.go \
   internal/awsprov/definitions.go internal/awsprov/values.go internal/awsprov/definitions_test.go \
   internal/awsprov/protocol_test.go
@@ -3599,11 +3619,16 @@ project: demo
 environments:
   dev: {}
 
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
 providers:
   - plugin: aws
     discover_regions: [us-east-1]
     defaults:
-      region: us-east-1
+      region: ${aws_region}
 
 resources:
   vpc:
@@ -3619,7 +3644,7 @@ resources:
     availability_zone: us-east-1a
 ```
 
-`providers:` is literal (Global Constraints); the region reaches both resources through `defaults:`.
+The region reaches both resources through `defaults:`, from a variable with a `default:` so `discover` resolves it (D20); an environment file could override it.
 
 - [ ] **Step 2: Write the suite**
 
@@ -3750,7 +3775,7 @@ func TestTheWorkflow(t *testing.T) {
 			"explain", "aws.subnet")
 	})
 	t.Run("plan proposes two creates", func(t *testing.T) {
-		e.expect(t, 2, []string{"Plan: 2 to create", "region: \"us-east-1\" [default, from provider instance default]"}, "plan", "dev")
+		e.expect(t, 2, []string{"Plan: 2 to create", `region: "us-east-1"`}, "plan", "dev")
 	})
 	t.Run("apply creates them, and a re-plan is clean", func(t *testing.T) {
 		e.expect(t, 2, []string{"Apply complete: 2 applied, 0 failed"}, "apply", "dev", "--auto-approve")
@@ -3852,9 +3877,10 @@ func TestAMisspelledKeyIsRefusedAgainstTheProvidersEntry(t *testing.T) {
 	e.expect(t, 1, []string{`provider instance "aws" could not be configured`, `unknown configuration "discover_region"`}, "plan", "dev")
 }
 
-// TestProviderVariablesReachEnvironmentCommands pins infrata 5895f8a/76c3f28 for this plugin's model,
-// so Open question Q1 is decided on evidence. The region is set ONLY in environments/dev.yml: a
-// `default:` would resolve without an environment and let a regression pass.
+// TestProviderVariablesReachEnvironmentCommands pins infrata 5895f8a/76c3f28 for this plugin's model
+// (D20). The region is set ONLY in environments/dev.yml: a `default:` would resolve without an
+// environment and let a regression pass. It also pins F9: discover refuses the environment-only
+// default even though it never uses it, and --var gets past that.
 func TestProviderVariablesReachEnvironmentCommands(t *testing.T) {
 	e := project(t, `project: demo
 environments:
@@ -3885,8 +3911,8 @@ resources:
 	unresolved(t, out)
 	other := e.fake.AddVPC("us-east-1", "172.16.0.0/16", nil)
 	unresolved(t, e.expect(t, 0, []string{"1 resource imported"}, "import", "dev", "aws.vpc.us-east-1/"+other))
-	// discover_regions is literal, so discover itself works; the region default is only used by resources.
-	e.expect(t, 0, []string{"us-east-1/" + other}, "discover")
+	e.expect(t, 1, []string{"could not be resolved", "--var"}, "discover") // F9; exit code as infrata reports a refused instance
+	e.expect(t, 0, []string{"us-east-1/" + other}, "discover", "--var", "aws_region=us-east-1")
 	unresolved(t, e.expect(t, 2, []string{"0 failed"}, "destroy", "dev", "--auto-approve"))
 	if len(e.fake.VPCs()) != 0 {
 		t.Fatalf("destroy left %+v", e.fake.VPCs())
@@ -3898,11 +3924,9 @@ resources:
 
 Run: `go test -tags e2e -count=1 -v ./e2e/`
 Expected: PASS (the recreate subtest takes about 4s: the patience before reporting gone). If a quoted output
-line differs (for example the `[default, from provider instance default]` label, or `1 resource imported`), read the
-actual output and assert on it — the wording is infrata's — and note it here. If `discover` in
-`TestProviderVariablesReachEnvironmentCommands` is refused because `defaults:` holds an environment-only variable,
-that is a real finding (discover refusing a value it never needs): record it with the output for the infrata
-session and assert the refusal instead.
+line differs (for example `1 resource imported`, or the exit code of a refused `discover`), read the actual output
+and assert on it — the wording is infrata's — and note it here. If infrata has since changed F9 so `discover`
+succeeds without `--var`, flip that assertion and mark F9 answered.
 
 - [ ] **Step 4: Sabotage, then commit**
 
@@ -3924,7 +3948,7 @@ git commit -m "e2e: infrata plans, applies, repairs drift, imports and destroys 
 **Files:**
 - Create: `plugin.yaml`, `scripts/release-check`, `scripts/build-release`, `scripts/scripts_test.go`
 - Create: `internal/awsprov/manifest_test.go`
-- Create: `.github/workflows/release.yml`, `.github/workflows/ci.yml`
+- Create: `.github/workflows/release.yml`, `.github/workflows/ci.yml`, `.github/workflows/bump-infrata.yml`
 
 **Interfaces:**
 - Consumes: `awsprov.Version`, `PluginName`; infrata `pkg/pluginmanifest.Parse`, `pkg/pluginproto.Version`.
@@ -3981,47 +4005,62 @@ Expected: PASS, including the test that points `-X` at a nonexistent symbol and 
 `0.0.0-dev`. Cross-compiling eight platforms with the AWS SDK is slower than the fake's; if
 `TestBuildReleaseNamesArchivesByTheInstallConvention` times out, it already uses `PLATFORMS` to build two.
 
-- [ ] **Step 4: Workflows**
+- [ ] **Step 4: Workflows (D19)**
 
-`.github/workflows/release.yml` — the fake's file with `infrata-provider-fake` → `infrata-provider-aws` in the
-checkout `path`, every `working-directory`, and `cache-dependency-path`; the `go test` step unchanged
-(`-tags e2e` included); `name: Release` unchanged.
+Every workflow fetches infrata as a module, so each starts with the same two steps: tell Go the module is private,
+and give git the token. A pinned build must never see a `go.work` (none is committed; `GOWORK: off` makes that
+explicit).
 
 `.github/workflows/ci.yml`:
 
 ```yaml
 name: CI
 
-# The fake plugin tests only at release. This one changes more often, so every push runs both suites,
-# and vets the build-tagged files — live/ never runs in CI but must keep compiling.
-
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  GOTOOLCHAIN: local
+  GOPRIVATE: github.com/infrata/*
+
 jobs:
-  test:
+  # BLOCKING. The infrata version go.mod requires — what a release ships against.
+  pinned:
     runs-on: ubuntu-latest
     env:
-      GOTOOLCHAIN: local
+      GOWORK: "off"
     steps:
       - uses: actions/checkout@v7
         with:
           path: infrata-provider-aws
-      # Unpinned, like release.yml: tested against infrata's latest main.
-      - uses: actions/checkout@v7
-        with:
-          repository: infrata/infrata
-          path: infrata
-          token: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
+      - name: Let go fetch the private infrata module
+        run: git config --global url."https://x-access-token:${{ secrets.INFRATA_CHECKOUT_TOKEN }}@github.com/infrata/".insteadOf "https://github.com/infrata/"
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
           cache-dependency-path: infrata-provider-aws/go.sum
+      - name: The infrata revision go.mod requires
+        id: infrata
+        working-directory: infrata-provider-aws
+        run: |
+          v="$(go list -m -f '{{.Version}}' github.com/infrata/infrata)"
+          # A pseudo-version ends in a 12-character commit hash; a tag is used as is.
+          if [[ "$v" =~ -([0-9a-f]{12})$ ]]; then v="${BASH_REMATCH[1]}"; fi
+          echo "ref=$v" >> "$GITHUB_OUTPUT"
+      # The e2e suite builds the infrata CLI from ../infrata: the same revision the plugin compiles against.
+      - uses: actions/checkout@v7
+        with:
+          repository: infrata/infrata
+          path: infrata
+          fetch-depth: 0
+          token: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
+      - run: git -C infrata checkout --detach "${{ steps.infrata.outputs.ref }}"
       - name: Format, vet, test
         working-directory: infrata-provider-aws
         run: |
@@ -4031,11 +4070,129 @@ jobs:
           go vet -tags e2e,live ./...
           go test -count=1 ./...
           go test -tags e2e -count=1 ./e2e/
+
+  # NON-BLOCKING early warning: infrata's main, through a workspace. Red here means the next bump needs work.
+  infrata-main:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: infrata-provider-aws
+      - name: Let go fetch the private infrata module
+        run: git config --global url."https://x-access-token:${{ secrets.INFRATA_CHECKOUT_TOKEN }}@github.com/infrata/".insteadOf "https://github.com/infrata/"
+      - uses: actions/checkout@v7
+        with:
+          repository: infrata/infrata
+          path: infrata
+          token: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          cache-dependency-path: infrata-provider-aws/go.sum
+      - name: Test against infrata main
+        working-directory: infrata-provider-aws
+        run: |
+          set -euo pipefail
+          go work init . ../infrata
+          go test -count=1 ./...
+          go test -tags e2e -count=1 ./e2e/
 ```
 
-Check locally what can be checked: `go vet -tags e2e,live ./...` (after Tasks 9 and 11 exist) and
-`scripts/release-check v0.1.0` (expects "tag, plugin.yaml and binary all say 0.1.0"). The workflows themselves
-are proven only by the first push, which is James's call.
+`.github/workflows/release.yml` — the fake plugin's file changed in four ways: `infrata-provider-fake` →
+`infrata-provider-aws` in the checkout `path`, every `working-directory` and `cache-dependency-path`; top-level
+`env` gains `GOPRIVATE: github.com/infrata/*` and `GOWORK: "off"`; the git `insteadOf` step is added before
+`setup-go`; and the infrata checkout is replaced by `ci.yml`'s "revision go.mod requires" step, the `fetch-depth: 0`
+checkout and the `git checkout --detach` (so a release is tested against the infrata it ships with, not `main`).
+
+`.github/workflows/bump-infrata.yml`:
+
+```yaml
+name: Bump infrata
+
+# infrata tags often until its first official release (James, 2026-09-13). This notices each tag and
+# proposes it, having already run the suite: a PR opened with GITHUB_TOKEN gets CI runs that wait for
+# approval, so the evidence is attached here instead.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  GOTOOLCHAIN: local
+  GOPRIVATE: github.com/infrata/*
+  GOWORK: "off"
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: infrata-provider-aws
+      - name: Let go fetch the private infrata module
+        run: git config --global url."https://x-access-token:${{ secrets.INFRATA_CHECKOUT_TOKEN }}@github.com/infrata/".insteadOf "https://github.com/infrata/"
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          cache-dependency-path: infrata-provider-aws/go.sum
+      - name: Upgrade to infrata's newest release
+        id: bump
+        working-directory: infrata-provider-aws
+        run: |
+          set -euo pipefail
+          before="$(go list -m -f '{{.Version}}' github.com/infrata/infrata)"
+          # @upgrade never moves from a newer pseudo-version back to an older tag.
+          go get github.com/infrata/infrata@upgrade
+          go mod tidy
+          after="$(go list -m -f '{{.Version}}' github.com/infrata/infrata)"
+          echo "before=$before" >> "$GITHUB_OUTPUT"
+          echo "after=$after" >> "$GITHUB_OUTPUT"
+          if [[ "$before" == "$after" ]]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v7
+        if: steps.bump.outputs.changed == 'true'
+        with:
+          repository: infrata/infrata
+          path: infrata
+          ref: ${{ steps.bump.outputs.after }}
+          token: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
+      - name: Test against the new version
+        if: steps.bump.outputs.changed == 'true'
+        working-directory: infrata-provider-aws
+        run: |
+          set -euo pipefail
+          go vet ./... && go test -count=1 ./... && go test -tags e2e -count=1 ./e2e/
+      - name: Open the PR
+        if: steps.bump.outputs.changed == 'true'
+        working-directory: infrata-provider-aws
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="bump-infrata-${{ steps.bump.outputs.after }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add go.mod go.sum
+          git commit -m "deps: infrata ${{ steps.bump.outputs.before }} -> ${{ steps.bump.outputs.after }}" -- go.mod go.sum
+          git push origin "$branch"
+          gh pr create --title "infrata ${{ steps.bump.outputs.after }}" \
+            --body "Upgraded from ${{ steps.bump.outputs.before }}. vet, the plain suite and the e2e suite passed against it in this run."
+```
+
+The `@upgrade` step only runs a newer TAG through; the checkout `ref` is that tag. (A bump to a pseudo-version is
+always a person's decision, made in a normal PR.) The repository setting "Allow GitHub Actions to create and approve
+pull requests" must be on, which is James's to change.
+
+Check locally what can be checked: `go vet -tags e2e,live ./...` (after Tasks 9 and 11 exist),
+`scripts/release-check v0.1.0` (expects "tag, plugin.yaml and binary all say 0.1.0"), and each workflow's shell
+logic by hand — `go list -m -f '{{.Version}}' github.com/infrata/infrata` and the pseudo-version regex on its
+output. The workflows themselves are proven only by the first push, which is James's call.
 
 - [ ] **Step 5: Sabotage, then commit**
 
@@ -4044,7 +4201,8 @@ Sabotages: `name: aws2` in `plugin.yaml` (manifest test); the ldflags symbol poi
 
 ```bash
 git add plugin.yaml scripts/release-check scripts/build-release scripts/scripts_test.go \
-  internal/awsprov/manifest_test.go e2e/e2e_test.go .github/workflows/release.yml .github/workflows/ci.yml
+  internal/awsprov/manifest_test.go e2e/e2e_test.go .github/workflows/release.yml .github/workflows/ci.yml \
+  .github/workflows/bump-infrata.yml
 git commit -m "release: the same three-way version gate as the fake plugin, and CI on every push" -- <same paths>
 ```
 
@@ -4281,8 +4439,10 @@ git commit -m "live: an opt-in suite against real AWS that refuses any account i
 - how to build it and where infrata finds it (`--plugin-dir`, `.infra/plugins/`, `~/.local/share/infrata/plugins/`, `$PATH`)
 - credentials: the default chain, `profile`, `assume_role_arn`; one instance per account; `import --provider <instance>`
   to adopt from one account when two are configured
-- regions: `defaults: {region: …}`, per-resource override, the warning that changing the default region replaces
-  every resource that inherits it, and `discover_regions` (literal or defaulted — `discover` has no environment)
+- regions: `defaults: {region: ${aws_region}}` with a `default:` and per-environment override, per-resource override,
+  the warning that changing the default region replaces every resource that inherits it, and `discover_regions`
+  (literal — `discover` has no environment, and refuses an environment-only value even in `defaults:`)
+- building: `go work init . ../infrata` for local work, `GOWORK=off` plus credentials for the pinned build
 - the `e2e/testdata/basic/infra.yml` project quoted byte for byte
 - every type, its attributes, and which are computed, force-new or defaulted; the `<region>/<id>` import form
 - what the plugin does about eventual consistency and retries, in user terms (a read may take up to ~4s to report
@@ -4291,7 +4451,7 @@ git commit -m "live: an opt-in suite against real AWS that refuses any account i
 
 `internal/awsprov/readme_test.go` — the fake's `readme_test.go` with the fixture path unchanged and the
 must-mention list replaced by:
-`"discover_regions", "assume_role_arn", "profile", "--provider", "defaults:", "us-east-1/vpc-", "-tags e2e", "-tags live", "plugin.yaml", "scripts/release-check", "0.0.0-dev"`.
+`"discover_regions", "assume_role_arn", "profile", "--provider", "defaults:", "${aws_region}", "us-east-1/vpc-", "-tags e2e", "-tags live", "go work init", "GOWORK=off", "plugin.yaml", "scripts/release-check", "0.0.0-dev"`.
 
 Run: `go test -count=1 -run Readme ./internal/awsprov/` — FAIL before the README exists, PASS after. Sabotage: change
 one character in the README's quoted fixture.

@@ -22,7 +22,7 @@ When the contract is awkward here, that is a finding about infrata, not somethin
 ## Current state
 
 **Planned, not built.** The design and the first vertical slice (`aws.vpc` + `aws.subnet`) are in
-`docs/plans/2026-09-13-first-slice-vpc-subnet.md`. Read it — its Decisions, Open questions, Findings
+`docs/plans/2026-09-13-first-slice-vpc-subnet.md`. Read it — its Decisions, James's answers, Findings
 and Verification log — before writing code or re-planning. Every factual claim it relies on was
 checked against infrata's source, the AWS SDK's source or AWS documentation, and the log records the
 claims that came back wrong.
@@ -56,19 +56,31 @@ Go **1.27.0** — infrata's own `go.mod` floor, so this module must declare it t
 `config`, `credentials`, `service/ec2`, `service/sts`, and `smithy-go`). The stdlib-only rule was the
 fake plugin's, not this repository's. Add another dependency only with a reason written in the plan.
 
-infrata is private, so `go.mod` carries `require github.com/infrata/infrata v0.0.0` and
-`replace github.com/infrata/infrata => ../infrata`. **A sibling checkout named `infrata` is required
-to build at all**, and a `replace` builds against that checkout's WORKING TREE, committed or not:
-run `git -C ../infrata status` before trusting a result. CI checks infrata out beside this repository
-with the `INFRATA_CHECKOUT_TOKEN` secret (already configured on this repository).
+**How infrata is depended on (James, 2026-09-13).** infrata is private. `go.mod` REQUIRES a real infrata
+version (a tag, or a pseudo-version of a commit until a tag contains what this plugin needs) and has **no
+`replace`**. Two ways to build:
+
+- **Local, against your checkout:** a gitignored `go.work` (`go work init . ../infrata`) substitutes the
+  sibling checkout's WORKING TREE, committed or not — the fast loop while both repos change daily. Run
+  `git -C ../infrata status` before trusting a result.
+- **Pinned, as CI and releases build:** `GOWORK=off GOPRIVATE='github.com/infrata/*' go test -count=1 ./...`.
+  This fetches the required version over git, so it needs credentials for `github.com/infrata/infrata`
+  (for example `gh auth setup-git`). `go get` and `go mod tidy` ignore `go.work` and always need them.
+
+CI's blocking job builds pinned; a second, non-blocking job builds against infrata's `main` through a
+workspace, as early warning. `bump-infrata.yml` opens a PR when infrata tags a newer release — infrata
+versions move often until the first official release, and keeping up is deliberate. All three use the
+`INFRATA_CHECKOUT_TOKEN` secret.
 
 ```bash
+go work init . ../infrata                    # once: build against the sibling checkout (go.work is gitignored)
 go build ./cmd/infrata-plugin-aws           # build the plugin
 go test -count=1 ./...                       # unit + fake-EC2 + pkg/plugintest protocol tests; no AWS account
 go test -tags e2e -count=1 -v ./e2e/         # a real infrata binary against this binary and the fake EC2 endpoint
 go test -tags live -count=1 -v ./live/       # REAL AWS: needs the INFRATA_AWS_LIVE_* variables; see live/README.md
 go vet -tags e2e,live ./...
 gofmt -l .
+GOWORK=off GOPRIVATE='github.com/infrata/*' go test -count=1 ./...   # the pinned build CI blocks on
 ```
 
 `-count=1` is mandatory: Go caches test results, and a cached pass hides a fixture edit.
@@ -125,9 +137,12 @@ These are the ones that are easy to get wrong and expensive to get wrong.
 - **Fake the cloud, not the code.** The fake is an `httptest` server speaking EC2's query protocol,
   so every test goes through the real SDK's serialisation, error decoding and retryer. The real SDK is
   the oracle for the fake's wire format.
-- **Examples keep `providers:` literal** and put variables on resources, per the owner's decision of
-  2026-09-13. infrata `5895f8a` has since made the state-only commands resolve variables; switching the
-  examples is an open decision for James (plan, "Open questions"), not something to do unasked.
+- **A variable in `providers:` must resolve without an environment wherever `discover` is used.** infrata
+  resolves `providers:` variables for every command given an environment (`5895f8a`, `76c3f28`), but
+  `discover` takes none and refuses any value still unknown — in `defaults:` too, though it never uses
+  them (`internal/cli/context.go`, `refuseUnresolvedInstances`). So examples write
+  `defaults: {region: ${aws_region}}` with `aws_region` declared with a `default:` (overridden per
+  environment), and keep `discover_regions` literal (James, 2026-09-13).
 
 ### Tests
 
