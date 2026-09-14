@@ -2,7 +2,7 @@
 # Read at a release TAG, never at the default branch, which describes unreleased code.
 manifest: 2
 name: aws
-version: 0.1.2
+version: 0.1.3
 # The protocol THIS RELEASE'S binary speaks: exactly the pluginproto.Version of the infrena go.mod requires. It changes
 # in the same commit as that require (internal/awsprov/manifest_test.go and scripts/release-check refuse a mismatch).
 protocol: [2]
