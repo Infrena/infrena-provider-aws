@@ -1,0 +1,5 @@
+/infrata-plugin-aws
+/bin/
+/dist/
+/go.work
+/go.work.sum
