@@ -60,7 +60,7 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
 | D13 | **Tags**: `aws:`-prefixed keys are never reported and refused if configured; `tags` is omitted when a resource has no user tags; `Update` sends `CreateTags` for new/changed keys and `DeleteTags` for removed keys | AWS reserves `aws:` ("you can't edit or delete"), so reporting them makes every plan propose removing them. An empty map versus an absent attribute would plan "removed from configuration". Merging instead of removing is the fake plugin's old `Update` bug. | — |
 | D14 | **Discover** scans `discover_regions` × requested types with the SDK paginators, checking `ctx` between pages; includes default VPCs and everything infrata did not create. No `discover_regions` → an error naming the key | `DiscoverRequest.Region` is always `""`. A silent empty survey is invisible; infrata's `Walk` reports a per-instance error and continues with other instances. | A resource in an unscanned region cannot be imported (infrata's import selects from discovery). Documented in README. |
 | D15 | **Testing without AWS: one fake, at the HTTP level** — `internal/ec2fake`, an `httptest.Server` implementing the nine EC2 actions and STS `AssumeRole` this slice calls, partitioned by the SigV4 credential-scope region, with fault injection (status/code on the Nth call, drop the connection after applying), hide-for-N-describes, call counts, and the access key IDs it saw. Clients reach it through `AWS_ENDPOINT_URL_EC2`/`AWS_ENDPOINT_URL_STS`. | The same mechanism works in unit tests and for the e2e binary (the plugin inherits the env), so there is one fake, not an interface double plus a server. Going through the real SDK proves serialisation, error decoding, retry settings and the endpoint override. The SDK's own deserialiser is the oracle for the fake's XML. | Hand-written XML for nine actions. Rejected: a narrow client interface with an in-memory double (cannot serve the e2e binary; proves nothing about the SDK); LocalStack/moto (Docker or Python in the default suite, and a second implementation whose EC2 fidelity is not ours to fix). |
-| D16 | **Real-AWS suite: yes, behind `//go:build live`, in `live/`, run by hand only.** Requires `INFRATA_AWS_LIVE_PROFILE` and `INFRATA_AWS_LIVE_ACCOUNT`; refuses to run unless STS `GetCallerIdentity` returns that account. Everything it creates is tagged `infrata-live-run=<run id>` and deleted in `t.Cleanup`; `TestSweepLeftovers` deletes tagged resources older than an hour. Not in CI. | The only suite that can catch real eventual-consistency and IAM behaviour. The account guard stops a contributor's default profile from being used by accident. VPCs and subnets cost nothing. | Needs a dedicated account (Q2). |
+| D16 | **Real-AWS suite: yes, behind `//go:build live`, in `live/`, run by hand only.** Requires `INFRATA_AWS_LIVE_PROFILE` and `INFRATA_AWS_LIVE_ACCOUNT`; refuses to run unless STS `GetCallerIdentity` returns that account. Everything it creates is tagged `infrata-live-run=<run id>` and deleted in `t.Cleanup`; `TestSweepLeftovers` deletes tagged resources older than an hour. Not in CI. | The only suite that can catch real eventual-consistency and IAM behaviour. The account guard stops a contributor's default profile from being used by accident. VPCs and subnets cost nothing. | Needs a dedicated account (Q2: created, profile `infrata`). Run it with a least-privilege identity, not root keys — the policy the suite needs:<br>`ec2:CreateVpc`, `ec2:DeleteVpc`, `ec2:DescribeVpcs`, `ec2:CreateSubnet`, `ec2:DeleteSubnet`, `ec2:DescribeSubnets`, `ec2:ModifySubnetAttribute`, `ec2:CreateTags`, `ec2:DeleteTags`, `sts:GetCallerIdentity`. A missing permission surfaces as `UnauthorizedOperation` and is itself worth recording. |
 | D17 | **CI**: `.github/workflows/ci.yml` on push and pull request (gofmt, vet including `-tags e2e,live`, the plain suite, the e2e suite), plus `release.yml` copied from the fake plugin with the same three-way version gate | The fake plugin only tests at release; this plugin changes more often and a tag should not be the first time e2e runs in CI. Vetting the tagged files keeps `live/` compiling though it never runs. | One more workflow using `INFRATA_CHECKOUT_TOKEN`. |
 | D18 | **Package name `internal/awsprov`** | `internal/aws` would shadow the SDK's `aws` package at every import site; `internal/provider` would shadow infrata's `pkg/provider`. | — |
 | D19 | **infrata is required by version, not replaced** (James, 2026-09-13, answering Q3). `go.mod` requires the newest infrata tag that contains what this plugin relies on, or a pseudo-version of a commit until such a tag exists; no `replace`. Locally a gitignored `go.work` uses `../infrata`. CI: a **blocking `pinned` job** (`GOWORK=off`, `GOPRIVATE=github.com/infrata/*`, git credentials from `INFRATA_CHECKOUT_TOKEN`; e2e builds the infrata CLI from a checkout at the same version) and a **non-blocking `infrata-main` job** (workspace over infrata `main`). Releases build pinned. **`bump-infrata.yml`** runs daily: `go get github.com/infrata/infrata@upgrade`, tests, and opens a PR. | A `replace` makes every build compile infrata's working tree, so a green suite proves nothing about a released infrata, and the release ships an SDK nobody can name. `go.work` keeps the fast local loop without committing it. `@upgrade` never moves from a newer pseudo-version back to an older tag. infrata versions will move often until its first official release, and James wants to keep up, so the bump is automated rather than remembered. | Contributors need credentials for the private module even to `go mod tidy`. Task 1 requires `v0.2.0`, the first tag containing every infrata change this plugin relies on (F10). A bump PR opened with `GITHUB_TOKEN` gets CI runs in an approval-required state, so the bump workflow runs the suite itself before opening it. Releases are no longer tested against infrata `main` (a change from the fake plugin): the non-blocking job covers that signal. |
@@ -71,8 +71,14 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
 - **Q1 — `providers:` variables in examples: "Probably."** Adopted as D20. Task 9's `basic` fixture and the README use
   `defaults: {region: ${aws_region}}` with a `default:`; `TestProviderVariablesReachEnvironmentCommands` pins the
   environment-only case, including `discover`'s refusal (F9).
-- **Q2 — live account: "Not yet."** The live suite (Task 11) is still built, compiles in CI (`go vet -tags live`),
-  and skips without its variables. It has never run; its unconfirmed Verification log rows stay unconfirmed.
+- **Q2 — live account: "Not yet", then created the same evening.** A dedicated test account behind the `infrata`
+  profile. Its account ID lives in the vault note, not in this repository: the suite takes it from
+  `INFRATA_AWS_LIVE_ACCOUNT` at run time. Read-only checks on 2026-09-13: `sts get-caller-identity` succeeds, no region
+  is configured for the profile (the suite passes one), and us-east-1 holds only the default VPC. **The profile holds
+  ROOT user access keys**, which AWS "strongly recommend[s] that you do not create … because the root user has full
+  access to all AWS services and resources in the account, including billing information" (IAM User Guide, "Root user
+  best practices"). Before the first live run, replace them with an IAM identity limited to the policy below (D16).
+  The suite never runs in CI either way.
 - **Q3 — require an infrata version in CI: "Yes, although the version will likely increase frequently and we need
   to keep up until we make our first official release."** Adopted as D19, with `bump-infrata.yml` for keeping up.
   F10 is resolved: infrata released `v0.2.0` the same evening, and Task 1 requires it.
@@ -141,6 +147,8 @@ Every claim the design rests on, what it was checked against on 2026-09-13, and 
 | SDK modules' `go` directives (1.24) are below this module's 1.27.0 | module `go.mod`s | ✔ |
 | A `go.work` using `../infrata` substitutes for a required infrata version with no network and no `go.sum` | scratch module requiring `v0.1.0`, `GOPROXY=off go build` in workspace mode | ✔ (and `-mod=mod` is refused in workspace mode) |
 | `go mod tidy` honours `go.work` | same scratch module, `GOPROXY=off go mod tidy` | ✘ **it ignores the workspace and fetches** — needs credentials |
+| The `infrata` profile authenticates to a dedicated test account; no region configured; us-east-1 holds only the default VPC | `aws sts get-caller-identity --profile infrata`, `aws configure get region`, `aws ec2 describe-vpcs --region us-east-1` (read-only) | ✔ — but the ARN is `:root`: root user access keys |
+| AWS recommends against root user access keys | IAM User Guide, "Root user best practices", "Don't create access keys for the root user" | ✔ |
 | This machine can fetch the private module by version | `GOPRIVATE=github.com/infrata/* go list -m -versions` | ✘ at first (`could not read Username for 'https://github.com'`); ✔ after James ran `gh auth setup-git`: `v0.1.0` listed, and `@a1efc85` resolves to `v0.1.1-0.20260914001411-a1efc85211fc` |
 | `@upgrade` never moves from a newer pseudo-version to an older tag | Go toolchain source `cmd/go/internal/modload/query.go:45,66,315` (1.24.13 checkout; 1.27 not re-read) | ✔ |
 | A PR opened with `GITHUB_TOKEN` does not trigger CI | docs.github.com, "GITHUB_TOKEN" concept page | ✘ **partly**: `opened`/`synchronize`/`reopened` create runs in an approval-required state |
@@ -4405,14 +4413,16 @@ func TestSweepLeftovers(t *testing.T) {
 }
 ```
 
-`live/README.md`: what the suite needs (a dedicated account, a profile for it, the two variables), what it creates
+`live/README.md`: what the suite needs (a dedicated account, a profile for it with the least-privilege policy from D16
+— never root keys — and the two variables, e.g. `INFRATA_AWS_LIVE_PROFILE=infrata`; no account ID in the file), what it creates
 (one VPC `10.99.0.0/16` and one subnet, tagged `infrata-live-run`), that it refuses to run on the wrong account,
 how to run the sweeper, and that it is never run in CI.
 
 - [ ] **Step 2: Check it compiles and skips**
 
 Run: `go vet -tags live ./live/ && go test -tags live -count=1 -v ./live/`
-Expected: both tests SKIP with the "set INFRATA_AWS_LIVE_PROFILE…" message. Running it for real waits on Q2.
+Expected: both tests SKIP with the "set INFRATA_AWS_LIVE_PROFILE…" message. Running it for real needs the `infrata`
+profile's root keys replaced by the D16 identity first, and James's go-ahead: it creates real resources.
 
 - [ ] **Step 3: Record what a real run found**
 
