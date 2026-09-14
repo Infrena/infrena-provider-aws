@@ -2,7 +2,7 @@
 package awsprov
 
 import (
-	"errors"
+	"context"
 
 	"github.com/infrata/infrata/pkg/provider"
 	"github.com/infrata/infrata/pkg/schema"
@@ -32,8 +32,16 @@ func (pl *Plugin) Version() string { return Version }
 // Definitions need no configuration and make no network call: every command loads them.
 func (pl *Plugin) Definitions() []*schema.ResourceDefinition { return definitions() }
 
-// New builds one configured instance. Instance configuration and credentials arrive in the next
-// change; until then no instance can be configured, and saying so is better than a half-built one.
+// New builds one configured instance. An error here is rendered against the `providers:` entry, so
+// it must say what is wrong and what to set.
 func (pl *Plugin) New(cfg provider.Config) (provider.Provider, error) {
-	return nil, errors.New("the aws plugin cannot configure instances yet")
+	ic, err := parseConfig(cfg.Values)
+	if err != nil {
+		return nil, err
+	}
+	awsCfg, err := loadAWSConfig(context.Background(), cfg.Instance, ic)
+	if err != nil {
+		return nil, err
+	}
+	return newProvider(cfg.Instance, ic, awsCfg), nil
 }
