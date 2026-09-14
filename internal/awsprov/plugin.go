@@ -3,7 +3,12 @@ package awsprov
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
 
+	"github.com/infrata/infrata-provider-aws/internal/catalog"
 	"github.com/infrata/infrata/pkg/provider"
 	"github.com/infrata/infrata/pkg/schema"
 )
@@ -29,19 +34,39 @@ func (pl *Plugin) Name() string { return PluginName }
 // Version reports this build's version.
 func (pl *Plugin) Version() string { return Version }
 
-// Definitions need no configuration and make no network call: every command loads them.
-func (pl *Plugin) Definitions() []*schema.ResourceDefinition { return definitions() }
+// Definitions are the embedded catalog's. They need no configuration and make no network call.
+func (pl *Plugin) Definitions() []*schema.ResourceDefinition {
+	cat, err := catalog.Embedded()
+	if err != nil {
+		// Only a broken build gets here; the catalog tests fail first.
+		fmt.Fprintln(os.Stderr, "the aws plugin's embedded catalog is unreadable:", err)
+		return nil
+	}
+	return cat.Definitions()
+}
 
-// New builds one configured instance. An error here is rendered against the `providers:` entry, so
-// it must say what is wrong and what to set.
+// New builds one configured instance.
 func (pl *Plugin) New(cfg provider.Config) (provider.Provider, error) {
 	ic, err := parseConfig(cfg.Values)
 	if err != nil {
 		return nil, err
 	}
-	awsCfg, err := loadAWSConfig(context.Background(), cfg.Instance, ic)
+	cat, err := catalog.Embedded()
 	if err != nil {
 		return nil, err
 	}
-	return newProvider(cfg.Instance, ic, awsCfg), nil
+	var unknown []string
+	for _, name := range ic.DiscoverTypes {
+		if _, ok := cat.Lookup(name); !ok {
+			unknown = append(unknown, strconv.Quote(name))
+		}
+	}
+	if len(unknown) > 0 {
+		return nil, fmt.Errorf("`discover_types` names %s, which the aws plugin does not serve; run `infrata explain <type>` to check a name",
+			strings.Join(unknown, ", "))
+	}
+	if _, err := loadAWSConfig(context.Background(), cfg.Instance, ic); err != nil {
+		return nil, err
+	}
+	return unconfigured{cat: cat}, nil
 }

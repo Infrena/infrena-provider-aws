@@ -12,15 +12,17 @@ import (
 const (
 	keyAssumeRoleARN   = "assume_role_arn"
 	keyDiscoverRegions = "discover_regions"
+	keyDiscoverTypes   = "discover_types"
 	keyProfile         = "profile"
 )
 
-// instanceConfig is one `providers:` entry's own configuration: credentials, and the regions
-// discovery scans. Never a region for CRUD, which comes from each resource.
+// instanceConfig is one `providers:` entry's own configuration: credentials, and the regions and
+// types discovery scans. Never a region for CRUD, which comes from each resource.
 type instanceConfig struct {
 	Profile         string
 	AssumeRoleARN   string
 	DiscoverRegions []string
+	DiscoverTypes   []string
 }
 
 // parseConfig fails closed: a key this plugin does not read is refused, naming what it accepts. A
@@ -30,16 +32,16 @@ func parseConfig(values map[string]value.Value) (instanceConfig, error) {
 	var unknown []string
 	for k := range values {
 		switch k {
-		case keyAssumeRoleARN, keyDiscoverRegions, keyProfile:
+		case keyAssumeRoleARN, keyDiscoverRegions, keyDiscoverTypes, keyProfile:
 		default:
 			unknown = append(unknown, strconv.Quote(k))
 		}
 	}
 	if len(unknown) > 0 {
 		sort.Strings(unknown)
-		return ic, fmt.Errorf("unknown configuration %s; the aws provider accepts only %s, %s and %s "+
+		return ic, fmt.Errorf("unknown configuration %s; the aws provider accepts only %s, %s, %s and %s "+
 			"(a resource's region belongs under defaults: {region: …}, not here)",
-			strings.Join(unknown, ", "), keyAssumeRoleARN, keyDiscoverRegions, keyProfile)
+			strings.Join(unknown, ", "), keyAssumeRoleARN, keyDiscoverRegions, keyDiscoverTypes, keyProfile)
 	}
 
 	var err error
@@ -53,24 +55,38 @@ func parseConfig(values map[string]value.Value) (instanceConfig, error) {
 		return ic, fmt.Errorf("`%s` must be a role ARN such as arn:aws:iam::123456789012:role/deploy, got %q",
 			keyAssumeRoleARN, ic.AssumeRoleARN)
 	}
-	if v, ok := values[keyDiscoverRegions]; ok {
-		items, isList := v.Raw.([]value.Value)
-		if v.Kind != value.KindList || !isList {
-			return ic, fmt.Errorf("`%s` must be a list of regions, e.g. [us-east-1, eu-west-1], got %s", keyDiscoverRegions, v.Kind)
-		}
-		seen := map[string]bool{}
-		for i, item := range items {
-			region, isString := item.AsString()
-			if !isString || region == "" {
-				return ic, fmt.Errorf("`%s` item %d must be a region name such as us-east-1", keyDiscoverRegions, i+1)
-			}
-			if !seen[region] {
-				seen[region] = true
-				ic.DiscoverRegions = append(ic.DiscoverRegions, region)
-			}
-		}
+	if ic.DiscoverRegions, err = stringList(values, keyDiscoverRegions, "a region name such as us-east-1"); err != nil {
+		return ic, err
+	}
+	if ic.DiscoverTypes, err = stringList(values, keyDiscoverTypes, "an infrata type name such as aws.vpc"); err != nil {
+		return ic, err
 	}
 	return ic, nil
+}
+
+// stringList reads an optional list of non-empty strings, dropping duplicates in written order.
+func stringList(values map[string]value.Value, key, what string) ([]string, error) {
+	v, ok := values[key]
+	if !ok {
+		return nil, nil
+	}
+	items, isList := v.Raw.([]value.Value)
+	if v.Kind != value.KindList || !isList {
+		return nil, fmt.Errorf("`%s` must be a list, got %s", key, v.Kind)
+	}
+	var out []string
+	seen := map[string]bool{}
+	for i, item := range items {
+		s, isString := item.AsString()
+		if !isString || s == "" {
+			return nil, fmt.Errorf("`%s` item %d must be %s", key, i+1, what)
+		}
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out, nil
 }
 
 func optionalString(values map[string]value.Value, key string) (string, error) {

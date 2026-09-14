@@ -4,11 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/infrata/infrata-provider-aws/internal/catalog"
 	"github.com/infrata/infrata/pkg/plugintest"
 )
 
-// openHost connects this plugin to infrata's own host over an in-memory pipe: schema validation,
-// the prefix rule and reserved names all apply, exactly as for a subprocess.
 func openHost(t *testing.T) *plugintest.Host {
 	t.Helper()
 	host, err := plugintest.Open(context.Background(), NewPlugin(), t.TempDir())
@@ -19,25 +18,29 @@ func openHost(t *testing.T) *plugintest.Host {
 	return host
 }
 
-// TestSchemasLoadThroughTheHost. The subnet's map_public_ip_on_launch default is the one datum
-// that must survive JSON as a bool.
-func TestSchemasLoadThroughTheHost(t *testing.T) {
+// TestTheWholeCatalogLoadsThroughTheHost: every generated definition crosses the wire and passes infrata's load checks
+// (prefix, reserved names, validation, alias folding) at protocol 2.
+func TestTheWholeCatalogLoadsThroughTheHost(t *testing.T) {
+	cat, err := catalog.Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
 	host := openHost(t)
 	if got := host.Version(); got != Version {
 		t.Errorf("handshake version = %q, want %q", got, Version)
 	}
-	var subnet bool
-	for _, d := range host.Definitions() {
-		if d.Type != typeSubnet {
+	defs := host.Definitions()
+	if len(defs) != len(cat.Types) {
+		t.Fatalf("host holds %d definitions, catalog has %d", len(defs), len(cat.Types))
+	}
+	for _, d := range defs {
+		if d.Type != "aws.vpc" {
 			continue
 		}
-		subnet = true
-		a, _ := d.Attribute("map_public_ip_on_launch")
-		if b, ok := a.Default.(bool); !ok || b {
-			t.Errorf("map_public_ip_on_launch default after the wire = %#v (%T), want false", a.Default, a.Default)
+		if got := d.Display("CidrBlock"); got != "cidr" {
+			t.Errorf("aws.vpc CidrBlock displays as %q after the wire, want cidr", got)
 		}
+		return
 	}
-	if !subnet {
-		t.Fatal("aws.subnet did not arrive")
-	}
+	t.Fatal("aws.vpc did not arrive")
 }

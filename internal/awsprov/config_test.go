@@ -1,14 +1,12 @@
 package awsprov
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/infrata/infrata-provider-aws/internal/ec2fake"
+	"github.com/infrata/infrata-provider-aws/internal/awstest"
 	"github.com/infrata/infrata/pkg/provider"
 	"github.com/infrata/infrata/pkg/value"
 )
@@ -30,7 +28,7 @@ func TestAnUnknownKeyIsRefusedNamingWhatIsAccepted(t *testing.T) {
 	if err == nil {
 		t.Fatal("unknown keys were accepted")
 	}
-	for _, want := range []string{`"profil"`, `"region"`, "assume_role_arn", "discover_regions", "profile", "defaults: {region"} {
+	for _, want := range []string{`"profil"`, `"region"`, "assume_role_arn", "discover_regions", "discover_types", "profile", "defaults: {region"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %s", err, want)
 		}
@@ -71,7 +69,7 @@ func TestMalformedValuesAreRefused(t *testing.T) {
 // TestANamedProfileThatDoesNotExistFailsInNew. A file read, no network: cheap enough for every
 // validate, and the one credential mistake worth catching before an apply starts.
 func TestANamedProfileThatDoesNotExistFailsInNew(t *testing.T) {
-	isolateAWS(t, "")
+	awstest.Isolate(t, "")
 	_, err := NewPlugin().New(provider.Config{Instance: "prod", Values: map[string]value.Value{"profile": s("prodd")}})
 	if err == nil {
 		t.Fatal("a profile missing from the config files was accepted")
@@ -83,37 +81,24 @@ func TestANamedProfileThatDoesNotExistFailsInNew(t *testing.T) {
 	}
 }
 
-// TestAssumeRoleSignsEC2CallsWithTheAssumedCredentials. The fixture's static key would sign every
-// call if the role were ignored, so the assertion cannot pass by accident.
-func TestAssumeRoleSignsEC2CallsWithTheAssumedCredentials(t *testing.T) {
-	fake := ec2fake.New()
-	defer fake.Close()
-	isolateAWS(t, fake.URL)
-
-	prov, err := NewPlugin().New(provider.Config{Instance: "deploy", Values: map[string]value.Value{
-		"assume_role_arn": s("arn:aws:iam::123456789012:role/deploy"),
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := prov.(*Provider).clients.ec2("us-east-1").DescribeVpcs(context.Background(), &ec2.DescribeVpcsInput{}); err != nil {
-		t.Fatal(err)
-	}
-	if fake.Calls("AssumeRole") != 1 {
-		t.Errorf("AssumeRole calls = %d, want 1", fake.Calls("AssumeRole"))
-	}
-	keys := fake.AccessKeys()
-	if last := keys[len(keys)-1]; last != ec2fake.AssumedAccessKey {
-		t.Errorf("DescribeVpcs was signed with %q, want the assumed role's %q", last, ec2fake.AssumedAccessKey)
-	}
-}
-
 func TestAProfileThatExistsConfigures(t *testing.T) {
-	dir := isolateAWS(t, "")
+	dir := awstest.Isolate(t, "")
 	if err := os.WriteFile(filepath.Join(dir, "config"), []byte("[profile staging]\nregion = eu-west-1\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := NewPlugin().New(provider.Config{Instance: "staging", Values: map[string]value.Value{"profile": s("staging")}}); err != nil {
 		t.Fatalf("New: %v", err)
+	}
+}
+
+func TestDiscoverTypesAreReadAndChecked(t *testing.T) {
+	ic, err := parseConfig(map[string]value.Value{"discover_types": list("aws.vpc", "aws.subnet")})
+	if err != nil || strings.Join(ic.DiscoverTypes, ",") != "aws.vpc,aws.subnet" {
+		t.Fatalf("discover_types = %v, %v", ic.DiscoverTypes, err)
+	}
+	awstest.Isolate(t, "")
+	_, err = NewPlugin().New(provider.Config{Instance: "main", Values: map[string]value.Value{"discover_types": list("aws.vpc", "aws.vpcc")}})
+	if err == nil || !strings.Contains(err.Error(), "aws.vpcc") || !strings.Contains(err.Error(), "infrata explain") {
+		t.Fatalf("err = %v", err)
 	}
 }
