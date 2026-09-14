@@ -114,9 +114,6 @@ func decodeAttr(t *catalog.Type, a *catalog.Attribute, datum any, reference *val
 	if a.Name == t.TagsAsMap {
 		return tagsFromJSON(t, a, datum, reference)
 	}
-	if same, ok := sameJSONText(a, datum, reference); ok {
-		return same, true, nil
-	}
 	v, ok := decode(a.Shape, datum, reference)
 	if !ok {
 		return value.Value{}, false, nil
@@ -197,26 +194,42 @@ func emptyCollection(v value.Value) bool {
 	return false
 }
 
-// sameJSONText keeps the JSON text configuration wrote for a string attribute when AWS returns the same document as
-// structured JSON. Properties a schema types as object-or-string (IAM policy documents, API definitions) are string
-// attributes, and AWS answers with an object, so without this any whitespace or key order the user chose would plan
-// a change forever. Found by the first live run against a real IAM role.
-func sameJSONText(a *catalog.Attribute, datum any, reference *value.Value) (value.Value, bool) {
-	if a.Kind != "string" || reference == nil || !reference.Known {
-		return value.Value{}, false
+// sameJSONDocument reports whether ref is JSON text for the same document AWS returned, as structure or as JSON text
+// of its own. Properties typed object-or-string (IAM policy documents) are string attributes that AWS answers with an
+// object, and JSON documents held in plain strings (an ECR lifecycle policy) come back minified. Either way, any
+// spacing or key order the user wrote would plan a change forever, so the written text is kept. Found by live runs
+// against a real IAM role and a real ECR repository.
+func sameJSONDocument(ref value.Value, datum any) bool {
+	text, ok := ref.AsString()
+	if !ok || !looksLikeJSONDocument(text) {
+		return false
 	}
-	if _, isString := datum.(string); isString {
-		return value.Value{}, false
-	}
-	text, ok := reference.AsString()
+	written, ok := parseJSON(text)
 	if !ok {
-		return value.Value{}, false
+		return false
 	}
-	dec := json.NewDecoder(strings.NewReader(text))
+	if s, isString := datum.(string); isString {
+		if !looksLikeJSONDocument(s) {
+			return false
+		}
+		if datum, ok = parseJSON(s); !ok {
+			return false
+		}
+	}
+	return sameJSON(written, datum)
+}
+
+func looksLikeJSONDocument(s string) bool {
+	s = strings.TrimSpace(s)
+	return strings.HasPrefix(s, "{") || strings.HasPrefix(s, "[")
+}
+
+func parseJSON(s string) (any, bool) {
+	dec := json.NewDecoder(strings.NewReader(s))
 	dec.UseNumber()
-	var written any
-	if err := dec.Decode(&written); err != nil || !sameJSON(written, datum) {
-		return value.Value{}, false
+	var out any
+	if err := dec.Decode(&out); err != nil {
+		return nil, false
 	}
-	return *reference, true
+	return out, true
 }

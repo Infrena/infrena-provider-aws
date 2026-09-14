@@ -111,7 +111,7 @@ func decode(shape *catalog.Shape, datum any, ref *value.Value) (value.Value, boo
 	if ref != nil && !ref.Known {
 		ref = nil
 	}
-	if ref != nil && sameScalar(*ref, datum) {
+	if ref != nil && (sameScalar(*ref, datum) || sameJSONDocument(*ref, datum)) {
 		return *ref, true
 	}
 	if copiedExactly(shape) {

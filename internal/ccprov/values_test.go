@@ -99,3 +99,25 @@ func TestJSONTextAWSReturnsAsAnObjectKeepsItsWrittenForm(t *testing.T) {
 		t.Errorf("a changed document = %v; want AWS's version, so the drift shows", got)
 	}
 }
+
+// TestNestedJSONTextAWSMinifiesKeepsItsWrittenForm. An ECR lifecycle policy is a JSON document held in a plain string
+// inside an object; AWS returns it minified.
+func TestNestedJSONTextAWSMinifiesKeepsItsWrittenForm(t *testing.T) {
+	bucket := mustType(t, "aws.bucket")
+	a, _ := bucket.Attribute("VersioningConfiguration") // an object shape with a scalar property
+	written := value.Map(map[string]value.Value{"status": sv(`{
+  "rules": [ { "rulePriority": 1, "action": { "type": "expire" } } ]
+}`)}, value.SourceExplicit)
+	minified := jsonDatum(t, `{"Status":"{\"rules\":[{\"action\":{\"type\":\"expire\"},\"rulePriority\":1}]}"}`)
+	if got, ok, err := decodeAttr(bucket, a, minified, &written); err != nil || !ok || !got.Equal(written) {
+		t.Errorf("a minified equivalent = %v, %v; want the written text", got, err)
+	}
+	changed := jsonDatum(t, `{"Status":"{\"rules\":[{\"action\":{\"type\":\"expire\"},\"rulePriority\":2}]}"}`)
+	if got, _, _ := decodeAttr(bucket, a, changed, &written); got.Equal(written) {
+		t.Error("a changed document was reported as unchanged")
+	}
+	plain := value.Map(map[string]value.Value{"status": sv("Enabled")}, value.SourceExplicit)
+	if got, _, _ := decodeAttr(bucket, a, jsonDatum(t, `{"Status":"Suspended"}`), &plain); got.Equal(plain) {
+		t.Error("an ordinary string change was hidden")
+	}
+}
