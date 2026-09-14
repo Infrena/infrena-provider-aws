@@ -1,5 +1,7 @@
 project: demo
 
+infrena: ">= 0.5"
+
 environments:
   dev: {}
 
@@ -13,7 +15,7 @@ providers:
     discover_regions: [us-east-1]
     discover_types: [aws.vpc, aws.subnet, aws.securitygroup]
     defaults:
-      region: ${aws_region}
+      region: ${var.aws_region}
 
 resources:
   vpc:

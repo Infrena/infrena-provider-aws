@@ -56,7 +56,7 @@ func TestTheManifestFloorIsAtLeastTheRequiredRelease(t *testing.T) {
 	if m.Infrena.IsZero() {
 		t.Fatal("plugin.yaml has no infrena: floor, so it claims to work with releases under the old name too")
 	}
-	for version, want := range map[string]bool{"0.3.0": false, "0.3.9": false, "0.4.0": true, "0.5.0": true} {
+	for version, want := range map[string]bool{"0.3.0": false, "0.3.9": false, "0.4.0": false, "0.4.9": false, "0.5.0": true} {
 		if got := m.AllowsInfrena(version); got != want {
 			t.Errorf("plugin.yaml's infrena: %q allows %s = %v, want %v", m.Infrena, version, got, want)
 		}

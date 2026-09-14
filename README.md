@@ -56,7 +56,7 @@ on top of the resolved credentials). Use one provider instance per AWS account. 
 providers:
   - plugin: aws
     defaults:
-      region: ${aws_region}
+      region: ${var.aws_region}
 ```
 
 `aws_region` is a variable with a `default:`, overridden per environment — `defaults:` must resolve
@@ -94,6 +94,8 @@ This is `e2e/testdata/basic/infra.yml`, exactly as the e2e suite runs it:
 ```yaml
 project: demo
 
+infrena: ">= 0.5"
+
 environments:
   dev: {}
 
@@ -107,7 +109,7 @@ providers:
     discover_regions: [us-east-1]
     discover_types: [aws.vpc, aws.subnet, aws.securitygroup]
     defaults:
-      region: ${aws_region}
+      region: ${var.aws_region}
 
 resources:
   vpc:
@@ -174,7 +176,7 @@ GOWORK=off GOPRIVATE='github.com/infrena/*' go test -count=1 ./...    # the pinn
 
 ## Releasing
 
-`plugin.yaml` carries the manifest: version, protocol, platforms, and the `infrena: ">= 0.4.0"` floor.
+`plugin.yaml` carries the manifest: version, protocol, platforms, and the `infrena: ">= 0.5.0"` floor.
 `scripts/release-check vX.Y.Z` refuses to release unless the git tag, `plugin.yaml`'s version, and the
 built binary's own reported version all agree. Outside a stamped release the binary reports version
 `0.0.0-dev`.

@@ -22,7 +22,7 @@ func TestReadmeQuotesTheTestedExample(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Cloud Control", "infrena explain", "discover_regions", "discover_types", "assume_role_arn", "profile", "--provider",
-		"defaults:", "${aws_region}", "us-east-1/vpc-", "global/", "aws_region", "type_value", "cidr_block", "tags:",
+		"defaults:", "${var.aws_region}", "us-east-1/vpc-", "global/", "aws_region", "type_value", "cidr_block", "tags:",
 		"gen/overlay.yaml", "gen/names.lock.json", "scripts/fetch-schemas", "go run ./cmd/gen-cloudcontrol",
 		"-tags e2e", "-tags live", "go work init", "GOWORK=off", "plugin.yaml", "scripts/release-check", "0.0.0-dev",
 	} {
