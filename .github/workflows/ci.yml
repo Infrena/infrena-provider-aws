@@ -84,6 +84,11 @@ jobs:
           repository: infrena/infrena
           path: infrena
           token: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
+      # scripts_test builds the binary outside the workspace, which fetches the pinned infrena module.
+      - name: Let go fetch the private infrena module
+        env:
+          INFRENA_TOKEN: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
+        run: git config --global url."https://x-access-token:${INFRENA_TOKEN}@github.com/infrena/".insteadOf "https://github.com/infrena/"
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
