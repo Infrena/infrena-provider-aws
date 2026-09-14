@@ -82,10 +82,13 @@ func configure(t *testing.T, profile, region string) (provider.Provider, *catalo
 		t.Fatal(err)
 	}
 	role := awstest.TypeFor(t, cat, "AWS::IAM::Role").Name
+	bucket := awstest.TypeFor(t, cat, "AWS::S3::Bucket").Name
+	repo := awstest.TypeFor(t, cat, "AWS::ECR::Repository").Name
+	cluster := awstest.TypeFor(t, cat, "AWS::ECS::Cluster").Name
 	prov, err := host.Configure(provider.Config{Instance: "live", Values: map[string]value.Value{
 		"profile":          s(profile),
 		"discover_regions": l(s(region)),
-		"discover_types":   l(s("aws.vpc"), s("aws.subnet"), s("aws.securitygroup"), s(role)),
+		"discover_types":   l(s("aws.vpc"), s("aws.subnet"), s("aws.securitygroup"), s(role), s(bucket), s(repo), s(cluster)),
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -199,12 +202,98 @@ func TestTheLifecycleAgainstRealAWS(t *testing.T) {
 	}
 }
 
+// TestStorageAndContainersAgainstRealAWS covers an S3 bucket, an ECR repository and an ECS cluster: three more
+// types, each with nested configuration that exercises reconciliation, kept in a separate test so a run can target
+// it alone with -run. Everything here stays inside the AWS free tier: no objects go into the bucket or images into
+// the repository (an empty bucket/repository is required to delete it), and the ECS cluster setting is left
+// "disabled" the whole time, since enabling Container Insights is not free.
+func TestStorageAndContainersAgainstRealAWS(t *testing.T) {
+	profile, region := guard(t)
+	prov, cat := configure(t, profile, region)
+	ctx := context.Background()
+	run := strconv.FormatInt(time.Now().Unix(), 10)
+	tags := m(runTag, s(run))
+	name := "infrena-live-" + run
+
+	bucketType := awstest.TypeFor(t, cat, "AWS::S3::Bucket").Name
+	versioning := m("status", s("Enabled"))
+	lifecycle := m("rules", l(m("id", s("expire-noncurrent"), "status", s("Enabled"), "expiration_in_days", n(1))))
+	bucket := create(t, prov, bucketType, map[string]value.Value{"region": s(region), "BucketName": s(name),
+		"VersioningConfiguration": versioning, "LifecycleConfiguration": lifecycle, "Tags": tags})
+
+	repoType := awstest.TypeFor(t, cat, "AWS::ECR::Repository").Name
+	// JSON text for a nested string property, spaced unlike a minified document, the same reasoning as the role's
+	// AssumeRolePolicyDocument above (a real user would not hand-write compact JSON).
+	lifecyclePolicyText := s(`{
+  "rules": [
+    {
+      "rulePriority": 1,
+      "description": "Expire untagged images",
+      "selection": { "tagStatus": "untagged", "countType": "imageCountMoreThan", "countNumber": 1 },
+      "action": { "type": "expire" }
+    }
+  ]
+}`)
+	repo := create(t, prov, repoType, map[string]value.Value{"region": s(region), "RepositoryName": s(name),
+		"ImageTagMutability":         s("MUTABLE"),
+		"ImageScanningConfiguration": m("scan_on_push", value.Bool(true, value.SourceExplicit)),
+		"LifecyclePolicy":            m("lifecycle_policy_text", lifecyclePolicyText),
+		"Tags":                       tags})
+
+	clusterType := awstest.TypeFor(t, cat, "AWS::ECS::Cluster").Name
+	settings := l(m("name", s("containerInsights"), "value", s("disabled")))
+	cluster := create(t, prov, clusterType, map[string]value.Value{"region": s(region), "ClusterName": s(name),
+		"ClusterSettings": settings, "Tags": tags})
+
+	newLifecycle := m("rules", l(m("id", s("expire-noncurrent"), "status", s("Enabled"), "expiration_in_days", n(3))))
+	bucket = update(t, prov, bucket, map[string]value.Value{"LifecycleConfiguration": newLifecycle})
+	repo = update(t, prov, repo, map[string]value.Value{"ImageTagMutability": s("IMMUTABLE")})
+	cluster = update(t, prov, cluster, map[string]value.Value{"Tags": m(runTag, s(run), "Purpose", s("live-test"))})
+
+	var everything []string
+	for _, typ := range cat.Types {
+		everything = append(everything, typ.Name)
+	}
+	found, err := prov.Discover(ctx, provider.DiscoverRequest{Types: everything})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, r := range found {
+		seen[r.ProviderID] = true
+	}
+	for _, st := range []*resource.ResourceState{bucket, repo, cluster} {
+		if !seen[st.ProviderID] {
+			t.Errorf("discovery did not find %s (allow for propagation before calling it a bug)", st.ProviderID)
+		}
+	}
+
+	for _, st := range []*resource.ResourceState{cluster, repo, bucket} {
+		start := time.Now()
+		if err := prov.Delete(ctx, st); err != nil {
+			t.Fatalf("delete %s: %v", st.ProviderID, err)
+		}
+		t.Logf("deleted %s in %s", st.ProviderID, time.Since(start).Round(time.Millisecond))
+		if got, err := prov.Read(ctx, st); err != nil || got != nil {
+			t.Errorf("read %s after delete = %v, %v; want gone", st.ProviderID, got, err)
+		}
+	}
+}
+
 // TestSweepLeftovers deletes what a crashed run left: anything tagged by this suite more than an hour ago.
 func TestSweepLeftovers(t *testing.T) {
 	profile, region := guard(t)
 	prov, cat := configure(t, profile, region)
 	cutoff := time.Now().Add(-time.Hour).Unix()
-	order := []string{awstest.TypeFor(t, cat, "AWS::IAM::Role").Name, "aws.securitygroup", "aws.subnet", "aws.vpc"}
+	// Buckets and repositories sweep safely without checking for emptiness: this suite never puts objects or
+	// images in them, so anything it tagged is always empty.
+	order := []string{
+		awstest.TypeFor(t, cat, "AWS::ECS::Cluster").Name,
+		awstest.TypeFor(t, cat, "AWS::ECR::Repository").Name,
+		awstest.TypeFor(t, cat, "AWS::S3::Bucket").Name,
+		awstest.TypeFor(t, cat, "AWS::IAM::Role").Name,
+		"aws.securitygroup", "aws.subnet", "aws.vpc",
+	}
 	found, err := prov.Discover(context.Background(), provider.DiscoverRequest{Types: order})
 	if err != nil {
 		t.Fatal(err)
