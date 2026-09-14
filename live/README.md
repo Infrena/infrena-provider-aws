@@ -12,7 +12,11 @@ ending `:root` before making any Cloud Control call.
 
 The identity needs a policy allowing:
 
-- `cloudcontrol:*`
+- the Cloud Control actions, which IAM names under `cloudformation:` (not `cloudcontrol:`):
+  `cloudformation:CreateResource`, `cloudformation:GetResource`, `cloudformation:UpdateResource`,
+  `cloudformation:DeleteResource`, `cloudformation:ListResources`,
+  `cloudformation:GetResourceRequestStatus`, `cloudformation:ListResourceRequests`,
+  `cloudformation:CancelResourceRequest`
 - `sts:GetCallerIdentity`
 - the handler permissions for the four types this suite exercises:
   `ec2:CreateVpc`, `ec2:DeleteVpc`, `ec2:ModifyVpcAttribute`, `ec2:CreateSubnet`, `ec2:DeleteSubnet`,
