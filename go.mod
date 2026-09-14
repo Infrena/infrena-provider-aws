@@ -6,6 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.4
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.4
+	github.com/aws/aws-sdk-go-v2/service/cloudcontrol v1.38.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.50.0
 	// infrata is private: fetch it with GOPRIVATE=github.com/infrata/* and git credentials. Local work
 	// builds against ../infrata through a gitignored go.work; CI builds this exact version (GOWORK=off).
