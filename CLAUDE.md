@@ -189,7 +189,7 @@ These are the ones that are easy to get wrong and expensive to get wrong.
   resolves `providers:` variables for every command given an environment, but `discover` takes none and
   refuses any value still unknown — in `defaults:` too, though it never uses them
   (`internal/cli/context.go`, `refuseUnresolvedInstances`). So examples write
-  `defaults: {region: ${aws_region}}` with `aws_region` declared with a `default:` (overridden per
+  `defaults: {region: ${var.aws_region}}` (infrena 0.5.0 grammar: variables are `${var.x}`) with `aws_region` declared with a `default:` (overridden per
   environment), and keep `discover_regions` literal.
 
 ### Tests
