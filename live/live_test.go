@@ -153,7 +153,11 @@ func TestTheLifecycleAgainstRealAWS(t *testing.T) {
 	sg := create(t, prov, "aws.securitygroup", map[string]value.Value{"region": s(region), "VpcId": vpcID,
 		"GroupDescription": s("infrena live " + run), "SecurityGroupIngress": ingress, "Tags": tags})
 	roleType := awstest.TypeFor(t, cat, "AWS::IAM::Role").Name
-	policy := m("Version", s("2012-10-17"), "Statement", l(m("Effect", s("Allow"), "Principal", m("Service", s("ec2.amazonaws.com")), "Action", s("sts:AssumeRole"))))
+	// JSON text, as infrena's compiler requires for this object-or-string property, spaced unlike AWS's answer.
+	policy := s(`{
+  "Version": "2012-10-17",
+  "Statement": [ { "Effect": "Allow", "Principal": { "Service": "ec2.amazonaws.com" }, "Action": "sts:AssumeRole" } ]
+}`)
 	role := create(t, prov, roleType, map[string]value.Value{"RoleName": s("infrena-live-" + run), "AssumeRolePolicyDocument": policy, "Tags": tags})
 
 	vpc = update(t, prov, vpc, map[string]value.Value{"EnableDnsHostnames": value.Bool(true, value.SourceExplicit)})

@@ -114,6 +114,9 @@ func decodeAttr(t *catalog.Type, a *catalog.Attribute, datum any, reference *val
 	if a.Name == t.TagsAsMap {
 		return tagsFromJSON(t, a, datum, reference)
 	}
+	if same, ok := sameJSONText(a, datum, reference); ok {
+		return same, true, nil
+	}
 	v, ok := decode(a.Shape, datum, reference)
 	if !ok {
 		return value.Value{}, false, nil
@@ -192,4 +195,28 @@ func emptyCollection(v value.Value) bool {
 		return len(raw) == 0
 	}
 	return false
+}
+
+// sameJSONText keeps the JSON text configuration wrote for a string attribute when AWS returns the same document as
+// structured JSON. Properties a schema types as object-or-string (IAM policy documents, API definitions) are string
+// attributes, and AWS answers with an object, so without this any whitespace or key order the user chose would plan
+// a change forever. Found by the first live run against a real IAM role.
+func sameJSONText(a *catalog.Attribute, datum any, reference *value.Value) (value.Value, bool) {
+	if a.Kind != "string" || reference == nil || !reference.Known {
+		return value.Value{}, false
+	}
+	if _, isString := datum.(string); isString {
+		return value.Value{}, false
+	}
+	text, ok := reference.AsString()
+	if !ok {
+		return value.Value{}, false
+	}
+	dec := json.NewDecoder(strings.NewReader(text))
+	dec.UseNumber()
+	var written any
+	if err := dec.Decode(&written); err != nil || !sameJSON(written, datum) {
+		return value.Value{}, false
+	}
+	return *reference, true
 }

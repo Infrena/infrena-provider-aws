@@ -82,3 +82,20 @@ func TestTheDesiredStateHoldsOnlyWhatConfigurationMaySet(t *testing.T) {
 		t.Errorf("desired state = %v, want only CidrBlock: never the plugin's region, never a read-only property", body)
 	}
 }
+
+// TestJSONTextAWSReturnsAsAnObjectKeepsItsWrittenForm. A policy document is a string attribute, written as JSON text;
+// AWS returns it as an object. Equivalent documents must keep the written text, and a changed one must not.
+func TestJSONTextAWSReturnsAsAnObjectKeepsItsWrittenForm(t *testing.T) {
+	vpc := mustType(t, "aws.vpc")
+	a, _ := vpc.Attribute("CidrBlock") // any string attribute with no shape
+	written := sv(`{ "Version": "2012-10-17",
+  "Statement": [ { "Effect": "Allow", "Action": "sts:AssumeRole" } ] }`)
+	same := jsonDatum(t, `{"Statement":[{"Action":"sts:AssumeRole","Effect":"Allow"}],"Version":"2012-10-17"}`)
+	if got, ok, err := decodeAttr(vpc, a, same, &written); err != nil || !ok || !got.Equal(written) {
+		t.Errorf("an equivalent document = %v, %v; want the written text", got, err)
+	}
+	changed := jsonDatum(t, `{"Statement":[{"Action":"sts:AssumeRole","Effect":"Deny"}],"Version":"2012-10-17"}`)
+	if got, _, _ := decodeAttr(vpc, a, changed, &written); got.Equal(written) || !strings.Contains(got.Raw.(string), "Deny") {
+		t.Errorf("a changed document = %v; want AWS's version, so the drift shows", got)
+	}
+}
