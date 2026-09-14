@@ -110,6 +110,30 @@ func TestADroppedPropertyIsNeverRemoved(t *testing.T) {
 	}
 }
 
+// TestAReadOnlyValueThatDriftedIsNeverPatched. Update's desired is state overlaid with configuration (withChanges),
+// so a read-only attribute such as DefaultSecurityGroup or VpcId always carries a value in desired too, whatever was
+// last read. If patchOps sent it whenever that differs from current, every update would try to patch AWS's own
+// identifiers back at it. Only a real change (EnableDnsSupport here) should reach the patch.
+func TestAReadOnlyValueThatDriftedIsNeverPatched(t *testing.T) {
+	p, fake, _ := fakeProvider(t)
+	st := createVPC(t, p, nil)
+	changes := withChanges(st, map[string]value.Value{
+		"EnableDnsSupport":     value.Bool(false, value.SourceExplicit),
+		"DefaultSecurityGroup": sv("sg-forged"),
+	})
+	got, err := p.Update(ctx, st, changes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []map[string]any{{"op": "replace", "path": "/EnableDnsSupport", "value": false}}
+	if !reflect.DeepEqual(fake.LastPatch(), want) {
+		t.Errorf("patch = %v, want %v: a read-only value that merely differs from what was last read must never be patched", fake.LastPatch(), want)
+	}
+	if attr(t, got, "EnableDnsSupport") != false {
+		t.Errorf("state after update = %v", got.Attributes)
+	}
+}
+
 func TestAWriteOnlyValueIsPatchedOnlyWhenItChanges(t *testing.T) {
 	p, fake, _ := fakeProvider(t)
 	st, err := p.Create(ctx, desired("aws.dbinstance", map[string]value.Value{
