@@ -1,6 +1,6 @@
 # Generic Cloud Control provider — design
 
-**Status:** draft for James's review, 2026-09-14. **Supersedes** Tasks 5–6 of
+**Status:** questions answered 2026-09-14; awaiting James's review of the whole design before the plan. **Supersedes** Tasks 5–6 of
 `docs/plans/2026-09-13-first-slice-vpc-subnet.md` (handwritten `aws.vpc`/`aws.subnet`). **Evidence:**
 `docs/investigations/2026-09-13-generic-aws-provider.md` and `spikes/generic-aws/`. **Contract:** infrata **v0.3.0**
 (`45deb30`): plugin protocol 2, `schema.Attribute.Optional` and `Aliases` (PLAN §14.1), `lifecycle: ignore_changes`
@@ -16,6 +16,10 @@
 | J4 | **Attributes accept several spellings:** AWS's property name case-insensitively, a generated snake_case form, and curated friendly aliases (`cidr`). |
 | J5 | **Plans, `explain` and `import --generate` show the friendly alias** where one exists. |
 | J6 | **Engine support comes from infrata**, not the plugin: done in v0.3.0. |
+| J7 | **Without a curated alias, the shown name is snake_case** (`cidr_block`), because infrata displays the first alias (Q1). |
+| J8 | **Nested keys accept any spelling too**, rewritten by the plugin (Q2). |
+| J9 | **Properties named like infrata keywords** show as `type_value`, `provider_value`, `lifecycle_value`; the plugin's region is `aws_region` on regional types with their own `Region` (Q3). |
+| J10 | **Curated aliases ship first for the core set** (Q4, §3.2). |
 
 ## 2. Facts this design rests on (measured 2026-09-14, us-east-1)
 
@@ -143,9 +147,23 @@ Every method looks the type up in the catalog, then:
 ### 3.4 Values
 
 - **Top level:** infrata values ↔ JSON directly (`KindMap` ↔ object, `KindList` ↔ array).
-- **Nested keys are AWS's exact names** (`{Key: team, Value: platform}`): infrata does not canonicalise inside map
-  and list values, and a spelling that differs from what `GetResource` returns would diff forever. The provider
-  refuses an unknown nested key with the accepted names (§7 Q2).
+- **Nested values are reconciled by the plugin (J8).** infrata compares nested values with `value.Equal`, which
+  requires maps to have exactly the same keys and the same number of keys, and lists to match position by position
+  (`pkg/value/value.go`, v0.3.0). It does not canonicalise inside map or list values. Three things would therefore
+  diff forever, and the plugin handles each:
+  1. **Spelling.** Outgoing: every nested key the user wrote is matched to the schema's property name (case-insensitive,
+     or its snake_case form) and sent under AWS's name; an unknown key is refused naming the accepted spellings.
+     Incoming: the value AWS returns is rewritten to the **reference** spelling. On `Create`/`Update` the reference is
+     the desired state; on `Read` it is the current state, which holds what the plugin returned last time. So a
+     spelling round-trips through state. With no reference (`Discover`, `Import`), keys are written in snake_case.
+  2. **Keys AWS added.** Where a reference object exists, nested keys AWS returns that the reference does not have are
+     dropped from the result (a nested analogue of Optional+Computed). Cost: drift on a nested key nobody configured is
+     not visible in a plan; it is visible in the raw `GetResource` output.
+  3. **Order.** Lists whose schema says `insertionOrder: false` are reordered to match the reference; items AWS added
+     are appended.
+  This needs the nested property names per type, so the catalog carries each type's `definitions` names (a size cost
+  measured in build step 1). A user who changes only the spelling of a nested key sees one update, after which it
+  converges.
 - **Tags:** when a schema's `tagging.tagProperty` is a list of `{Key, Value}`, the attribute is exposed as a
   `KindMap` (`tags: {team: platform}`) and translated both ways, because every tagged type has the same shape and
   a map is what people write.
@@ -186,8 +204,11 @@ types; per-region schema differences (the us-east-1 bundle is authoritative).
 
 - **Load cost on every command** (~1.7 MB of schemas through the pipe). Measured first; fallback is dropping
   descriptions (~0.9 MB) or asking infrata for lazy schema loading.
-- **Perpetual diffs** from AWS normalising values or returning nested defaults inside set objects. Mitigation per type,
-  found by the e2e and live suites; Optional+Computed only covers top-level unset properties.
+- **Perpetual diffs** from AWS normalising scalar values (casing, CIDR forms). Nested spelling, AWS-added nested keys and
+  unordered lists are handled by reconciliation (§3.4); scalar normalisation is found per type by the e2e and live
+  suites and recorded in the overlay.
+- **Reconciliation complexity**: it is the one piece of the plugin with real logic, and the place a subtle bug means a
+  plan that never converges. It gets its own test suite driven by real schemas' nested shapes.
 - **Cloud Control latency** (12.5 s for a VPC create in the spike) and handler quality varying by type.
 - **Region-specific schemas** differ from us-east-1's.
 
@@ -201,17 +222,17 @@ types; per-region schema differences (the us-east-1 bundle is authoritative).
 6. Tags transform and value translation.
 7. e2e, then release plumbing, then the live suite.
 
-## 7. Open questions for James
+## 7. Questions James answered (2026-09-14)
 
-- **Q1 — displayed name when there is no curated alias.** infrata's `Display` shows the FIRST alias, and every property
+- **Q1 — displayed name when there is no curated alias. Answer: snake_case (J7).** infrata's `Display` shows the FIRST alias, and every property
   gets a snake_case alias, so without a curated alias the display is `cidr_block`, not `CidrBlock`. Recommended:
   accept that (lowercase, matches infrata's own examples). The alternative, showing AWS's name, means not generating
   snake_case aliases or asking infrata for a separate display field.
-- **Q2 — nested keys.** Recommended: AWS's exact names inside objects and lists for the first release, plus the
+- **Q2 — nested keys. Answer: any spelling, rewritten by the plugin (J8, §3.4). Recommendation below not taken.** Recommended: AWS's exact names inside objects and lists for the first release, plus the
   generic tags-as-map transform. Accepting other spellings inside nested values would need the plugin to rewrite them
   to match what AWS returns, which is doable later.
-- **Q3 — clashes with infrata keywords.** Recommended: `type_value`/`provider_value`/`lifecycle_value` as the shown name
+- **Q3 — clashes with infrata keywords. Answer: as recommended (J9).** Recommended: `type_value`/`provider_value`/`lifecycle_value` as the shown name
   for those properties, and `aws_region` for the plugin's region on the 4 regional types that have their own `Region`.
-- **Q4 — which types get curated aliases first.** Recommended: EC2 networking (VPC, Subnet, SecurityGroup,
+- **Q4 — which types get curated aliases first. Answer: the core set (J10).** Recommended: EC2 networking (VPC, Subnet, SecurityGroup,
   InternetGateway, RouteTable, Route), EC2 Instance, S3 Bucket, IAM Role/Policy, RDS DBInstance/DBSubnetGroup, Lambda
   Function, ECS Cluster/Service; everything else ships with AWS names and snake_case until someone needs better.
