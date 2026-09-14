@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
-	"github.com/infrata/infrata-provider-aws/internal/gen"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/gen"
 )
 
 func main() {

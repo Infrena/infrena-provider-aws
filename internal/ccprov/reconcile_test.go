@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/awstest"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/awstest"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // obj builds a map value from key/value pairs.

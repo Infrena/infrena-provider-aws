@@ -9,8 +9,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 func create(t *testing.T, endpoint string, attempts int) error {
@@ -144,7 +144,7 @@ func TestAFailureMessageSaysWhatAndWhereAndKeepsItsCause(t *testing.T) {
 		}
 	}
 	exists := failure("prod", "create", mustType(t, "aws.role"), "global", &HandlerError{Code: "AlreadyExists", Message: "deploy exists", Token: "req-3"})
-	if !strings.Contains(exists.Error(), "infrata import") {
+	if !strings.Contains(exists.Error(), "infrena import") {
 		t.Errorf("%q does not suggest importing", exists)
 	}
 }

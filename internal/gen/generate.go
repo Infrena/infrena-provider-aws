@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
 // Generate builds the catalog from every provisionable AWS schema. The lock gains names for new types; saving it is

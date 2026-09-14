@@ -3,7 +3,7 @@ package ccprov
 import (
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
 )
 
 func scalar() *catalog.Shape { return &catalog.Shape{Kind: catalog.ShapeScalar} }
@@ -128,8 +128,8 @@ func mustType(t *testing.T, name string) *catalog.Type {
 	return typ
 }
 
-// TestTheTestCatalogIsOneInfrataWouldLoad. A test catalog infrata would refuse would make every test built on it moot.
-func TestTheTestCatalogIsOneInfrataWouldLoad(t *testing.T) {
+// TestTheTestCatalogIsOneInfrenaWouldLoad. A test catalog infrena would refuse would make every test built on it moot.
+func TestTheTestCatalogIsOneInfrenaWouldLoad(t *testing.T) {
 	for _, d := range testCatalog().Definitions() {
 		if err := d.Validate(); err != nil {
 			t.Errorf("%s: %v", d.Type, err)

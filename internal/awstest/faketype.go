@@ -3,8 +3,8 @@ package awstest
 import (
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
 )
 
 // FakeType describes a catalog type to the Cloud Control fake the way its schema does, so the fake cannot drift from

@@ -8,9 +8,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol/types"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // Create sends the desired state, waits for the request, and reads the resource back. Once AWS may have created

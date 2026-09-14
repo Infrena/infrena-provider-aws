@@ -1,8 +1,8 @@
 package gen
 
 import (
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
 const maxShapeDepth = 12

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 const (
@@ -58,7 +58,7 @@ func parseConfig(values map[string]value.Value) (instanceConfig, error) {
 	if ic.DiscoverRegions, err = stringList(values, keyDiscoverRegions, "a region name such as us-east-1"); err != nil {
 		return ic, err
 	}
-	if ic.DiscoverTypes, err = stringList(values, keyDiscoverTypes, "an infrata type name such as aws.vpc"); err != nil {
+	if ic.DiscoverTypes, err = stringList(values, keyDiscoverTypes, "an infrena type name such as aws.vpc"); err != nil {
 		return ic, err
 	}
 	return ic, nil

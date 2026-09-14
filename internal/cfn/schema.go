@@ -127,7 +127,7 @@ func (s *Schema) TopLevel(pointers []string) map[string]bool {
 	return out
 }
 
-// Nested returns the pointers deeper than /properties/Name, which infrata's per-attribute flags cannot express.
+// Nested returns the pointers deeper than /properties/Name, which infrena's per-attribute flags cannot express.
 func (s *Schema) Nested(pointers []string) []string {
 	var out []string
 	for _, p := range pointers {

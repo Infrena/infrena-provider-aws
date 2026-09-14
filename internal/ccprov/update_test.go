@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
-// withChanges is what infrata hands Update: the state's attributes, observed values included, overlaid with configuration.
+// withChanges is what infrena hands Update: the state's attributes, observed values included, overlaid with configuration.
 func withChanges(st *resource.ResourceState, changes map[string]value.Value) *resource.DesiredResource {
 	attrs := map[string]value.Value{}
 	for k, v := range st.Attributes {
@@ -94,7 +94,7 @@ func TestASpellingChangeAloneSendsNothingAndConverges(t *testing.T) {
 	}
 }
 
-// TestADroppedPropertyIsNeverRemoved (PLAN §14.1): infrata sends no desired value for it, and AWS's is kept.
+// TestADroppedPropertyIsNeverRemoved (PLAN §14.1): infrena sends no desired value for it, and AWS's is kept.
 func TestADroppedPropertyIsNeverRemoved(t *testing.T) {
 	p, fake, _ := fakeProvider(t)
 	st := createVPC(t, p, map[string]value.Value{"EnableDnsSupport": value.Bool(false, value.SourceExplicit)})

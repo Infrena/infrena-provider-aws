@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/plugintest"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/plugintest"
 )
 
 func openHost(t *testing.T) *plugintest.Host {
@@ -18,7 +18,7 @@ func openHost(t *testing.T) *plugintest.Host {
 	return host
 }
 
-// TestTheWholeCatalogLoadsThroughTheHost: every generated definition crosses the wire and passes infrata's load checks
+// TestTheWholeCatalogLoadsThroughTheHost: every generated definition crosses the wire and passes infrena's load checks
 // (prefix, reserved names, validation, alias folding) at protocol 2.
 func TestTheWholeCatalogLoadsThroughTheHost(t *testing.T) {
 	cat, err := catalog.Embedded()

@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // Nested values are reconciled here (spec §3.4, J8). Outgoing, every key is sent under AWS's name. Incoming, a value is

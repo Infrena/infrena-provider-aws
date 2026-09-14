@@ -5,16 +5,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/awstest"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
-	"github.com/infrata/infrata/pkg/address"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/awstest"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena/pkg/address"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
-// hosted is the plugin reached through infrata's host, configured against a fresh fake.
+// hosted is the plugin reached through infrena's host, configured against a fresh fake.
 func hosted(t *testing.T, values map[string]value.Value) (provider.Provider, *ccfake.Server, *catalog.Catalog) {
 	t.Helper()
 	fake := ccfake.New()

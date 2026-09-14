@@ -9,8 +9,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 // Discover lists what exists for the requested types in the instance's regions, reading each resource once.
@@ -97,7 +97,7 @@ func (p *Provider) discoverIn(ctx context.Context, t *catalog.Type, region strin
 	return out, nil
 }
 
-// discoverTypes is what a request covers (P4). A request for every type the catalog holds is infrata asking about
+// discoverTypes is what a request covers (P4). A request for every type the catalog holds is infrena asking about
 // everything, which here is ~1,584 ListResources calls per region: it means the instance's discover_types, or the
 // catalog's default set. A request naming fewer was narrowed by the user.
 func (p *Provider) discoverTypes(requested []string) []string {

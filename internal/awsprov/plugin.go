@@ -1,4 +1,4 @@
-// Package awsprov is infrata's AWS provider plugin: instance configuration and credentials around the generic Cloud
+// Package awsprov is infrena's AWS provider plugin: instance configuration and credentials around the generic Cloud
 // Control provider.
 package awsprov
 
@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/ccprov"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/schema"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/ccprov"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/schema"
 )
 
 // PluginName is the binary's suffix, what `plugin:` names, and every type's prefix.
@@ -65,7 +65,7 @@ func (pl *Plugin) New(cfg provider.Config) (provider.Provider, error) {
 		}
 	}
 	if len(unknown) > 0 {
-		return nil, fmt.Errorf("`discover_types` names %s, which the aws plugin does not serve; run `infrata explain <type>` to check a name",
+		return nil, fmt.Errorf("`discover_types` names %s, which the aws plugin does not serve; run `infrena explain <type>` to check a name",
 			strings.Join(unknown, ", "))
 	}
 	awsCfg, err := loadAWSConfig(context.Background(), cfg.Instance, ic)

@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
 // TestTheCommittedCatalogMatchesTheBundleItClaims regenerates from the real bundle, when present, with the committed

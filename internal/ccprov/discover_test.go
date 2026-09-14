@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 func everything() provider.DiscoverRequest {

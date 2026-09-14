@@ -11,8 +11,8 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 // HandlerError is a request Cloud Control accepted whose resource handler ended FAILED, or that was cancelled.
@@ -43,7 +43,7 @@ var (
 	}
 )
 
-// classify answers infrata's question, how dangerous is another attempt, from the error alone. It must be a pure
+// classify answers infrena's question, how dangerous is another attempt, from the error alone. It must be a pure
 // function: the plugin SDK may ask any configured instance, not the one that failed.
 //
 // Order matters: a throttle is checked before the HTTP status, and a refused dial before the generic network error
@@ -140,7 +140,7 @@ func failure(instance, action string, t *catalog.Type, where string, err error) 
 	case "TypeNotFoundException":
 		msg += "\nCloud Control does not offer " + t.CFN + " in this region"
 	case "AlreadyExists", "AlreadyExistsException":
-		msg += "\nsomething with that name already exists: adopt it with `infrata import`, or choose another name"
+		msg += "\nsomething with that name already exists: adopt it with `infrena import`, or choose another name"
 	}
 	return &apiFailure{msg: msg, err: err}
 }

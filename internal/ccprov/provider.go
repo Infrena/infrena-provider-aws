@@ -9,11 +9,11 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/schema"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/schema"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // PluginName is the binary's suffix, what `plugin:` names, and every type's prefix.
@@ -63,7 +63,7 @@ func (p *Provider) ClassifyError(err error) provider.Retryability { return class
 func (p *Provider) lookup(name string) (*catalog.Type, error) {
 	t, ok := p.cat.Lookup(name)
 	if !ok {
-		return nil, fmt.Errorf("the aws plugin does not serve %q; run `infrata explain <type>` to check a name", name)
+		return nil, fmt.Errorf("the aws plugin does not serve %q; run `infrena explain <type>` to check a name", name)
 	}
 	return t, nil
 }

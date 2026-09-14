@@ -458,7 +458,7 @@ func (s *Server) Resource(region, typeName, identifier string) (map[string]any, 
 	return cloneMap(p), true
 }
 
-// Put stores a resource behind infrata's back: pre-existing infrastructure, or drift.
+// Put stores a resource behind infrena's back: pre-existing infrastructure, or drift.
 func (s *Server) Put(region, typeName, identifier string, props map[string]any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

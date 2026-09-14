@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
-// plain converts an infrata value to a JSON datum.
+// plain converts an infrena value to a JSON datum.
 func plain(v value.Value) any {
 	switch raw := v.Raw.(type) {
 	case []value.Value:
@@ -151,7 +151,7 @@ func decodeProperties(doc string) (map[string]any, error) {
 	return props, nil
 }
 
-// stateFrom builds the state infrata records from what AWS returned. reference is configuration's values (Create,
+// stateFrom builds the state infrena records from what AWS returned. reference is configuration's values (Create,
 // Update), the previous state (Read), or nil (Discover, Import).
 func stateFrom(t *catalog.Type, region, identifier string, props map[string]any, reference map[string]value.Value) (*resource.ResourceState, error) {
 	attrs := map[string]value.Value{}

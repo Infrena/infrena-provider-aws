@@ -27,7 +27,7 @@ discover_default:
   - AWS::ECS::Cluster
   - AWS::ECS::Service
 
-# Friendly names, shown in plans (J5, J10). Listed first, so infrata's Display picks them.
+# Friendly names, shown in plans (J5, J10). Listed first, so infrena's Display picks them.
 aliases:
   AWS::EC2::VPC:
     CidrBlock: [cidr]

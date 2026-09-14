@@ -10,8 +10,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol/types"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 // scripted answers GetResourceRequestStatus from a list, repeating the last, and records whether each call's context

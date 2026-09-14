@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/awstest"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/awstest"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 func s(v string) value.Value { return value.String(v, value.SourceExplicit) }
@@ -102,7 +102,7 @@ func TestDiscoverTypesAreReadAndChecked(t *testing.T) {
 	}
 	awstest.Isolate(t, "")
 	_, err = NewPlugin().New(provider.Config{Instance: "main", Values: map[string]value.Value{"discover_types": list("aws.vpc", "aws.vpcc")}})
-	if err == nil || !strings.Contains(err.Error(), "aws.vpcc") || !strings.Contains(err.Error(), "infrata explain") {
+	if err == nil || !strings.Contains(err.Error(), "aws.vpcc") || !strings.Contains(err.Error(), "infrena explain") {
 		t.Fatalf("err = %v", err)
 	}
 }

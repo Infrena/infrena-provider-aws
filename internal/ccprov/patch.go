@@ -10,9 +10,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // patchOps is the RFC 6902 patch from current to desired, one operation per top-level property whose value differs
@@ -54,7 +54,7 @@ func sameJSON(a, b any) bool {
 // reference. When nothing differs under AWS's names (a spelling change) it only reads back, so state takes the new
 // spelling.
 //
-// current, as infrata hands it to Update, is the last state persisted to disk (executor/dispatch.go's "live" is
+// current, as infrena hands it to Update, is the last state persisted to disk (executor/dispatch.go's "live" is
 // aspirational: apply's own refresh observations never reach the state it threads through to dispatch). It can be
 // older than what AWS holds right now — drift since the last refresh, most plainly — so diffing against it would
 // send a stale attribute back as a "change" (undoing real drift under it) while a genuine configured change that
@@ -71,7 +71,7 @@ func (p *Provider) Update(ctx context.Context, current *resource.ResourceState, 
 		return nil, err
 	}
 	if !t.HasUpdate {
-		return nil, fmt.Errorf("%s (%s) has no update handler, so every change needs a replacement; infrata was sent an update, which is a defect in the catalog's force-new flags",
+		return nil, fmt.Errorf("%s (%s) has no update handler, so every change needs a replacement; infrena was sent an update, which is a defect in the catalog's force-new flags",
 			t.Name, t.CFN)
 	}
 	live, err := p.read(ctx, t, region, id, current.Attributes, p.patience)

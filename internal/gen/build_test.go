@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
 var testNames = map[string]string{
@@ -64,9 +64,9 @@ func attr(t *testing.T, typ *catalog.Type, name string) *catalog.Attribute {
 	return a
 }
 
-// TestEveryFixtureBuildsADefinitionInfrataAccepts: schema.Validate checks flag combinations and case-folded name
+// TestEveryFixtureBuildsADefinitionInfrenaAccepts: schema.Validate checks flag combinations and case-folded name
 // collisions, which is exactly where a generator bug would show.
-func TestEveryFixtureBuildsADefinitionInfrataAccepts(t *testing.T) {
+func TestEveryFixtureBuildsADefinitionInfrenaAccepts(t *testing.T) {
 	for cfnType := range fixtureFiles {
 		if err := build(t, cfnType).Definition().Validate(); err != nil {
 			t.Errorf("%s: %v", cfnType, err)
@@ -106,7 +106,7 @@ func TestSubnetRequiresAVPCAndLetsAWSPickTheZone(t *testing.T) {
 		t.Errorf("AvailabilityZone = %+v, want Optional+Computed+ForceNew", az)
 	}
 	if len(subnet.Requirements) != 1 || subnet.Requirements[0].Types[0] != "aws.vpc" {
-		t.Errorf("requirements = %+v, want the overlay's, in infrata names", subnet.Requirements)
+		t.Errorf("requirements = %+v, want the overlay's, in infrena names", subnet.Requirements)
 	}
 }
 
@@ -139,8 +139,8 @@ func TestGlobalSensitiveCompositeAndListModel(t *testing.T) {
 	}
 }
 
-// TestPropertiesNamedLikeInfrataKeywordsGetUsableNames: J9.
-func TestPropertiesNamedLikeInfrataKeywordsGetUsableNames(t *testing.T) {
+// TestPropertiesNamedLikeInfrenaKeywordsGetUsableNames: J9.
+func TestPropertiesNamedLikeInfrenaKeywordsGetUsableNames(t *testing.T) {
 	ca := build(t, "AWS::ACMPCA::CertificateAuthority")
 	typ := attr(t, ca, "Type")
 	if len(typ.Aliases) == 0 || typ.Aliases[0] != "type_value" || ca.Definition().Display("Type") != "type_value" {
@@ -148,7 +148,7 @@ func TestPropertiesNamedLikeInfrataKeywordsGetUsableNames(t *testing.T) {
 	}
 	for _, a := range typ.Aliases {
 		if strings.EqualFold(a, "type") {
-			t.Errorf("alias %q would decode as infrata's resource key", a)
+			t.Errorf("alias %q would decode as infrena's resource key", a)
 		}
 	}
 	if p := attr(t, build(t, "AWS::CodePipeline::CustomActionType"), "Provider"); p.Aliases[0] != "provider_value" {

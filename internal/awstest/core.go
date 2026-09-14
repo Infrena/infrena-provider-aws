@@ -3,8 +3,8 @@ package awstest
 import (
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
 )
 
 // TypeFor finds a catalog type by CloudFormation name, so a test does not depend on the name the generator assigned.

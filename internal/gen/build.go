@@ -6,14 +6,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
-// infrataKeys are the resource keys infrata's configuration decoder claims, matched exactly
+// infrenaKeys are the resource keys infrena's configuration decoder claims, matched exactly
 // (internal/config/decode.go at v0.3.0). A property whose lower-case spelling is one of them needs another name to be
 // shown and written by (J9).
-var infrataKeys = map[string]bool{"type": true, "provider": true, "lifecycle": true, "depends_on": true, "skip": true, "only": true}
+var infrenaKeys = map[string]bool{"type": true, "provider": true, "lifecycle": true, "depends_on": true, "skip": true, "only": true}
 
 var secretName = regexp.MustCompile(`(?i)password|secret|token|privatekey|credential`)
 
@@ -117,19 +117,19 @@ func BuildType(s *cfn.Schema, names map[string]string, o *Overlay) (*catalog.Typ
 	}
 
 	if err := t.Definition().Validate(); err != nil {
-		return nil, warnings, fmt.Errorf("%s: generated definition refused by infrata: %w", s.TypeName, err)
+		return nil, warnings, fmt.Errorf("%s: generated definition refused by infrena: %w", s.TypeName, err)
 	}
 	return t, warnings, nil
 }
 
 // aliases orders a property's spellings: curated first (Display shows the first), then a keyword-safe name when the
-// property's own spelling is an infrata key, then snake_case. Duplicates under case folding, and anything that folds to
-// the canonical name, an infrata key or the region attribute, are dropped.
+// property's own spelling is an infrena key, then snake_case. Duplicates under case folding, and anything that folds to
+// the canonical name, an infrena key or the region attribute, are dropped.
 func aliases(prop string, curated []string, regionAttr string) []string {
 	snake := cfn.SnakeCase(prop)
 	var candidates []string
 	candidates = append(candidates, curated...)
-	if infrataKeys[strings.ToLower(prop)] || infrataKeys[snake] {
+	if infrenaKeys[strings.ToLower(prop)] || infrenaKeys[snake] {
 		candidates = append(candidates, snake+"_value")
 	}
 	candidates = append(candidates, snake)
@@ -137,7 +137,7 @@ func aliases(prop string, curated []string, regionAttr string) []string {
 	var out []string
 	for _, c := range candidates {
 		f := strings.ToLower(c)
-		if seen[f] || infrataKeys[f] || (regionAttr != "" && f == strings.ToLower(regionAttr)) {
+		if seen[f] || infrenaKeys[f] || (regionAttr != "" && f == strings.ToLower(regionAttr)) {
 			continue
 		}
 		seen[f] = true
@@ -167,7 +167,7 @@ func tagsAsMap(s *cfn.Schema) string {
 	return name
 }
 
-// kindOf maps a property's JSON-schema type to an infrata kind name, reporting whether it had to guess.
+// kindOf maps a property's JSON-schema type to an infrena kind name, reporting whether it had to guess.
 func kindOf(s *cfn.Schema, node *cfn.Node) (string, bool) {
 	n := s.Resolve(node)
 	if n == nil {

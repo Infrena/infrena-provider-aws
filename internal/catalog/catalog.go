@@ -1,5 +1,5 @@
 // Package catalog holds the generated description of every Cloud Control resource type the plugin serves: the
-// infrata definitions it hands the host, and the runtime metadata the provider needs. It is produced by
+// infrena definitions it hands the host, and the runtime metadata the provider needs. It is produced by
 // cmd/gen-cloudcontrol and embedded; nothing here is written by hand.
 package catalog
 
@@ -11,8 +11,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/infrata/infrata/pkg/schema"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/schema"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // GlobalScope is the provider-ID scope of a type that has no region.
@@ -29,7 +29,7 @@ const (
 // Catalog is every generated type.
 type Catalog struct {
 	Bundle          string   `json:"bundle"`                     // SHA-256 of the schema bundle it was generated from
-	DiscoverDefault []string `json:"discover_default,omitempty"` // infrata type names discovered when an instance sets no discover_types (P4)
+	DiscoverDefault []string `json:"discover_default,omitempty"` // infrena type names discovered when an instance sets no discover_types (P4)
 	Types           []*Type  `json:"types"`
 
 	index map[string]*Type
@@ -37,7 +37,7 @@ type Catalog struct {
 
 // Type is one Cloud Control resource type.
 type Type struct {
-	Name           string         `json:"name"` // infrata type, e.g. aws.vpc
+	Name           string         `json:"name"` // infrena type, e.g. aws.vpc
 	CFN            string         `json:"cfn"`  // CloudFormation type, e.g. AWS::EC2::VPC
 	Description    string         `json:"description,omitempty"`
 	RegionAttr     string         `json:"region_attr,omitempty"` // "region", "aws_region", or "" for a global type
@@ -55,7 +55,7 @@ type Type struct {
 // Attribute is one top-level property.
 type Attribute struct {
 	Name        string   `json:"name"` // AWS's property name: the canonical, stored name
-	Kind        string   `json:"kind"` // an infrata kind name: string, integer, float, boolean, list, map
+	Kind        string   `json:"kind"` // an infrena kind name: string, integer, float, boolean, list, map
 	Required    bool     `json:"required,omitempty"`
 	Computed    bool     `json:"computed,omitempty"`
 	Optional    bool     `json:"optional,omitempty"`
@@ -77,7 +77,7 @@ type Shape struct {
 // Requirement is a pre-flight hint between types, from the overlay.
 type Requirement struct {
 	Name        string   `json:"name"`
-	Types       []string `json:"types"` // infrata type names
+	Types       []string `json:"types"` // infrena type names
 	Description string   `json:"description"`
 }
 
@@ -113,7 +113,7 @@ func (c *Catalog) Write(w io.Writer) error {
 	return zw.Close()
 }
 
-// Lookup finds a type by its infrata name.
+// Lookup finds a type by its infrena name.
 func (c *Catalog) Lookup(name string) (*Type, bool) {
 	if c.index == nil {
 		c.index = make(map[string]*Type, len(c.Types))
@@ -125,7 +125,7 @@ func (c *Catalog) Lookup(name string) (*Type, bool) {
 	return t, ok
 }
 
-// Definitions converts every type to an infrata definition.
+// Definitions converts every type to an infrena definition.
 func (c *Catalog) Definitions() []*schema.ResourceDefinition {
 	out := make([]*schema.ResourceDefinition, 0, len(c.Types))
 	for _, t := range c.Types {
@@ -147,7 +147,7 @@ func (t *Type) Attribute(name string) (*Attribute, bool) {
 	return nil, false
 }
 
-// Definition is the infrata schema for the type. The region attribute is the plugin's own (spec §3.1).
+// Definition is the infrena schema for the type. The region attribute is the plugin's own (spec §3.1).
 func (t *Type) Definition() *schema.ResourceDefinition {
 	attrs := make(map[string]schema.Attribute, len(t.Attributes)+1)
 	for _, a := range t.Attributes {

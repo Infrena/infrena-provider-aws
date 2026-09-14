@@ -1,9 +1,9 @@
 //go:build e2e
 
-// Package e2e runs a real infrata binary against a real infrata-plugin-aws binary and an in-process fake Cloud Control.
+// Package e2e runs a real infrena binary against a real infrena-plugin-aws binary and an in-process fake Cloud Control.
 //
-// Not part of `go test ./...`: it builds infrata from source. Run it with `go test -tags e2e -count=1 -v ./e2e/`.
-// INFRATA_SRC points at the checkout; the default is the sibling ../infrata.
+// Not part of `go test ./...`: it builds infrena from source. Run it with `go test -tags e2e -count=1 -v ./e2e/`.
+// INFRENA_SRC points at the checkout; the default is the sibling ../infrena.
 package e2e
 
 import (
@@ -16,13 +16,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/awstest"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena-provider-aws/internal/awstest"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
 )
 
 var (
-	infrataBin string
+	infrenaBin string
 	pluginDir  string
 	skipReason string
 )
@@ -35,20 +35,20 @@ func TestMain(m *testing.M) {
 	}
 	code := func() int {
 		defer os.RemoveAll(tmp)
-		src := os.Getenv("INFRATA_SRC")
+		src := os.Getenv("INFRENA_SRC")
 		if src == "" {
-			src = filepath.Join("..", "..", "infrata")
+			src = filepath.Join("..", "..", "infrena")
 		}
-		if _, err := os.Stat(filepath.Join(src, "cmd", "infrata")); err != nil {
-			skipReason = fmt.Sprintf("no infrata checkout at %s (set INFRATA_SRC): %v", src, err)
+		if _, err := os.Stat(filepath.Join(src, "cmd", "infrena")); err != nil {
+			skipReason = fmt.Sprintf("no infrena checkout at %s (set INFRENA_SRC): %v", src, err)
 			fmt.Fprintln(os.Stderr, "E2E SKIPPED: "+skipReason)
 			return m.Run()
 		}
-		infrataBin = filepath.Join(tmp, "infrata")
+		infrenaBin = filepath.Join(tmp, "infrena")
 		pluginDir = filepath.Join(tmp, "plugins")
 		for _, b := range []struct{ dir, out, pkg string }{
-			{src, infrataBin, "./cmd/infrata"},
-			{"..", filepath.Join(pluginDir, "infrata-plugin-aws"), "./cmd/infrata-plugin-aws"},
+			{src, infrenaBin, "./cmd/infrena"},
+			{"..", filepath.Join(pluginDir, "infrena-plugin-aws"), "./cmd/infrena-plugin-aws"},
 		} {
 			cmd := exec.Command("go", "build", "-o", b.out, b.pkg)
 			cmd.Dir = b.dir
@@ -115,15 +115,15 @@ func writeFile(t *testing.T, path, body string) {
 	}
 }
 
-// infrata runs the CLI in the project. Nothing from the developer's machine reaches the plugin: no plugins but ours,
+// infrena runs the CLI in the project. Nothing from the developer's machine reaches the plugin: no plugins but ours,
 // no AWS files, static test keys, no instance metadata, and Cloud Control and STS pointed at this project's fake.
-func (e *env) infrata(t *testing.T, args ...string) (string, int) {
+func (e *env) infrena(t *testing.T, args ...string) (string, int) {
 	t.Helper()
 	home := t.TempDir()
-	cmd := exec.Command(infrataBin, append(args, "--plugin-dir", pluginDir)...)
+	cmd := exec.Command(infrenaBin, append(args, "--plugin-dir", pluginDir)...)
 	cmd.Dir = e.dir
 	cmd.Env = append(os.Environ(),
-		"INFRATA_PLUGIN_PATH=", "HOME="+home,
+		"INFRENA_PLUGIN_PATH=", "HOME="+home,
 		"AWS_CONFIG_FILE="+filepath.Join(home, "none"), "AWS_SHARED_CREDENTIALS_FILE="+filepath.Join(home, "none"),
 		"AWS_PROFILE=", "AWS_REGION=", "AWS_DEFAULT_REGION=", "AWS_MAX_ATTEMPTS=", "AWS_SESSION_TOKEN=",
 		"AWS_ACCESS_KEY_ID=AKIDE2E", "AWS_SECRET_ACCESS_KEY=e2e-secret", "AWS_EC2_METADATA_DISABLED=true",
@@ -134,20 +134,20 @@ func (e *env) infrata(t *testing.T, args ...string) (string, int) {
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		code = exitErr.ExitCode()
 	} else if err != nil {
-		t.Fatalf("running infrata %v: %v", args, err)
+		t.Fatalf("running infrena %v: %v", args, err)
 	}
 	return string(out), code
 }
 
 func (e *env) expect(t *testing.T, wantCode int, want []string, args ...string) string {
 	t.Helper()
-	out, code := e.infrata(t, args...)
+	out, code := e.infrena(t, args...)
 	if code != wantCode {
-		t.Fatalf("infrata %s: exit %d, want %d\n%s", strings.Join(args, " "), code, wantCode, out)
+		t.Fatalf("infrena %s: exit %d, want %d\n%s", strings.Join(args, " "), code, wantCode, out)
 	}
 	for _, w := range want {
 		if !strings.Contains(out, w) {
-			t.Fatalf("infrata %s: output lacks %q\n%s", strings.Join(args, " "), w, out)
+			t.Fatalf("infrena %s: output lacks %q\n%s", strings.Join(args, " "), w, out)
 		}
 	}
 	return out
@@ -157,7 +157,7 @@ func (e *env) expect(t *testing.T, wantCode int, want []string, args ...string) 
 func (e *env) planOps(t *testing.T) map[string]string {
 	t.Helper()
 	outPath := filepath.Join(t.TempDir(), "plan.json")
-	e.infrata(t, "plan", "dev", "--output", outPath)
+	e.infrena(t, "plan", "dev", "--output", outPath)
 	data, err := os.ReadFile(outPath)
 	if err != nil {
 		t.Fatalf("plan wrote no --output file: %v", err)
@@ -200,7 +200,7 @@ func (e *env) only(t *testing.T, cfn string) (string, map[string]any) {
 	return "", nil
 }
 
-// drift changes a resource behind infrata's back.
+// drift changes a resource behind infrena's back.
 func (e *env) drift(t *testing.T, cfn, id string, change func(props map[string]any)) {
 	t.Helper()
 	props, ok := e.fake.Resource("us-east-1", cfn, id)
@@ -251,7 +251,7 @@ func TestTheWorkflow(t *testing.T) {
 			t.Fatalf("an unset provider-chosen attribute plans %v, want nothing (PLAN §14.1)", ops)
 		}
 	})
-	t.Run("a tag changed outside infrata is an update", func(t *testing.T) {
+	t.Run("a tag changed outside infrena is an update", func(t *testing.T) {
 		e.drift(t, "AWS::EC2::VPC", managed(t), func(p map[string]any) {
 			p["Tags"] = []any{map[string]any{"Key": "team", "Value": "someone-else"}}
 		})
@@ -276,14 +276,14 @@ func TestTheWorkflow(t *testing.T) {
 			t.Fatalf("plan after the update proposes %v", ops)
 		}
 	})
-	t.Run("a create-only value changed outside infrata forces a replacement", func(t *testing.T) {
+	t.Run("a create-only value changed outside infrena forces a replacement", func(t *testing.T) {
 		e.drift(t, "AWS::EC2::VPC", managed(t), func(p map[string]any) { p["CidrBlock"] = "10.50.0.0/16" })
 		if kind := e.planOps(t)["vpc"]; kind != "replace" {
 			t.Fatalf("vpc plans as %q, want replace", kind)
 		}
 		e.drift(t, "AWS::EC2::VPC", managed(t), func(p map[string]any) { p["CidrBlock"] = "10.0.0.0/16" })
 	})
-	t.Run("discover and import adopt a VPC infrata did not create", func(t *testing.T) {
+	t.Run("discover and import adopt a VPC infrena did not create", func(t *testing.T) {
 		e.fake.Put("us-east-1", "AWS::EC2::VPC", "vpc-legacy", map[string]any{
 			"VpcId": "vpc-legacy", "CidrBlock": "172.16.0.0/16", "EnableDnsSupport": true, "EnableDnsHostnames": false, "InstanceTenancy": "default",
 		})
@@ -293,7 +293,7 @@ func TestTheWorkflow(t *testing.T) {
 			t.Fatalf("plan after import --generate proposes %v", ops)
 		}
 	})
-	t.Run("destroy removes everything infrata manages", func(t *testing.T) {
+	t.Run("destroy removes everything infrena manages", func(t *testing.T) {
 		e.expect(t, 2, []string{"0 failed"}, "destroy", "dev", "--auto-approve")
 		for _, cfn := range []string{"AWS::EC2::VPC", "AWS::EC2::Subnet", "AWS::EC2::SecurityGroup"} {
 			if n := len(e.fake.Resources("us-east-1", cfn)); n != 0 {
@@ -319,5 +319,5 @@ func TestAMisspelledKeyIsRefusedAgainstTheProvidersEntry(t *testing.T) {
 
 func TestAnUnknownDiscoverTypeIsRefused(t *testing.T) {
 	e := project(t, strings.Replace(fixture(t, "basic"), "aws.securitygroup]", "aws.securitygroupp]", 1))
-	e.expect(t, 1, []string{"aws.securitygroupp", "infrata explain"}, "plan", "dev")
+	e.expect(t, 1, []string{"aws.securitygroupp", "infrena explain"}, "plan", "dev")
 }

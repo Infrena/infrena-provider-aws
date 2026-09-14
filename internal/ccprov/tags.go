@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // systemTagPrefix marks tags AWS sets itself. Configuration cannot set them, so they are never reported.

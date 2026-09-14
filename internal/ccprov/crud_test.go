@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 var ctx = context.Background()
@@ -147,7 +147,7 @@ func TestANameThatExistsSuggestsImporting(t *testing.T) {
 	if _, err := p.Create(ctx, desired("aws.role", roleAttrs("deploy"))); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Create(ctx, desired("aws.role", roleAttrs("deploy"))); err == nil || !strings.Contains(err.Error(), "infrata import") {
+	if _, err := p.Create(ctx, desired("aws.role", roleAttrs("deploy"))); err == nil || !strings.Contains(err.Error(), "infrena import") {
 		t.Fatalf("second create: err = %v", err)
 	}
 }

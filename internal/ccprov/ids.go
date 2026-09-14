@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
 )
 
 // GlobalRegion is where Cloud Control is called for a type that has no region (IAM, Route 53, CloudFront).
 const GlobalRegion = "us-east-1"
 
 // FormatID is the one provider-ID form (P3): `<region>/<identifier>`, or `global/<identifier>`. Create, Discover and
-// Import all use it, because infrata imports by matching `<type>.<provider id>` against what Discover returned.
+// Import all use it, because infrena imports by matching `<type>.<provider id>` against what Discover returned.
 func FormatID(t *catalog.Type, region, identifier string) string {
 	if t.Global() {
 		return catalog.GlobalScope + "/" + identifier

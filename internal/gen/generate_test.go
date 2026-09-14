@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
 func fixtureSchemas(t *testing.T) []*cfn.Schema {
@@ -38,7 +38,7 @@ func TestGenerateNamesBuildsAndKeepsTheBundleHash(t *testing.T) {
 		t.Fatalf("aws.vpc = %+v", vpc)
 	}
 	if strings.Join(cat.DiscoverDefault, ",") != "aws.vpc" {
-		t.Errorf("discover default = %v, want the overlay's list in infrata names", cat.DiscoverDefault)
+		t.Errorf("discover default = %v, want the overlay's list in infrena names", cat.DiscoverDefault)
 	}
 }
 

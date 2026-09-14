@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol/types"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
 )
 
 type statusAPI interface {
@@ -42,7 +42,7 @@ type waitTimeout struct {
 }
 
 func (e *waitTimeout) Error() string {
-	return fmt.Sprintf("request %s was still %s after %s; it may yet finish, so run `infrata refresh` before trying again",
+	return fmt.Sprintf("request %s was still %s after %s; it may yet finish, so run `infrena refresh` before trying again",
 		e.token, e.status, e.after)
 }
 func (e *waitTimeout) Unwrap() error { return context.DeadlineExceeded }

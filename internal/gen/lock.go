@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// Lock records every infrata type name ever assigned. It only grows: a name, once given, keeps its owner forever
+// Lock records every infrena type name ever assigned. It only grows: a name, once given, keeps its owner forever
 // (J3), including after AWS removes the type.
 type Lock struct {
 	Names map[string]string `json:"names"`
@@ -56,7 +56,7 @@ func split(cfn string) (service, segment string, err error) {
 	return strings.ToLower(parts[1]), strings.ToLower(parts[2]), nil
 }
 
-// Assign returns the infrata name for each current type, adding new types to the lock.
+// Assign returns the infrena name for each current type, adding new types to the lock.
 func (l *Lock) Assign(cfnTypes []string) (map[string]string, error) {
 	if l.Names == nil {
 		l.Names = map[string]string{}
@@ -72,7 +72,7 @@ func (l *Lock) Assign(cfnTypes []string) (map[string]string, error) {
 		}
 		segmentCount[seg]++
 	}
-	owner := map[string]string{} // infrata name -> CFN type, across the whole lock, tombstones included
+	owner := map[string]string{} // infrena name -> CFN type, across the whole lock, tombstones included
 	for cfn, name := range l.Names {
 		if other, dup := owner[name]; dup {
 			return nil, fmt.Errorf("lock gives %s to both %s and %s", name, other, cfn)
