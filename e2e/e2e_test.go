@@ -19,6 +19,7 @@ import (
 	"github.com/infrena/infrena-provider-aws/internal/awstest"
 	"github.com/infrena/infrena-provider-aws/internal/catalog"
 	"github.com/infrena/infrena-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena/pkg/pluginmanifest"
 )
 
 var (
@@ -320,4 +321,54 @@ func TestAMisspelledKeyIsRefusedAgainstTheProvidersEntry(t *testing.T) {
 func TestAnUnknownDiscoverTypeIsRefused(t *testing.T) {
 	e := project(t, strings.Replace(fixture(t, "basic"), "aws.securitygroup]", "aws.securitygroupp]", 1))
 	e.expect(t, 1, []string{"aws.securitygroupp", "infrena explain"}, "plan", "dev")
+}
+
+// TestTheInfrenaUnderTestSpeaksTheManifestsProtocol applies infrena PLAN.md §31.2's compatibility rules to the
+// infrena this suite built, reading what that build says it speaks from `infrena version --output`.
+func TestTheInfrenaUnderTestSpeaksTheManifestsProtocol(t *testing.T) {
+	if skipReason != "" {
+		t.Skip(skipReason)
+	}
+	out := filepath.Join(t.TempDir(), "version.json")
+	if b, err := exec.Command(infrenaBin, "version", "--output", out).CombinedOutput(); err != nil {
+		t.Fatalf("infrena version --output: %v\n%s", err, b)
+	}
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var info struct {
+		Version string `json:"version"`
+		Formats []struct {
+			Name     string `json:"name"`
+			Versions []int  `json:"versions"`
+		} `json:"formats"`
+	}
+	if err := json.Unmarshal(data, &info); err != nil {
+		t.Fatalf("infrena version --output is not the expected JSON: %v\n%s", err, data)
+	}
+	var protocols []int
+	for _, f := range info.Formats {
+		if f.Name == "plugin protocol" {
+			protocols = f.Versions
+		}
+	}
+	if len(protocols) == 0 {
+		t.Fatalf("infrena version --output lists no plugin protocol:\n%s", data)
+	}
+
+	raw, err := os.ReadFile(filepath.Join("..", "plugin.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, _, err := pluginmanifest.Parse(raw)
+	if err != nil {
+		t.Fatalf("plugin.yaml: %v", err)
+	}
+	if !m.SpeaksProtocol(protocols) {
+		t.Errorf("plugin.yaml speaks protocol %v; infrena %s speaks %v", m.Protocol, info.Version, protocols)
+	}
+	if !m.AllowsInfrena(info.Version) {
+		t.Errorf("plugin.yaml's infrena constraint %q does not allow infrena %s", m.Infrena, info.Version)
+	}
 }

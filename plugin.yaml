@@ -1,0 +1,15 @@
+# plugin.yaml: what this plugin is, and what it works with. infrena PLAN.md §31.2.
+# Read at a release TAG, never at the default branch, which describes unreleased code.
+manifest: 2
+name: aws
+version: 0.1.0
+# The protocol THIS RELEASE'S binary speaks: exactly the pluginproto.Version of the infrena go.mod requires. It changes
+# in the same commit as that require (internal/awsprov/manifest_test.go and scripts/release-check refuse a mismatch).
+protocol: [2]
+platforms: [linux/amd64, linux/arm64, linux/arm, linux/386, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64]
+description: The AWS provider for infrena, serving every resource type AWS Cloud Control API supports.
+# The oldest infrena release CI verifies this plugin against: go.mod's require. v0.4.0 is the first release
+# under the Infrena name; every earlier release was published as infrata, under a different module path,
+# CLI and plugin binary name, so no build of this plugin can pair with one.
+infrena: ">= 0.4.0"
+source: https://github.com/infrena/infrena-provider-aws

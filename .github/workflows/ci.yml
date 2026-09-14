@@ -1,0 +1,98 @@
+name: CI
+
+# Two jobs, answering two questions.
+#   pinned  Does this plugin work with the infrena go.mod requires? Builds with GOWORK=off against that release and runs
+#           the e2e suite against a host built from the same tag. Blocking, and what a release runs.
+#   main    Has infrena main broken us? Builds through a workspace against infrena's main. Advisory.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: local
+  GOPRIVATE: github.com/infrena/*
+
+jobs:
+  pinned:
+    name: against the required infrena release
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: infrena-provider-aws
+      - name: Let go fetch the private infrena module
+        env:
+          INFRENA_TOKEN: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
+        run: git config --global url."https://x-access-token:${INFRENA_TOKEN}@github.com/infrena/".insteadOf "https://github.com/infrena/"
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          cache-dependency-path: infrena-provider-aws/go.sum
+      - name: Read the infrena release go.mod requires
+        id: infrena
+        working-directory: infrena-provider-aws
+        run: |
+          set -euo pipefail
+          v="$(go mod edit -json | jq -r '.Require[] | select(.Path == "github.com/infrena/infrena") | .Version')"
+          [[ "$v" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::go.mod requires infrena $v, which is not a release tag"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      # The e2e host, at ../infrena where the suite looks for it, built from the same tag the plugin compiles against.
+      - uses: actions/checkout@v7
+        with:
+          repository: infrena/infrena
+          ref: ${{ steps.infrena.outputs.version }}
+          path: infrena
+          token: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
+      - name: gofmt
+        working-directory: infrena-provider-aws
+        run: test -z "$(gofmt -l .)"
+      - name: vet
+        working-directory: infrena-provider-aws
+        run: go vet ./... && go vet -tags e2e,live ./...
+      - name: test
+        working-directory: infrena-provider-aws
+        run: go test -count=1 ./...
+      - name: e2e against infrena ${{ steps.infrena.outputs.version }}
+        working-directory: infrena-provider-aws
+        run: |
+          set -euo pipefail
+          go test -tags e2e -count=1 -v ./e2e/ 2>&1 | tee "$RUNNER_TEMP/e2e.log"
+          if grep -q 'E2E SKIPPED' "$RUNNER_TEMP/e2e.log"; then
+            echo "::error::the e2e suite skipped instead of running against ../infrena"
+            exit 1
+          fi
+
+  main:
+    name: against infrena main (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: infrena-provider-aws
+      - uses: actions/checkout@v7
+        with:
+          repository: infrena/infrena
+          path: infrena
+          token: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          cache-dependency-path: infrena-provider-aws/go.sum
+      - name: test and e2e against infrena main
+        working-directory: infrena-provider-aws
+        run: |
+          set -euo pipefail
+          go work init . ../infrena
+          go test -count=1 ./...
+          go test -tags e2e -count=1 -v ./e2e/ 2>&1 | tee "$RUNNER_TEMP/e2e.log"
+          if grep -q 'E2E SKIPPED' "$RUNNER_TEMP/e2e.log"; then exit 1; fi
