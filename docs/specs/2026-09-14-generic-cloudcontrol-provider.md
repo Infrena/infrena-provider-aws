@@ -1,6 +1,8 @@
 # Generic Cloud Control provider — design
 
-**Status:** questions answered 2026-09-14; awaiting James's review of the whole design before the plan. **Supersedes** Tasks 5–6 of
+**Status:** implemented on `generic-cloudcontrol` per `docs/plans/2026-09-14-generic-cloudcontrol-provider.md`
+(Tasks 1–17 done); e2e passes 12/12 against infrena v0.4.0; the live suite against real AWS is pending James's
+approval and has not run. **Supersedes** Tasks 5–6 of
 `docs/plans/2026-09-13-first-slice-vpc-subnet.md` (handwritten `aws.vpc`/`aws.subnet`). **Evidence:**
 `docs/investigations/2026-09-13-generic-aws-provider.md` and `spikes/generic-aws/`. **Contract:** infrata **v0.3.0**
 (`45deb30`): plugin protocol 2, `schema.Attribute.Optional` and `Aliases` (PLAN §14.1), `lifecycle: ignore_changes`
