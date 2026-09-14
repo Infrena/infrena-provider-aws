@@ -1028,6 +1028,8 @@ git commit -m "aws: instance configuration fails closed, and a missing profile f
 ---
 ### Task 3: `internal/ec2fake` — a fake EC2 (and STS) endpoint, with the real SDK as its oracle
 
+> **Done 2026-09-13, `d6eec09` on `first-slice`.** All five oracle tests decoded on the first run — no XML element name in the plan needed correcting against `deserializers.go`. The assume-role test passes. Sabotages all caught. Differences from the code above: `SetTag` looks the region up directly (no one-element loop), `xmlName` lives in `xml.go`, and `AddVPC`/`VPCs`/`Subnets` copy tag maps so a snapshot cannot alias the fake's state.
+
 **Files:**
 - Create: `internal/ec2fake/server.go`, `internal/ec2fake/xml.go`
 - Test: `internal/ec2fake/server_test.go`, and add the assume-role case to `internal/awsprov/config_test.go`
@@ -1051,7 +1053,7 @@ git commit -m "aws: instance configuration fails closed, and a missing profile f
 The fake keeps resources per region, taking the region from the SigV4 credential scope in `Authorization`
 (`Credential=<key>/<date>/<region>/<service>/aws4_request`), which is also where it reads the access key ID.
 
-- [ ] **Step 1: Write the oracle tests**
+- [x] **Step 1: Write the oracle tests**
 
 `internal/ec2fake/server_test.go`:
 
@@ -1214,12 +1216,12 @@ func TestHiddenResourcesAreNotFoundForAWhile(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `go test -count=1 ./internal/ec2fake/`
 Expected: FAIL — `undefined: New`.
 
-- [ ] **Step 3: Implement the fake**
+- [x] **Step 3: Implement the fake**
 
 `internal/ec2fake/xml.go`:
 
@@ -1746,14 +1748,14 @@ Add to `xml.go`:
 func xmlName(local string) xml.Name { return xml.Name{Local: local} }
 ```
 
-- [ ] **Step 4: Run the oracle tests**
+- [x] **Step 4: Run the oracle tests**
 
 Run: `go test -count=1 ./internal/ec2fake/`
 Expected: PASS. If the SDK fails to decode a response, the element names in `xml.go` are wrong: correct them
 against `service/ec2@v1.332.0/deserializers.go` (search the `awsEc2query_deserializeDocument…` function for the
 type) and record the correction in the Verification log. The SDK is authoritative, not this plan.
 
-- [ ] **Step 5: Add the assume-role test to `internal/awsprov/config_test.go`**
+- [x] **Step 5: Add the assume-role test to `internal/awsprov/config_test.go`**
 
 It needs a provider operation that makes an EC2 call; `Discover` exists only after Task 7, so call the client
 directly through the provider's client cache:
@@ -1789,7 +1791,7 @@ func TestAssumeRoleSignsEC2CallsWithTheAssumedCredentials(t *testing.T) {
 
 Run: `go test -count=1 ./...` — Expected: PASS.
 
-- [ ] **Step 6: Sabotage, then commit**
+- [x] **Step 6: Sabotage, then commit**
 
 Sabotages: fake ignores the region on `DescribeVpcs` (`TestRegionsArePartitioned…` fails — the fixture has a
 VPC in another region); fake never sets `nextToken` with `PageSize` (same test: 1, not 3); rename `vpcSet` to
