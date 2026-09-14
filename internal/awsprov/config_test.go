@@ -1,13 +1,17 @@
 package awsprov
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/infrata/infrata-provider-aws/internal/awstest"
+	"github.com/infrata/infrata-provider-aws/internal/catalog"
+	"github.com/infrata/infrata-provider-aws/internal/ccfake"
 	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrata/infrata/pkg/resource"
 	"github.com/infrata/infrata/pkg/value"
 )
 
@@ -100,5 +104,38 @@ func TestDiscoverTypesAreReadAndChecked(t *testing.T) {
 	_, err = NewPlugin().New(provider.Config{Instance: "main", Values: map[string]value.Value{"discover_types": list("aws.vpc", "aws.vpcc")}})
 	if err == nil || !strings.Contains(err.Error(), "aws.vpcc") || !strings.Contains(err.Error(), "infrata explain") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// TestAssumeRoleSignsCloudControlCallsWithTheAssumedCredentials. The static key would sign every call if the role were
+// ignored, so the assertion cannot pass by accident.
+func TestAssumeRoleSignsCloudControlCallsWithTheAssumedCredentials(t *testing.T) {
+	fake := ccfake.New()
+	defer fake.Close()
+	cat, err := catalog.Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	vpc, _ := cat.Lookup("aws.vpc")
+	fake.Register(awstest.FakeType(vpc, "vpc-", nil))
+	fake.Put("us-east-1", "AWS::EC2::VPC", "vpc-1", map[string]any{"VpcId": "vpc-1", "CidrBlock": "10.0.0.0/16"})
+	awstest.Isolate(t, fake.URL)
+
+	prov, err := NewPlugin().New(provider.Config{Instance: "deploy", Values: map[string]value.Value{
+		"assume_role_arn": s("arn:aws:iam::123456789012:role/deploy"),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := prov.Read(context.Background(), &resource.ResourceState{Type: "aws.vpc", ProviderID: "us-east-1/vpc-1"})
+	if err != nil || st == nil {
+		t.Fatalf("Read = %v, %v", st, err)
+	}
+	if fake.Calls("AssumeRole") != 1 {
+		t.Errorf("AssumeRole calls = %d, want 1", fake.Calls("AssumeRole"))
+	}
+	keys := fake.AccessKeys()
+	if last := keys[len(keys)-1]; last != ccfake.AssumedAccessKey {
+		t.Errorf("GetResource was signed with %q, want the assumed role's %q", last, ccfake.AssumedAccessKey)
 	}
 }
