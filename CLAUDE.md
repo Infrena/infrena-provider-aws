@@ -21,7 +21,7 @@ When the contract is awkward here, that is a finding about infrata, not somethin
 
 ## Current state
 
-**Under construction on branch `first-slice`: Task 1 of 12 done** (schemas, binary, module pinned at infrata `v0.2.0`). The design and the first vertical slice (`aws.vpc` + `aws.subnet`) are in
+**Under construction on branch `first-slice`: Tasks 1–2 of 12 done** (schemas, binary, module pinned at infrata `v0.2.0`; instance configuration and credentials). The design and the first vertical slice (`aws.vpc` + `aws.subnet`) are in
 `docs/plans/2026-09-13-first-slice-vpc-subnet.md`. Read it — its Decisions, James's answers, Findings
 and Verification log — before writing code or re-planning. Every factual claim it relies on was
 checked against infrata's source, the AWS SDK's source or AWS documentation, and the log records the

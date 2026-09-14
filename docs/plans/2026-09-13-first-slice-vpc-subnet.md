@@ -227,7 +227,7 @@ go work init . ../infrata                 # local builds use the sibling checkou
 git -C ../infrata status --short          # must be empty, or record what the build is compiling against
 ```
 
-`go.mod` gets no `replace`. Above the infrata `require`, add:
+`go.mod` gets no `replace`. Inside the `require` block, directly above the infrata line (a comment above a single-line `require` is dropped by `go mod tidy`), add:
 
 ```
 // infrata is private: fetch it with GOPRIVATE=github.com/infrata/* and git credentials. Local work
@@ -543,6 +543,8 @@ git commit -m "aws: schemas the host accepts, and a binary that says what it is"
 
 ### Task 2: Instance configuration and credentials
 
+> **Done 2026-09-13, `3c10cc1` on `first-slice`.** Suite green in workspace and `GOWORK=off` modes; all four sabotages compiled and failed. `go mod tidy` restored the SDK requires. **Found:** tidy silently drops a comment written above a single-line `require`, so the infrata comment from Task 1 was lost; it now sits inside the `require` block, directly above the infrata line, where tidy keeps it. The assume-role test is Task 3 Step 5, as planned.
+
 **Files:**
 - Create: `internal/awsprov/config.go`, `internal/awsprov/credentials.go`, `internal/awsprov/testenv_test.go`
 - Modify: `internal/awsprov/plugin.go` (`New`)
@@ -563,7 +565,7 @@ git commit -m "aws: schemas the host accepts, and a binary that says what it is"
 This task does not yet need the fake server for most cases; the assume-role test is added in Task 3 once the
 fake serves STS.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `internal/awsprov/testenv_test.go`:
 
@@ -708,12 +710,12 @@ func TestAProfileThatExistsConfigures(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `go test -count=1 -run 'Key|Config|Malformed|Profile' ./internal/awsprov/`
 Expected: FAIL — `undefined: parseConfig`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `internal/awsprov/config.go`:
 
@@ -1005,12 +1007,12 @@ func (pl *Plugin) New(cfg provider.Config) (provider.Provider, error) {
 }
 ```
 
-- [ ] **Step 4: Run to see them pass**
+- [x] **Step 4: Run to see them pass**
 
 Run: `go test -count=1 ./... && go vet ./... && gofmt -l .`
 Expected: PASS, no output from gofmt.
 
-- [ ] **Step 5: Sabotage, then commit**
+- [x] **Step 5: Sabotage, then commit**
 
 Sabotages: accept every key (`TestAnUnknownKeyIsRefused…`); drop the dedupe (`TestConfigValuesAreRead`); swallow
 `SharedConfigProfileNotExistError` and continue with defaults (`TestANamedProfileThatDoesNotExistFailsInNew`);
