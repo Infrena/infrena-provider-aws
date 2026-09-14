@@ -9,7 +9,7 @@ protocol: [2]
 platforms: [linux/amd64, linux/arm64, linux/arm, linux/386, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64]
 description: The AWS provider for infrena, serving every resource type AWS Cloud Control API supports.
 # The oldest infrena release CI verifies this plugin against: go.mod's require. v0.4.0 is the first release
-# under the Infrena name; every earlier release was published as infrata, under a different module path,
-# CLI and plugin binary name, so no build of this plugin can pair with one.
+# under the Infrena name; every earlier release was published under the product's previous name, under a
+# different module path, CLI and plugin binary name, so no build of this plugin can pair with one.
 infrena: ">= 0.4.0"
 source: https://github.com/infrena/infrena-provider-aws
