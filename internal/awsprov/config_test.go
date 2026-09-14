@@ -1,11 +1,14 @@
 package awsprov
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/infrata/infrata-provider-aws/internal/ec2fake"
 	"github.com/infrata/infrata/pkg/provider"
 	"github.com/infrata/infrata/pkg/value"
 )
@@ -77,6 +80,31 @@ func TestANamedProfileThatDoesNotExistFailsInNew(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %s", err, want)
 		}
+	}
+}
+
+// TestAssumeRoleSignsEC2CallsWithTheAssumedCredentials. The fixture's static key would sign every
+// call if the role were ignored, so the assertion cannot pass by accident.
+func TestAssumeRoleSignsEC2CallsWithTheAssumedCredentials(t *testing.T) {
+	fake := ec2fake.New()
+	defer fake.Close()
+	isolateAWS(t, fake.URL)
+
+	prov, err := NewPlugin().New(provider.Config{Instance: "deploy", Values: map[string]value.Value{
+		"assume_role_arn": s("arn:aws:iam::123456789012:role/deploy"),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := prov.(*Provider).clients.ec2("us-east-1").DescribeVpcs(context.Background(), &ec2.DescribeVpcsInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if fake.Calls("AssumeRole") != 1 {
+		t.Errorf("AssumeRole calls = %d, want 1", fake.Calls("AssumeRole"))
+	}
+	keys := fake.AccessKeys()
+	if last := keys[len(keys)-1]; last != ec2fake.AssumedAccessKey {
+		t.Errorf("DescribeVpcs was signed with %q, want the assumed role's %q", last, ec2fake.AssumedAccessKey)
 	}
 }
 
