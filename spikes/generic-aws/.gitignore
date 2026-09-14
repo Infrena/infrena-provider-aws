@@ -1,0 +1,2 @@
+# Smithy models are megabytes; scripts/fetch-models downloads them.
+/smithyinvoke/testdata/*.json
