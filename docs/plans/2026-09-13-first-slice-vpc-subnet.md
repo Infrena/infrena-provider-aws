@@ -2862,6 +2862,8 @@ git commit -m "aws.vpc: a create sent once, a read that waits out propagation, t
 ---
 ### Task 6: `aws.subnet` — the edge, a non-tag update, and cross-resource consistency
 
+> **Done 2026-09-13, `431a16c` on `first-slice`.** Everything passed on the first run, and all four sabotages were caught. `TestAFailedAttributeAfterCreateStillReportsTheSubnet` prints its one stderr line by design.
+
 **Files:**
 - Create: `internal/awsprov/subnet.go`
 - Modify: `internal/awsprov/provider.go` (subnet cases in the four dispatch switches)
@@ -2872,7 +2874,7 @@ git commit -m "aws.vpc: a create sent once, a read that waits out propagation, t
 - Produces: `createSubnet`, `readSubnet(ctx, providerID string, pt patience)`, `updateSubnet`, `deleteSubnet`,
   `subnetState(region string, sub types.Subnet) *resource.ResourceState`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `internal/awsprov/subnet_test.go`:
 
@@ -3036,12 +3038,12 @@ func TestAVPCWithASubnetRefusesDeletionWithAHint(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `go test -count=1 -run 'Subnet|MapPublic|FailedAttribute|VPCWithASubnet' ./internal/awsprov/`
 Expected: FAIL — `the aws plugin does not serve "aws.subnet"`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `internal/awsprov/subnet.go`:
 
@@ -3246,12 +3248,12 @@ In `provider.go` add a `case typeSubnet:` to each switch: `return p.readSubnet(c
 `return p.createSubnet(ctx, desired.Attrs)`, `return p.updateSubnet(ctx, current, desired)`,
 `return p.deleteSubnet(ctx, current)`.
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
 
 Run: `go test -count=1 ./... && go vet ./... && gofmt -l .`
 Expected: PASS. `TestAFailedAttributeAfterCreate…` prints one stderr line; that is the behaviour under test.
 
-- [ ] **Step 5: Sabotage, then commit**
+- [x] **Step 5: Sabotage, then commit**
 
 Sabotages: treat `InvalidVpcID.NotFound` as a hard error on the first try (`TestASubnetWaitsFor…`); return the
 `setMapPublicIP` error from `createSubnet` (`TestAFailedAttributeAfterCreate…`); set
