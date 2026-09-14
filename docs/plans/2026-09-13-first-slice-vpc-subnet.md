@@ -195,6 +195,8 @@ README.md
 ---
 ### Task 1: Module, schemas, and a binary the host accepts
 
+> **Done 2026-09-13, `4fe0ba5` on `first-slice`.** Pinned at infrata `v0.2.0`; suite green in workspace and `GOWORK=off` modes; all four sabotages compiled and failed. Deviation: `go mod tidy` removed the SDK requires, since nothing imports the SDK yet — Task 2's imports bring them back (run `go mod tidy` there).
+
 **Files:**
 - Create: `go.mod`, `go.sum`, `.gitignore`, `cmd/infrata-plugin-aws/main.go`
 - Create: `internal/awsprov/plugin.go`, `internal/awsprov/definitions.go`, `internal/awsprov/values.go`
@@ -206,7 +208,7 @@ README.md
   `func str(s string) value.Value`, `func boolean(b bool) value.Value` (provider-sourced constructors).
   In this task `Plugin.New` returns an error `"not built yet"`; Task 2 replaces it.
 
-- [ ] **Step 1: Create the module**
+- [x] **Step 1: Create the module**
 
 Prerequisite: git credentials for `github.com/infrata/infrata` (`gh auth setup-git`, or an SSH `insteadOf`).
 Check with `GOWORK=off GOPRIVATE='github.com/infrata/*' go list -m -versions github.com/infrata/infrata`.
@@ -242,7 +244,7 @@ git -C ../infrata status --short          # must be empty, or record what the bu
 /go.work.sum
 ```
 
-- [ ] **Step 2: Write the failing schema test**
+- [x] **Step 2: Write the failing schema test**
 
 `internal/awsprov/definitions_test.go`:
 
@@ -309,12 +311,12 @@ func TestASubnetRequiresAVPC(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: Run it to see it fail**
+- [x] **Step 3: Run it to see it fail**
 
 Run: `go test -count=1 ./internal/awsprov/`
 Expected: FAIL — `undefined: definitions`.
 
-- [ ] **Step 4: Write the schemas, the value helpers and the plugin skeleton**
+- [x] **Step 4: Write the schemas, the value helpers and the plugin skeleton**
 
 `internal/awsprov/values.go`:
 
@@ -460,7 +462,7 @@ import (
 func main() { pluginsdk.Main(awsprov.NewPlugin()) }
 ```
 
-- [ ] **Step 5: Add the protocol test for schema loading**
+- [x] **Step 5: Add the protocol test for schema loading**
 
 `internal/awsprov/protocol_test.go`:
 
@@ -510,7 +512,7 @@ func TestSchemasLoadThroughTheHost(t *testing.T) {
 }
 ```
 
-- [ ] **Step 6: Run the suite and the binary**
+- [x] **Step 6: Run the suite and the binary**
 
 ```bash
 go test -count=1 ./...
@@ -522,7 +524,7 @@ go vet ./... && gofmt -l .
 
 Expected: PASS; the two binary checks print as commented.
 
-- [ ] **Step 7: Sabotage, then commit**
+- [x] **Step 7: Sabotage, then commit**
 
 Sabotages (each must compile and fail a test): drop `ForceNew` from `subnet.vpc_id`
 (`TestRegionalAttributesAreRequiredAndForceNew`); make `availability_zone` optional
