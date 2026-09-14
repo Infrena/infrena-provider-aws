@@ -386,7 +386,10 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("X-Amzn-ErrorType", code)
 	w.Header().Set("X-Amzn-Requestid", "fake-request-err") // the SDK reads it into ServiceRequestID
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]any{"__type": code, "message": message})
+	// The SDK's schema-based deserializer matches a known error shape's member name exactly ("Message", not
+	// "message"): the generic ProtocolErrorInfo fallback is case-insensitive, but a registered type like
+	// InvalidRequestException is not. Verified against service/cloudcontrol@v1.38.0's schemas (AddMember("Message", ...)).
+	_ = json.NewEncoder(w).Encode(map[string]any{"__type": code, "Message": message})
 }
 
 func isWriteOnly(tc TypeConfig, name string) bool {

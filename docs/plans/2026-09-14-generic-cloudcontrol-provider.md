@@ -77,6 +77,7 @@ Evidence: `docs/investigations/2026-09-13-generic-aws-provider.md`.
 | Cloud Control service name in the target header is `CloudApiService` | `cloudcontrol.json` service shape `com.amazonaws.cloudcontrol#CloudApiService` | ✔ |
 | `AWS_ENDPOINT_URL_CLOUDCONTROL` overrides the endpoint | `service/cloudcontrol@v1.38.0/endpoints.go` | ✔ |
 | Live Cloud Control create/update/delete of a VPC works; `GetResource` returns provider-chosen properties | spike `cmd/cloudcontrol-poc -live` | ✔ |
+| Correction (Task 8): a known/registered error shape (e.g. `InvalidRequestException`) is decoded by the schema deserializer, which matches the member name `Message` exactly (no `JSONName` trait on it); the case-insensitive `message`/`Message` fallback only covers the generic `ProtocolErrorInfo` path for an *unregistered* code. `ccfake.writeError` sent lowercase `message`, so a registered error's `Message` field decoded empty; fixed to send `Message` | `service/cloudcontrol@v1.38.0/schemas/schemas.go` (`AddMember("Message", _ErrorMessage)`), `smithy-go@v1.28.1/transport/http/protocol/internal/json/shape_deserializer.go` (`memberFromToken`, exact byte match) | ✔ (found by `TestAFailureMessageSaysWhatAndWhereAndKeepsItsCause` in Task 8) |
 
 ## File structure
 
