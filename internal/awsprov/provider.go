@@ -33,6 +33,8 @@ func (p *Provider) Read(ctx context.Context, current *resource.ResourceState) (*
 	switch current.Type {
 	case typeVPC:
 		return p.readVPC(ctx, current.ProviderID, p.patience)
+	case typeSubnet:
+		return p.readSubnet(ctx, current.ProviderID, p.patience)
 	}
 	return nil, unknownType(current.Type)
 }
@@ -41,6 +43,8 @@ func (p *Provider) Create(ctx context.Context, desired *resource.DesiredResource
 	switch desired.Type {
 	case typeVPC:
 		return p.createVPC(ctx, desired.Attrs)
+	case typeSubnet:
+		return p.createSubnet(ctx, desired.Attrs)
 	}
 	return nil, unknownType(desired.Type)
 }
@@ -49,6 +53,8 @@ func (p *Provider) Update(ctx context.Context, current *resource.ResourceState, 
 	switch current.Type {
 	case typeVPC:
 		return p.updateVPC(ctx, current, desired)
+	case typeSubnet:
+		return p.updateSubnet(ctx, current, desired)
 	}
 	return nil, unknownType(current.Type)
 }
@@ -57,6 +63,8 @@ func (p *Provider) Delete(ctx context.Context, current *resource.ResourceState) 
 	switch current.Type {
 	case typeVPC:
 		return p.deleteVPC(ctx, current)
+	case typeSubnet:
+		return p.deleteSubnet(ctx, current)
 	}
 	return unknownType(current.Type)
 }
