@@ -99,15 +99,22 @@ func coerce(t *catalog.Type, a *catalog.Attribute, v value.Value, datum any) (va
 	return value.Value{}, fmt.Errorf("AWS returned a %s for %s.%s, which the schema says is a %s", v.Kind, t.Name, a.Name, want)
 }
 
-// encodeAttr converts one top-level attribute to the JSON Cloud Control takes.
+// encodeAttr converts one top-level attribute to the JSON Cloud Control takes: nested keys under AWS's names, and tags
+// as a list.
 func encodeAttr(t *catalog.Type, a *catalog.Attribute, v value.Value) (any, error) {
-	return plain(v), nil
+	if a.Name == t.TagsAsMap {
+		return tagsToJSON(t, a, v)
+	}
+	return encode(a.Shape, v, t.Name+"."+a.Name)
 }
 
-// decodeAttr converts one top-level property AWS returned. reference is what configuration asked for or the plugin last
-// reported, when there is one. It reports false when there is nothing to record.
+// decodeAttr converts one top-level property AWS returned, reconciled against reference when there is one. It reports
+// false when there is nothing to record.
 func decodeAttr(t *catalog.Type, a *catalog.Attribute, datum any, reference *value.Value) (value.Value, bool, error) {
-	v, ok := infer(datum)
+	if a.Name == t.TagsAsMap {
+		return tagsFromJSON(t, a, datum, reference)
+	}
+	v, ok := decode(a.Shape, datum, reference)
 	if !ok {
 		return value.Value{}, false, nil
 	}
