@@ -63,7 +63,7 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
 | D16 | **Real-AWS suite: yes, behind `//go:build live`, in `live/`, run by hand only.** Requires `INFRATA_AWS_LIVE_PROFILE` and `INFRATA_AWS_LIVE_ACCOUNT`; refuses to run unless STS `GetCallerIdentity` returns that account. Everything it creates is tagged `infrata-live-run=<run id>` and deleted in `t.Cleanup`; `TestSweepLeftovers` deletes tagged resources older than an hour. Not in CI. | The only suite that can catch real eventual-consistency and IAM behaviour. The account guard stops a contributor's default profile from being used by accident. VPCs and subnets cost nothing. | Needs a dedicated account (Q2). |
 | D17 | **CI**: `.github/workflows/ci.yml` on push and pull request (gofmt, vet including `-tags e2e,live`, the plain suite, the e2e suite), plus `release.yml` copied from the fake plugin with the same three-way version gate | The fake plugin only tests at release; this plugin changes more often and a tag should not be the first time e2e runs in CI. Vetting the tagged files keeps `live/` compiling though it never runs. | One more workflow using `INFRATA_CHECKOUT_TOKEN`. |
 | D18 | **Package name `internal/awsprov`** | `internal/aws` would shadow the SDK's `aws` package at every import site; `internal/provider` would shadow infrata's `pkg/provider`. | — |
-| D19 | **infrata is required by version, not replaced** (James, 2026-09-13, answering Q3). `go.mod` requires the newest infrata tag that contains what this plugin relies on, or a pseudo-version of a commit until such a tag exists; no `replace`. Locally a gitignored `go.work` uses `../infrata`. CI: a **blocking `pinned` job** (`GOWORK=off`, `GOPRIVATE=github.com/infrata/*`, git credentials from `INFRATA_CHECKOUT_TOKEN`; e2e builds the infrata CLI from a checkout at the same version) and a **non-blocking `infrata-main` job** (workspace over infrata `main`). Releases build pinned. **`bump-infrata.yml`** runs daily: `go get github.com/infrata/infrata@upgrade`, tests, and opens a PR. | A `replace` makes every build compile infrata's working tree, so a green suite proves nothing about a released infrata, and the release ships an SDK nobody can name. `go.work` keeps the fast local loop without committing it. `@upgrade` never moves from a newer pseudo-version back to an older tag. infrata versions will move often until its first official release, and James wants to keep up, so the bump is automated rather than remembered. | Contributors need credentials for the private module even to `go mod tidy`. The only tag, `v0.1.0`, predates every infrata change this plugin relies on (F10), so Task 1 pins a pseudo-version until infrata tags again. A bump PR opened with `GITHUB_TOKEN` gets CI runs in an approval-required state, so the bump workflow runs the suite itself before opening it. Releases are no longer tested against infrata `main` (a change from the fake plugin): the non-blocking job covers that signal. |
+| D19 | **infrata is required by version, not replaced** (James, 2026-09-13, answering Q3). `go.mod` requires the newest infrata tag that contains what this plugin relies on, or a pseudo-version of a commit until such a tag exists; no `replace`. Locally a gitignored `go.work` uses `../infrata`. CI: a **blocking `pinned` job** (`GOWORK=off`, `GOPRIVATE=github.com/infrata/*`, git credentials from `INFRATA_CHECKOUT_TOKEN`; e2e builds the infrata CLI from a checkout at the same version) and a **non-blocking `infrata-main` job** (workspace over infrata `main`). Releases build pinned. **`bump-infrata.yml`** runs daily: `go get github.com/infrata/infrata@upgrade`, tests, and opens a PR. | A `replace` makes every build compile infrata's working tree, so a green suite proves nothing about a released infrata, and the release ships an SDK nobody can name. `go.work` keeps the fast local loop without committing it. `@upgrade` never moves from a newer pseudo-version back to an older tag. infrata versions will move often until its first official release, and James wants to keep up, so the bump is automated rather than remembered. | Contributors need credentials for the private module even to `go mod tidy`. Task 1 requires `v0.2.0`, the first tag containing every infrata change this plugin relies on (F10). A bump PR opened with `GITHUB_TOKEN` gets CI runs in an approval-required state, so the bump workflow runs the suite itself before opening it. Releases are no longer tested against infrata `main` (a change from the fake plugin): the non-blocking job covers that signal. |
 | D20 | **Examples use `defaults: {region: ${aws_region}}`, with `aws_region` declared with a `default:`** and overridden per environment; `discover_regions` stays literal (James, 2026-09-13: "probably", answering Q1) | infrata resolves `providers:` variables for every command given an environment (`5895f8a`, `76c3f28`). `discover` takes none and refuses any value still unknown, `defaults:` included, though discovery never applies defaults (F9). A variable with a `default:` resolves without an environment, so `discover` keeps working. | A region set only per environment breaks `discover` until F9 is answered. The README's example and the e2e `basic` fixture change together (Task 9, Task 12). |
 
 ## James's answers (2026-09-13)
@@ -75,7 +75,7 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
   and skips without its variables. It has never run; its unconfirmed Verification log rows stay unconfirmed.
 - **Q3 — require an infrata version in CI: "Yes, although the version will likely increase frequently and we need
   to keep up until we make our first official release."** Adopted as D19, with `bump-infrata.yml` for keeping up.
-  Blocked on F10 for a tag; a pseudo-version works meanwhile.
+  F10 is resolved: infrata released `v0.2.0` the same evening, and Task 1 requires it.
 
 ## Findings (to report, not to fix here)
 
@@ -89,7 +89,7 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
 | F6 | fake repo docs, §14 retries (**fixed** upstream in `e62d157`) | `o.RetryMaxAttempts = 1` per call is correct but has a subtlety worth one sentence: the SDK ignores a per-call value equal to the client's (`finalizeOperationRetryMaxAttempts`), which is harmless only because equal means already 1. | `service/ec2@v1.332.0/api_client.go:602-608`. |
 | F7 | infrata, minor | `selectForImport`'s doc comment says a selector "splits at the LAST dot"; the code looks the whole selector up in a map. | `internal/cli/import.go`, `selectForImport`. |
 | F9 | infrata, for the infrata session | `discover` refuses an unresolved value in an instance's `defaults:`, though discovery never applies defaults. `defaults: {region: ${aws_region}}` with a per-environment-only value therefore breaks `discover` for no benefit. Either intended (say so in §12.1) or refuse configuration only. | `internal/cli/context.go` `refuseUnresolvedInstances` loops `inst.Config` and `inst.Defaults`; `discover` reaches it through `discoveryRegistry(opts, "")` → `registerStateInstances`. |
-| F10 | infrata, for James | The only infrata tag, `v0.1.0` (`cfe996f`), contains none of `5895f8a`, `76c3f28`, `6e968a8`, `a1efc85`. A plugin pinned to it would lose per-environment `providers:` variables on refresh/destroy/import, per-instance requirements and `import --provider`. D19 needs a newer tag. | `git merge-base --is-ancestor <commit> v0.1.0` false for all four; `git ls-remote --tags origin` lists only `v0.1.0`. |
+| F10 | infrata, for James (**resolved**: `v0.2.0` on `959817b` contains all four, and `2c1bbb6`, `ca9db09`) | The only infrata tag at planning time, `v0.1.0` (`cfe996f`), contains none of `5895f8a`, `76c3f28`, `6e968a8`, `a1efc85`. A plugin pinned to it would lose per-environment `providers:` variables on refresh/destroy/import, per-instance requirements and `import --provider`. D19 needs a newer tag. | `git merge-base --is-ancestor <commit> v0.1.0` false for all four; `git ls-remote --tags origin` lists only `v0.1.0`. |
 | F8 | infrata, known | `DiscoverRequest.Region` / `pluginproto` `region` still exist and are never set. Already a follow-up; this plugin's model needs neither (evidence for removal). | `pkg/provider/provider.go:64-67`; `internal/discovery/walk.go` builds `{Types: ask}`. |
 
 ## Verification log
@@ -147,6 +147,9 @@ Every claim the design rests on, what it was checked against on 2026-09-13, and 
 | `discover` refuses an unresolved `defaults:` value | `internal/cli/context.go` `refuseUnresolvedInstances`, `discoveryRegistry` | ✔ (F9) |
 | A declared variable takes `type:` and `default:` | infrata `examples/shop/modules/app-stack/module.yml`; PLAN §12.1 "a declared `default:`" | ✔ for module inputs; confirmed for top-level `variables:` by Task 9 |
 | infrata tags and what they contain | `git tag`, `git merge-base --is-ancestor`, `git ls-remote --tags origin` | only `v0.1.0`, lacking all four needed commits (F10) |
+| `v0.2.0` contains `5895f8a`, `76c3f28`, `6e968a8`, `a1efc85`, `2c1bbb6`, `ca9db09`; `go 1.27.0`; fetchable | `git merge-base --is-ancestor` each; `git show v0.2.0:go.mod`; `GOPRIVATE=… go list -m -versions` → `v0.1.0 v0.2.0` | ✔ |
+| F9 (discover refuses unresolved `defaults:`) is still present in `v0.2.0` | `git show v0.2.0:internal/cli/context.go`, `refuseUnresolvedInstances` loops `inst.Defaults` (line 260) | ✔ — D20's `default:` stays necessary |
+| `v0.2.0` is breaking: a requirement in one instance is no longer satisfied by another instance's resource | infrata session's release note; `6e968a8` in the tag | ✔ no fixture here spans instances |
 
 ## File structure
 
@@ -205,9 +208,8 @@ cd /home/james/projects/infrata-provider-aws
 export GOPRIVATE='github.com/infrata/*'
 go mod init github.com/infrata/infrata-provider-aws
 go mod edit -go=1.27.0
-# The newest infrata TAG containing a1efc85 (import --provider). Until one exists (F10), pin that commit:
-# `go get` turns it into a pseudo-version. Check first: git -C ../infrata tag --contains a1efc85
-GOWORK=off go get github.com/infrata/infrata@a1efc85
+# v0.2.0 (959817b) is the first tag with everything this plugin relies on (F10, resolved 2026-09-13).
+GOWORK=off go get github.com/infrata/infrata@v0.2.0
 go get github.com/aws/aws-sdk-go-v2@v1.47.0 github.com/aws/aws-sdk-go-v2/config@v1.33.4 \
   github.com/aws/aws-sdk-go-v2/credentials@v1.20.4 github.com/aws/aws-sdk-go-v2/service/ec2@v1.332.0 \
   github.com/aws/aws-sdk-go-v2/service/sts@v1.50.0 github.com/aws/smithy-go@v1.28.1
@@ -3968,10 +3970,15 @@ version: 0.1.0
 protocol: [1]
 platforms: [linux/amd64, linux/arm64, linux/arm, linux/386, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64]
 description: The AWS provider for infrata.
+infrata: ">= 0.2.0"
 source: https://github.com/infrata/infrata-provider-aws
 ```
 
-No `infrata:` key: absent means unconstrained, and no infrata release is known to be incompatible.
+`infrata: ">= 0.2.0"` because a release IS known not to work: on `v0.1.0`, `refresh`/`destroy`/`import` cannot
+resolve `defaults: {region: ${aws_region}}`, requirements span accounts, and `import --provider` does not exist — all
+of which this plugin's README and e2e suite rely on. Validate it with `pkg/semver.ParseConstraint` through the
+manifest test; a development build of infrata is exempt from the floor, so the e2e manifest test still passes
+against a checkout build.
 
 - [ ] **Step 2: The manifest test (failing first — run it before creating `plugin.yaml` to see it fail)**
 
