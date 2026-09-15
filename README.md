@@ -78,7 +78,11 @@ buckets, IAM roles, and similar commonly-used types) rather than every type the 
 an unfiltered scan is roughly 1,500 `ListResources` calls per region per run. `import` discovers first,
 so the same set and the same `discover_types` override apply there. Types that only list under a parent
 resource (for example a resource that only exists nested under another) are never discovered; import
-them directly by ID instead.
+them directly by ID instead. infrena names a discovered resource from its `Name` tag when it has one
+(`vpc-app1` for a VPC tagged `Name: app1`), falling back to its sanitised provider ID otherwise; either
+way the name is prefixed with the type's last segment. `import --generate` writes a reference (for
+example `vpc: ${vpc-app1}`) instead of a literal id wherever an imported resource's attribute points at
+another resource imported in the same run.
 
 ## Import IDs
 
@@ -156,7 +160,7 @@ reference.
 
 ## Breaking changes in 0.2.0
 
-- Needs infrena 0.6.2 or newer (plugin protocol 3).
+- Needs infrena 0.7.0 or newer (plugin protocol 4).
 - Attributes that now declare a reference type-check explicit references, so a mismatched target is an error where
   it previously was not: for example `vpc_id: ${subnet.arn}` is refused, because a security group's `vpc_id` refers
   to a VPC, not a subnet. The full list of attributes that declare a reference is `gen/references.lock.json`'s

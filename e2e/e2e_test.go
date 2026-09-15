@@ -317,6 +317,51 @@ func TestTheWorkflow(t *testing.T) {
 			t.Fatalf("plan after import --generate proposes %v", ops)
 		}
 	})
+	t.Run("discover names resources from their Name tag, and import --generate references between them", func(t *testing.T) {
+		e.fake.Put("us-east-1", "AWS::EC2::VPC", "vpc-9001", map[string]any{
+			"VpcId": "vpc-9001", "CidrBlock": "172.20.0.0/16", "EnableDnsSupport": true, "EnableDnsHostnames": false, "InstanceTenancy": "default",
+			"Tags": []any{map[string]any{"Key": "Name", "Value": "app1"}},
+		})
+		e.fake.Put("us-east-1", "AWS::EC2::Subnet", "subnet-9002", map[string]any{
+			"SubnetId": "subnet-9002", "VpcId": "vpc-9001", "CidrBlock": "172.20.1.0/24",
+			"AvailabilityZone": "us-east-1a", "AvailabilityZoneId": "use1-az1", "MapPublicIpOnLaunch": false,
+			"Tags": []any{map[string]any{"Key": "Name", "Value": "app1a"}},
+		})
+		// name.go prefixes a discovered name with the type's last segment (typePrefix) and takes the Name tag
+		// over the provider ID, so a VPC tagged Name: app1 discovers as vpc-app1, and a subnet tagged Name:
+		// app1a as subnet-app1a — neither of which is either resource's raw provider ID.
+		e.expect(t, 0, []string{"vpc-app1", "subnet-app1a"}, "discover")
+
+		e.expect(t, 0, []string{"2 resources imported"}, "import", "dev",
+			"aws.vpc.us-east-1/vpc-9001", "aws.subnet.us-east-1/subnet-9002", "--generate")
+
+		entries, err := os.ReadDir(filepath.Join(e.dir, "discovered"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var generated string
+		for _, entry := range entries {
+			b, err := os.ReadFile(filepath.Join(e.dir, "discovered", entry.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			generated += string(b)
+		}
+		if !strings.Contains(generated, "vpc: ${vpc-app1}") {
+			t.Fatalf("generated configuration does not write the subnet's VpcId as a reference to vpc-app1:\n%s", generated)
+		}
+		// The literal id is expected in the "imported from" comment; it must not appear anywhere else, which
+		// would mean the reference did not project and the raw VpcId leaked into a value instead.
+		for _, line := range strings.Split(generated, "\n") {
+			if strings.Contains(line, "vpc-9001") && !strings.Contains(strings.TrimSpace(line), "# imported from") {
+				t.Fatalf("generated configuration holds the literal VPC id outside a comment: %q\n%s", line, generated)
+			}
+		}
+
+		if ops := e.planOps(t); len(ops) != 0 {
+			t.Fatalf("plan after import --generate proposes %v", ops)
+		}
+	})
 	t.Run("destroy removes everything infrena manages", func(t *testing.T) {
 		e.expect(t, 2, []string{"0 failed"}, "destroy", "dev", "--auto-approve")
 		for _, cfn := range []string{"AWS::EC2::VPC", "AWS::EC2::Subnet", "AWS::EC2::SecurityGroup"} {

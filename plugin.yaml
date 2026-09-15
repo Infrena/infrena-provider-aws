@@ -5,14 +5,15 @@ name: aws
 version: 0.2.0
 # The protocol THIS RELEASE'S binary speaks: exactly the pluginproto.Version of the infrena go.mod requires. It changes
 # in the same commit as that require (internal/awsprov/manifest_test.go and scripts/release-check refuse a mismatch).
-protocol: [3]
+protocol: [4]
 platforms: [linux/amd64, linux/arm64, linux/arm, linux/386, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64]
 description: The AWS provider for infrena, serving every resource type AWS Cloud Control API supports.
 # The oldest infrena release this plugin works with. 0.6.0 added References, which the catalog declares so
 # `VpcId: ${vpc}` works, and protocol 3. 0.6.2 fixed a compiler bug: a whole-resource reference into an attribute
 # written with an alias (`vpc: ${vpc}`, `vpc_id: ${vpc}`) wrongly failed with "declares no reference", only the
-# canonical AWS name working. go.mod requires 0.6.2 exactly, and the floor matches it so no older host silently
-# accepts aliased references it cannot compile. Releases before 0.4.0 were published under the product's previous
-# name and cannot pair with this plugin at all.
-infrena: ">= 0.6.2"
+# canonical AWS name working. 0.7.0 moved to protocol 4 and taught discovery to name resources from their Name
+# tag and import --generate to write whole-resource references between resources imported together. go.mod
+# requires 0.7.0 exactly, and the floor matches it so no older host silently claims protocol 4. Releases before
+# 0.4.0 were published under the product's previous name and cannot pair with this plugin at all.
+infrena: ">= 0.7.0"
 source: https://github.com/infrena/infrena-provider-aws
