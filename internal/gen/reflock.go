@@ -16,7 +16,7 @@ const (
 	StatusAccepted = "accepted" // tier 1: an exact type-name match, accepted without review
 	StatusApproved = "approved" // tier 2, its target listed in the overlay's references.approve_targets
 	StatusPending  = "pending"  // tier 2, not yet approved: kept out of the catalog
-	StatusRejected = "rejected" // named in the overlay's references.reject, whatever its tier
+	StatusRejected = "rejected" // named in the overlay's references.reject, or its target in reject_targets, whatever its tier
 )
 
 // AcceptNewReferencesFlag is the gen-cloudcontrol flag that lets new edges into the lock.
@@ -139,9 +139,13 @@ func (l *ReferenceLock) Reconcile(derived []Derivation, live map[string][]string
 	for _, t := range o.ApproveTargets {
 		approved[t] = true
 	}
+	rejectedTarget := map[string]bool{}
+	for _, t := range o.RejectTargets {
+		rejectedTarget[t] = true
+	}
 	statusOf := func(r LockedReference) string {
 		switch {
-		case rejected[r.key()]:
+		case rejected[r.key()], rejectedTarget[r.Target]:
 			return StatusRejected
 		case r.Tier == 1:
 			return StatusAccepted

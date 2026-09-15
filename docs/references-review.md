@@ -1,506 +1,173 @@
 # Reference edges: review
 
-> **NOTHING IN TIER 2 IS APPROVED YET.** `references.approve_targets` in `gen/overlay.yaml` is empty, so all 175 tier-2 edges are `pending` in `gen/references.lock.json` and none of them reach the catalog. Approving is James's decision.
+> **Decided on 2026-09-14.** 785 accepted, 136 approved, 46 pending, 24 rejected, out of 991 edges in `gen/references.lock.json`. Only accepted and approved edges reach the catalog. Pending edges stay out until their target is approved.
 
-Generated on 2026-09-14 from `gen/references.lock.json` and the derivation over bundle `543f4b1846d7`, for the resource references design (infrena `docs/superpowers/specs/2026-09-14-resource-references-design.md` §4). The verdicts below are a first reading of property names and descriptions, not verified against AWS.
+Generated from `gen/references.lock.json` and the derivation over bundle `543f4b1846d7`, for the resource references design (infrena `docs/superpowers/specs/2026-09-14-resource-references-design.md` §4). Verdicts are a reading of property names and descriptions, not verified against AWS.
 
 ## How to act on this
 
 - **Approve a target:** add its CloudFormation type to `references.approve_targets`. Every tier-2 edge pointing at it becomes `approved`.
-- **Refuse an edge:** add `Type.Property` to `references.reject`. That works on tier 1 too, and a reject beats an approval, so a MIXED target can be approved with its bad edges rejected.
-- Then run `go run ./cmd/gen-cloudcontrol` and commit the overlay, lock and catalog diff together.
+- **Refuse a target:** add it to `references.reject_targets`. Every edge pointing at it becomes `rejected`, whatever its tier, even if the target is also approved.
+- **Refuse one edge:** add `Type.Property` to `references.reject`. That works on tier 1 too.
+- **Trust a target across services:** add it to `references.cross_service_targets`. This moves locked edges between tiers, so generation refuses it until run with `-accept-reclassified-references`.
+- Then run `go run ./cmd/gen-cloudcontrol` and commit the overlay, lock and catalog diff together. Every edge whose status changed is printed.
 - A schema refresh that derives an edge the lock does not hold fails generation. Review the new edges, then run it with `-accept-new-references`.
 
 ## Counts
 
-| | this run | infrena session |
-| --- | ---: | ---: |
-| candidate properties | 1503 | 1614 |
-| tier 1, exact match (accepted) | 816 | 832 |
-| tier 2, suffix match (pending) | 175 | 161 |
-| ambiguous | 285 | 399 |
-| no such type | 143 | 159 |
-| target lacks the attribute | 84 | 63 |
-| resolved | 991 (65.9%) | 993 (61.5%) |
-
-Why the numbers differ: the infrena session took candidate sources from every AWS type in the bundle. Over all 1729 AWS types there are 1617 candidates, which matches its 1614. This run takes sources and targets from the 1584 provisionable types only, the ones in the catalog. Which attribute of the target is picked, and in what order ambiguity and a missing attribute are checked, can also move edges between tiers and buckets. This run picks a property named exactly `Id` or `Arn`, then `<Segment>Id`/`<Segment>Arn`, then a single primary identifier ending in the kind. For example, `AWS::EC2::SecurityGroup.Id` takes 14 tier-2 edges here but is not in the session's top ten.
-
-Only top-level properties are considered: infrena refuses references on nested attributes. There are 4377 writable nested properties named like references, in 534 provisionable types, and all of them are skipped.
-
-All four `requirements:` in the overlay are backed by an accepted edge (Subnet.VpcId, RouteTable.VpcId, Route.RouteTableId, DBSubnetGroup.SubnetIds), so the cross-check wrote no warnings.
-
-## Tier 2 by target type
-
-| # | target | infrena type | edges | cumulative | verdict |
-| ---: | --- | --- | ---: | ---: | --- |
-| 1 | `AWS::IAM::Role` | `aws.role` | 83 | 47.4% | looks right: every source is a `*RoleArn` naming the role a service assumes |
-| 2 | `AWS::EC2::SecurityGroup` | `aws.securitygroup` | 14 | 55.4% | looks right: `VpcSecurityGroupIds` and EMR Studio's engine and workspace groups are EC2 security group ids |
-| 3 | `AWS::EC2::IPAMPool` | `aws.ipampool` | 8 | 60.0% | looks right |
-| 4 | `AWS::EC2::Subnet` | `aws.subnet` | 7 | 64.0% | looks right |
-| 5 | `AWS::DMS::Endpoint` | `aws.dms.endpoint` | 4 | 66.3% | looks right: source and target endpoints of DMS tasks |
-| 6 | `AWS::EC2::RouteTable` | `aws.routetable` | 4 | 68.6% | MIXED: TransitGateway's AssociationDefaultRouteTableId and PropagationDefaultRouteTableId, and TransitGatewayPolicyTableEntry.TargetRouteTableId, hold transit gateway route table ids, not VPC route tables. Approve this target only together with rejects for those three |
-| 7 | `AWS::EC2::TransitGatewayAttachment` | `aws.transitgatewayattachment` | 4 | 70.9% | looks right |
-| 8 | `AWS::EC2::PrefixList` | `aws.prefixlist` | 3 | 72.6% | looks right (the id may also be an AWS-managed prefix list, which is still the same kind of id) |
-| 9 | `AWS::EC2::VPC` | `aws.vpc` | 3 | 74.3% | looks right (a peer VPC can live in another account, and ClassicLinkVPCId is legacy) |
-| 10 | `AWS::GroundStation::Config` | `aws.config` | 3 | 76.0% | MIXED: the two MissionProfile config arns are right; Route53Resolver's ResolverQueryLogConfigId -> Config.Id is FABRICATED |
-| 11 | `AWS::ApiGateway::Resource` | `aws.resource` | 2 | 77.1% | FABRICATED: RDS resource ids (dbi-/cluster- ids) |
-| 12 | `AWS::Connect::Notification` | `aws.notification` | 2 | 78.3% | FABRICATED: SNS topic arns and VPC endpoint connection notifications, nothing to do with Connect |
-| 13 | `AWS::KMS::Key` | `aws.kms.key` | 2 | 79.4% | looks right: ReplicaKey.PrimaryKeyArn and Alias.TargetKeyId |
-| 14 | `AWS::Lambda::Version` | `aws.version` | 2 | 80.6% | FABRICATED: CloudFormation extension type version arns |
-| 15 | `AWS::Logs::LogGroup` | `aws.loggroup` | 2 | 81.7% | looks right |
-| 16 | `AWS::Notifications::NotificationConfiguration` | `aws.notificationconfiguration` | 2 | 82.9% | probably FABRICATED: a managed notification configuration is AWS-owned, not this resource type |
-| 17 | `AWS::ResilienceHubV2::System` | `aws.system` | 2 | 84.0% | FABRICATED: DBSystemId is an Oracle CDB name |
-| 18 | `AWS::Transfer::Profile` | `aws.transfer.profile` | 2 | 85.1% | looks right |
-| 19 | `AWS::AmazonMQ::Broker` | `aws.broker` | 1 | 85.7% | looks right (self reference) |
-| 20 | `AWS::AmplifyUIBuilder::Form` | `aws.form` | 1 | 86.3% | FABRICATED: Signer's PlatformId is a signing platform |
-| 21 | `AWS::BedrockAgentCore::Runtime` | `aws.runtime` | 1 | 86.9% | looks right |
-| 22 | `AWS::Connect::ContactFlow` | `aws.contactflow` | 1 | 87.4% | looks right |
-| 23 | `AWS::Connect::PhoneNumber` | `aws.connect.phonenumber` | 1 | 88.0% | looks right (self reference) |
-| 24 | `AWS::Connect::Queue` | `aws.connect.queue` | 1 | 88.6% | looks right |
-| 25 | `AWS::Deadline::Limit` | `aws.limit` | 1 | 89.1% | FABRICATED: a BedrockAgentCore gateway rate limit is not a Deadline limit |
-| 26 | `AWS::Deadline::StorageProfile` | `aws.storageprofile` | 1 | 89.7% | looks right |
-| 27 | `AWS::DevOpsAgent::Association` | `aws.devopsagent.association` | 1 | 90.3% | looks right (self reference) |
-| 28 | `AWS::DirectConnect::Lag` | `aws.lag` | 1 | 90.9% | FABRICATED: an Outpost LAG, not a Direct Connect LAG |
-| 29 | `AWS::EC2::TransitGateway` | `aws.transitgateway` | 1 | 91.4% | looks right |
-| 30 | `AWS::EC2::Volume` | `aws.ec2.volume` | 1 | 92.0% | looks right (self reference) |
-| 31 | `AWS::EKS::CertificateAuthority` | `aws.eks.certificateauthority` | 1 | 92.6% | unsure: check what Cluster.ActiveCertificateAuthorityId holds |
-| 32 | `AWS::GameLift::Location` | `aws.location` | 1 | 93.1% | FABRICATED: a DataSync location, not a GameLift location |
-| 33 | `AWS::Glue::Catalog` | `aws.catalog` | 1 | 93.7% | unsure: a Lake Formation catalog id is usually an account id |
-| 34 | `AWS::Inspector::ResourceGroup` | `aws.resourcegroup` | 1 | 94.3% | FABRICATED: EC2 host resource groups belong to License Manager |
-| 35 | `AWS::IoT::Certificate` | `aws.iot.certificate` | 1 | 94.9% | looks right |
-| 36 | `AWS::IoTTwinMaker::Entity` | `aws.entity` | 1 | 95.4% | looks right (self reference) |
-| 37 | `AWS::Lambda::Function` | `aws.lambda.function` | 1 | 96.0% | looks right |
-| 38 | `AWS::MPA::ApprovalTeam` | `aws.approvalteam` | 1 | 96.6% | looks right |
-| 39 | `AWS::MSK::Cluster` | `aws.msk.cluster` | 1 | 97.1% | looks right |
-| 40 | `AWS::Panorama::Package` | `aws.package` | 1 | 97.7% | FABRICATED: Inspector rules packages |
-| 41 | `AWS::QuickSight::Folder` | `aws.folder` | 1 | 98.3% | looks right (self reference) |
-| 42 | `AWS::QuickSight::Theme` | `aws.quicksight.theme` | 1 | 98.9% | looks right (self reference) |
-| 43 | `AWS::ServiceCatalog::Portfolio` | `aws.portfolio` | 1 | 99.4% | looks right |
-| 44 | `AWS::WorkSpacesWeb::IdentityProvider` | `aws.identityprovider` | 1 | 100.0% | FABRICATED: QBusiness wants an IAM identity provider |
-
-### 1. AWS::IAM::Role (83), at `Arn`
-
-looks right: every source is a `*RoleArn` naming the role a service assumes
-
-- `AWS::Amplify::App.ComputeRoleArn`
-- `AWS::Amplify::Branch.ComputeRoleArn`
-- `AWS::ApiGateway::Account.CloudWatchRoleArn`
-- `AWS::AppConfig::ConfigurationProfile.RetrievalRoleArn`
-- `AWS::AppStream::AppBlockBuilder.IamRoleArn`
-- `AWS::AppStream::ImageBuilder.IamRoleArn`
-- `AWS::AppSync::DataSource.ServiceRoleArn`
-- `AWS::AppSync::GraphQLApi.MergedApiExecutionRoleArn`
-- `AWS::Backup::RestoreTestingSelection.IamRoleArn`
-- `AWS::Bedrock::Agent.AgentResourceRoleArn`
-- `AWS::Bedrock::Flow.ExecutionRoleArn`
-- `AWS::BedrockAgentCore::BrowserCustom.ExecutionRoleArn`
-- `AWS::BedrockAgentCore::CodeInterpreterCustom.ExecutionRoleArn`
-- `AWS::BedrockAgentCore::Harness.ExecutionRoleArn`
-- `AWS::BedrockAgentCore::Memory.MemoryExecutionRoleArn`
-- `AWS::BedrockAgentCore::OnlineEvaluationConfig.EvaluationExecutionRoleArn`
-- `AWS::Budgets::BudgetsAction.ExecutionRoleArn`
-- `AWS::Chatbot::MicrosoftTeamsChannelConfiguration.IamRoleArn`
-- `AWS::Chatbot::SlackChannelConfiguration.IamRoleArn`
-- `AWS::CloudFormation::HookVersion.ExecutionRoleArn`
-- `AWS::CloudFormation::ResourceVersion.ExecutionRoleArn`
-- `AWS::CloudFormation::TypeActivation.ExecutionRoleArn`
-- `AWS::CloudTrail::EventDataStore.FederationRoleArn`
-- `AWS::CloudTrail::Trail.CloudWatchLogsRoleArn`
-- `AWS::CloudWatch::LogAlarm.ActionLogLineRoleArn`
-- `AWS::CodeDeploy::DeploymentGroup.ServiceRoleArn`
-- `AWS::Comprehend::DocumentClassifier.DataAccessRoleArn`
-- `AWS::Comprehend::Flywheel.DataAccessRoleArn`
-- `AWS::DLM::LifecyclePolicy.ExecutionRoleArn`
-- `AWS::DMS::DataMigration.ServiceAccessRoleArn`
-- `AWS::DataSync::LocationEFS.FileSystemAccessRoleArn`
-- `AWS::DataZone::Environment.EnvironmentRoleArn`
-- `AWS::DataZone::EnvironmentBlueprintConfiguration.ManageAccessRoleArn`
-- `AWS::DataZone::EnvironmentBlueprintConfiguration.ProvisioningRoleArn`
-- `AWS::DirectConnect::DirectConnectGatewayAssociation.AcceptDirectConnectGatewayAssociationProposalRoleArn`
-- `AWS::DirectConnect::PrivateVirtualInterface.AllocatePrivateVirtualInterfaceRoleArn`
-- `AWS::DirectConnect::PublicVirtualInterface.AllocatePublicVirtualInterfaceRoleArn`
-- `AWS::DirectConnect::TransitVirtualInterface.AllocateTransitVirtualInterfaceRoleArn`
-- `AWS::EC2::VPCPeeringConnection.PeerRoleArn`
-- `AWS::ECR::PullThroughCacheRule.CustomRoleArn`
-- `AWS::ECR::RepositoryCreationTemplate.CustomRoleArn`
-- `AWS::ECS::DaemonTaskDefinition.ExecutionRoleArn`
-- `AWS::ECS::DaemonTaskDefinition.TaskRoleArn`
-- `AWS::ECS::ExpressGatewayService.ExecutionRoleArn`
-- `AWS::ECS::ExpressGatewayService.InfrastructureRoleArn`
-- `AWS::ECS::ExpressGatewayService.TaskRoleArn`
-- `AWS::ECS::TaskDefinition.ExecutionRoleArn`
-- `AWS::ECS::TaskDefinition.TaskRoleArn`
-- `AWS::EKS::Addon.ServiceAccountRoleArn`
-- `AWS::EKS::FargateProfile.PodExecutionRoleArn`
-- `AWS::EKS::PodIdentityAssociation.TargetRoleArn`
-- `AWS::EMRContainers::Endpoint.ExecutionRoleArn`
-- `AWS::ElementalInference::Feed.AccessRoleArn`
-- `AWS::GameLift::ContainerFleet.FleetRoleArn`
-- `AWS::IoT::EncryptionConfiguration.KmsAccessRoleArn`
-- `AWS::IoT::ProvisioningTemplate.ProvisioningRoleArn`
-- `AWS::KafkaConnect::Connector.ServiceExecutionRoleArn`
-- `AWS::Lambda::MicrovmImage.BuildRoleArn`
-- `AWS::Logs::ScheduledQuery.ExecutionRoleArn`
-- `AWS::MSK::Replicator.ServiceExecutionRoleArn`
-- `AWS::MWAA::Environment.ExecutionRoleArn`
-- `AWS::MediaLive::Cluster.InstanceRoleArn`
-- `AWS::MediaPackage::Asset.SourceRoleArn`
-- `AWS::OSIS::Pipeline.PipelineRoleArn`
-- `AWS::Panorama::ApplicationInstance.RuntimeRoleArn`
-- `AWS::Proton::EnvironmentAccountConnection.CodebuildRoleArn`
-- `AWS::Proton::EnvironmentAccountConnection.ComponentRoleArn`
-- `AWS::RDS::DBCluster.MonitoringRoleArn`
-- `AWS::RDS::DBInstance.MonitoringRoleArn`
-- `AWS::RedshiftServerless::Namespace.DefaultIamRoleArn`
-- `AWS::S3::AccessGrantsLocation.IamRoleArn`
-- `AWS::SNS::Subscription.SubscriptionRoleArn`
-- `AWS::SSM::MaintenanceWindowTask.ServiceRoleArn`
-- `AWS::SageMaker::EndpointConfig.ExecutionRoleArn`
-- `AWS::SageMaker::Image.ImageRoleArn`
-- `AWS::SageMaker::Model.ExecutionRoleArn`
-- `AWS::SageMaker::PartnerApp.ExecutionRoleArn`
-- `AWS::SecretsManager::RotationSchedule.ExternalSecretRotationRoleArn`
-- `AWS::SecurityLake::DataLake.MetaStoreManagerRoleArn`
-- `AWS::SupportApp::SlackChannelConfiguration.ChannelRoleArn`
-- `AWS::Synthetics::Canary.ExecutionRoleArn`
-- `AWS::Timestream::ScheduledQuery.ScheduledQueryExecutionRoleArn`
-- `AWS::Transcribe::VocabularyFilter.DataAccessRoleArn`
-
-### 2. AWS::EC2::SecurityGroup (14), at `Id`
-
-looks right: `VpcSecurityGroupIds` and EMR Studio's engine and workspace groups are EC2 security group ids
-
-- `AWS::DocDBElastic::Cluster.VpcSecurityGroupIds`
-- `AWS::EC2::SecurityGroupEgress.DestinationSecurityGroupId`
-- `AWS::EC2::SecurityGroupIngress.SourceSecurityGroupId`
-- `AWS::EMR::Studio.EngineSecurityGroupId`
-- `AWS::EMR::Studio.WorkspaceSecurityGroupId`
-- `AWS::ElastiCache::CacheCluster.VpcSecurityGroupIds`
-- `AWS::Neptune::DBCluster.VpcSecurityGroupIds`
-- `AWS::RDS::DBCluster.VpcSecurityGroupIds`
-- `AWS::RDS::DBProxy.VpcSecurityGroupIds`
-- `AWS::RDS::DBProxyEndpoint.VpcSecurityGroupIds`
-- `AWS::Redshift::Cluster.VpcSecurityGroupIds`
-- `AWS::Redshift::EndpointAccess.VpcSecurityGroupIds`
-- `AWS::Timestream::InfluxDBCluster.VpcSecurityGroupIds`
-- `AWS::Timestream::InfluxDBInstance.VpcSecurityGroupIds`
-
-### 3. AWS::EC2::IPAMPool (8), at `IpamPoolId`
-
-looks right
-
-- `AWS::EC2::IPAMPool.SourceIpamPoolId`
-- `AWS::EC2::Subnet.Ipv4IpamPoolId`
-- `AWS::EC2::Subnet.Ipv6IpamPoolId`
-- `AWS::EC2::SubnetCidrBlock.Ipv6IpamPoolId`
-- `AWS::EC2::VPC.Ipv4IpamPoolId`
-- `AWS::EC2::VPCCidrBlock.Ipv4IpamPoolId`
-- `AWS::EC2::VPCCidrBlock.Ipv6IpamPoolId`
-- `AWS::ElasticLoadBalancingV2::LoadBalancer.Ipv4IpamPoolId`
-
-### 4. AWS::EC2::Subnet (7), at `SubnetId`
-
-looks right
-
-- `AWS::EC2::TransitGatewayVpcAttachment.AddSubnetIds`
-- `AWS::EC2::TransitGatewayVpcAttachment.RemoveSubnetIds`
-- `AWS::EVS::Environment.ServiceAccessSubnetId`
-- `AWS::RDS::DBProxy.VpcSubnetIds`
-- `AWS::RDS::DBProxyEndpoint.VpcSubnetIds`
-- `AWS::Timestream::InfluxDBCluster.VpcSubnetIds`
-- `AWS::Timestream::InfluxDBInstance.VpcSubnetIds`
-
-### 5. AWS::DMS::Endpoint (4), at `EndpointArn`
-
-looks right: source and target endpoints of DMS tasks
-
-- `AWS::DMS::ReplicationConfig.SourceEndpointArn`
-- `AWS::DMS::ReplicationConfig.TargetEndpointArn`
-- `AWS::DMS::ReplicationTask.SourceEndpointArn`
-- `AWS::DMS::ReplicationTask.TargetEndpointArn`
-
-### 6. AWS::EC2::RouteTable (4), at `RouteTableId`
-
-MIXED: TransitGateway's AssociationDefaultRouteTableId and PropagationDefaultRouteTableId, and TransitGatewayPolicyTableEntry.TargetRouteTableId, hold transit gateway route table ids, not VPC route tables. Approve this target only together with rejects for those three
-
-- `AWS::EC2::TransitGateway.AssociationDefaultRouteTableId`
-- `AWS::EC2::TransitGateway.PropagationDefaultRouteTableId`
-- `AWS::EC2::TransitGatewayPolicyTableEntry.TargetRouteTableId`
-- `AWS::ODB::OdbPeeringConnection.PeerNetworkRouteTableIds`
-
-### 7. AWS::EC2::TransitGatewayAttachment (4), at `Id`
-
-looks right
-
-- `AWS::EC2::TransitGatewayConnect.TransportTransitGatewayAttachmentId`
-- `AWS::EC2::TransitGatewayMeteringPolicyEntry.DestinationTransitGatewayAttachmentId`
-- `AWS::EC2::TransitGatewayMeteringPolicyEntry.SourceTransitGatewayAttachmentId`
-- `AWS::EC2::VPNConnection.TransportTransitGatewayAttachmentId`
-
-### 8. AWS::EC2::PrefixList (3), at `PrefixListId`
-
-looks right (the id may also be an AWS-managed prefix list, which is still the same kind of id)
-
-- `AWS::EC2::Route.DestinationPrefixListId`
-- `AWS::EC2::SecurityGroupEgress.DestinationPrefixListId`
-- `AWS::EC2::SecurityGroupIngress.SourcePrefixListId`
-
-### 9. AWS::EC2::VPC (3), at `VpcId`
-
-looks right (a peer VPC can live in another account, and ClassicLinkVPCId is legacy)
-
-- `AWS::AutoScaling::LaunchConfiguration.ClassicLinkVPCId`
-- `AWS::EC2::VPCPeeringConnection.PeerVpcId`
-- `AWS::GameLift::Fleet.PeerVpcId`
-
-### 10. AWS::GroundStation::Config (3), at `Arn`, `Id`
-
-MIXED: the two MissionProfile config arns are right; Route53Resolver's ResolverQueryLogConfigId -> Config.Id is FABRICATED
-
-- `AWS::GroundStation::MissionProfile.TelemetrySinkConfigArn` at `Arn`
-- `AWS::GroundStation::MissionProfile.TrackingConfigArn` at `Arn`
-- `AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation.ResolverQueryLogConfigId` at `Id`
-
-### 11. AWS::ApiGateway::Resource (2), at `ResourceId`
-
-FABRICATED: RDS resource ids (dbi-/cluster- ids)
-
-- `AWS::RDS::DBCluster.SourceDbClusterResourceId`
-- `AWS::RDS::DBInstance.SourceDbiResourceId`
-
-### 12. AWS::Connect::Notification (2), at `Arn`
-
-FABRICATED: SNS topic arns and VPC endpoint connection notifications, nothing to do with Connect
-
-- `AWS::ApplicationInsights::Application.SNSNotificationArn`
-- `AWS::EC2::VPCEndpointConnectionNotification.ConnectionNotificationArn`
-
-### 13. AWS::KMS::Key (2), at `Arn`, `KeyId`
-
-looks right: ReplicaKey.PrimaryKeyArn and Alias.TargetKeyId
-
-- `AWS::KMS::Alias.TargetKeyId` at `KeyId`
-- `AWS::KMS::ReplicaKey.PrimaryKeyArn` at `Arn`
-
-### 14. AWS::Lambda::Version (2), at `FunctionArn`
-
-FABRICATED: CloudFormation extension type version arns
-
-- `AWS::CloudFormation::HookDefaultVersion.TypeVersionArn`
-- `AWS::CloudFormation::ResourceDefaultVersion.TypeVersionArn`
-
-### 15. AWS::Logs::LogGroup (2), at `Arn`
-
-looks right
-
-- `AWS::CloudTrail::Trail.CloudWatchLogsLogGroupArn`
-- `AWS::DataSync::Task.CloudWatchLogGroupArn`
-
-### 16. AWS::Notifications::NotificationConfiguration (2), at `Arn`
-
-probably FABRICATED: a managed notification configuration is AWS-owned, not this resource type
-
-- `AWS::Notifications::ManagedNotificationAccountContactAssociation.ManagedNotificationConfigurationArn`
-- `AWS::Notifications::ManagedNotificationAdditionalChannelAssociation.ManagedNotificationConfigurationArn`
-
-### 17. AWS::ResilienceHubV2::System (2), at `SystemId`
-
-FABRICATED: DBSystemId is an Oracle CDB name
-
-- `AWS::RDS::DBCluster.DBSystemId`
-- `AWS::RDS::DBInstance.DBSystemId`
-
-### 18. AWS::Transfer::Profile (2), at `ProfileId`
-
-looks right
-
-- `AWS::Transfer::Agreement.LocalProfileId`
-- `AWS::Transfer::Agreement.PartnerProfileId`
-
-### 19. AWS::AmazonMQ::Broker (1), at `Arn`
-
-looks right (self reference)
-
-- `AWS::AmazonMQ::Broker.DataReplicationPrimaryBrokerArn`
-
-### 20. AWS::AmplifyUIBuilder::Form (1), at `Id`
-
-FABRICATED: Signer's PlatformId is a signing platform
-
-- `AWS::Signer::SigningProfile.PlatformId`
-
-### 21. AWS::BedrockAgentCore::Runtime (1), at `AgentRuntimeId`
-
-looks right
-
-- `AWS::BedrockAgentCore::RuntimeEndpoint.AgentRuntimeId`
-
-### 22. AWS::Connect::ContactFlow (1), at `ContactFlowArn`
-
-looks right
-
-- `AWS::Connect::TaskTemplate.SelfAssignContactFlowArn`
-
-### 23. AWS::Connect::PhoneNumber (1), at `PhoneNumberArn`
-
-looks right (self reference)
-
-- `AWS::Connect::PhoneNumber.SourcePhoneNumberArn`
-
-### 24. AWS::Connect::Queue (1), at `QueueArn`
-
-looks right
-
-- `AWS::Connect::RoutingProfile.DefaultOutboundQueueArn`
-
-### 25. AWS::Deadline::Limit (1), at `LimitId`
-
-FABRICATED: a BedrockAgentCore gateway rate limit is not a Deadline limit
-
-- `AWS::BedrockAgentCore::GatewayRateLimit.RateLimitId`
-
-### 26. AWS::Deadline::StorageProfile (1), at `StorageProfileId`
-
-looks right
-
-- `AWS::Deadline::Queue.AllowedStorageProfileIds`
-
-### 27. AWS::DevOpsAgent::Association (1), at `AssociationId`
-
-looks right (self reference)
-
-- `AWS::DevOpsAgent::Association.LinkedAssociationIds`
-
-### 28. AWS::DirectConnect::Lag (1), at `LagId`
-
-FABRICATED: an Outpost LAG, not a Direct Connect LAG
-
-- `AWS::EC2::LocalGatewayVirtualInterface.OutpostLagId`
-
-### 29. AWS::EC2::TransitGateway (1), at `Id`
-
-looks right
-
-- `AWS::EC2::TransitGatewayPeeringAttachment.PeerTransitGatewayId`
-
-### 30. AWS::EC2::Volume (1), at `VolumeId`
-
-looks right (self reference)
-
-- `AWS::EC2::Volume.SourceVolumeId`
-
-### 31. AWS::EKS::CertificateAuthority (1), at `Id`
-
-unsure: check what Cluster.ActiveCertificateAuthorityId holds
-
-- `AWS::EKS::Cluster.ActiveCertificateAuthorityId`
-
-### 32. AWS::GameLift::Location (1), at `LocationArn`
-
-FABRICATED: a DataSync location, not a GameLift location
-
-- `AWS::DataSync::Task.DestinationLocationArn`
-
-### 33. AWS::Glue::Catalog (1), at `CatalogId`
-
-unsure: a Lake Formation catalog id is usually an account id
-
-- `AWS::LakeFormation::DataCellsFilter.TableCatalogId`
-
-### 34. AWS::Inspector::ResourceGroup (1), at `Arn`
-
-FABRICATED: EC2 host resource groups belong to License Manager
-
-- `AWS::EC2::Instance.HostResourceGroupArn`
-
-### 35. AWS::IoT::Certificate (1), at `Arn`
-
-looks right
-
-- `AWS::IoT::DomainConfiguration.ValidationCertificateArn`
-
-### 36. AWS::IoTTwinMaker::Entity (1), at `EntityId`
-
-looks right (self reference)
-
-- `AWS::IoTTwinMaker::Entity.ParentEntityId`
-
-### 37. AWS::Lambda::Function (1), at `Arn`
-
-looks right
-
-- `AWS::Lambda::Url.TargetFunctionArn`
-
-### 38. AWS::MPA::ApprovalTeam (1), at `Arn`
-
-looks right
-
-- `AWS::Backup::LogicallyAirGappedBackupVault.MpaApprovalTeamArn`
-
-### 39. AWS::MSK::Cluster (1), at `Arn`
-
-looks right
-
-- `AWS::MSK::VpcConnection.TargetClusterArn`
-
-### 40. AWS::Panorama::Package (1), at `Arn`
-
-FABRICATED: Inspector rules packages
-
-- `AWS::Inspector::AssessmentTemplate.RulesPackageArns`
-
-### 41. AWS::QuickSight::Folder (1), at `Arn`
-
-looks right (self reference)
-
-- `AWS::QuickSight::Folder.ParentFolderArn`
-
-### 42. AWS::QuickSight::Theme (1), at `ThemeId`
-
-looks right (self reference)
-
-- `AWS::QuickSight::Theme.BaseThemeId`
-
-### 43. AWS::ServiceCatalog::Portfolio (1), at `Id`
-
-looks right
-
-- `AWS::ServiceCatalog::PortfolioProductAssociation.SourcePortfolioId`
-
-### 44. AWS::WorkSpacesWeb::IdentityProvider (1), at `IdentityProviderArn`
-
-FABRICATED: QBusiness wants an IAM identity provider
-
-- `AWS::QBusiness::Application.IamIdentityProviderArn`
-
-## Fabrications
-
-### In tier 2 (pending, so not in the catalog)
-
-- `AWS::EC2::RouteTable`: `AWS::EC2::TransitGateway.AssociationDefaultRouteTableId`, `AWS::EC2::TransitGateway.PropagationDefaultRouteTableId`, `AWS::EC2::TransitGatewayPolicyTableEntry.TargetRouteTableId`, `AWS::ODB::OdbPeeringConnection.PeerNetworkRouteTableIds`. MIXED: TransitGateway's AssociationDefaultRouteTableId and PropagationDefaultRouteTableId, and TransitGatewayPolicyTableEntry.TargetRouteTableId, hold transit gateway route table ids, not VPC route tables. Approve this target only together with rejects for those three
-- `AWS::GroundStation::Config`: `AWS::GroundStation::MissionProfile.TelemetrySinkConfigArn`, `AWS::GroundStation::MissionProfile.TrackingConfigArn`, `AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation.ResolverQueryLogConfigId`. MIXED: the two MissionProfile config arns are right; Route53Resolver's ResolverQueryLogConfigId -> Config.Id is FABRICATED
-- `AWS::ApiGateway::Resource`: `AWS::RDS::DBCluster.SourceDbClusterResourceId`, `AWS::RDS::DBInstance.SourceDbiResourceId`. FABRICATED: RDS resource ids (dbi-/cluster- ids)
-- `AWS::Connect::Notification`: `AWS::ApplicationInsights::Application.SNSNotificationArn`, `AWS::EC2::VPCEndpointConnectionNotification.ConnectionNotificationArn`. FABRICATED: SNS topic arns and VPC endpoint connection notifications, nothing to do with Connect
-- `AWS::Lambda::Version`: `AWS::CloudFormation::HookDefaultVersion.TypeVersionArn`, `AWS::CloudFormation::ResourceDefaultVersion.TypeVersionArn`. FABRICATED: CloudFormation extension type version arns
-- `AWS::Notifications::NotificationConfiguration`: `AWS::Notifications::ManagedNotificationAccountContactAssociation.ManagedNotificationConfigurationArn`, `AWS::Notifications::ManagedNotificationAdditionalChannelAssociation.ManagedNotificationConfigurationArn`. probably FABRICATED: a managed notification configuration is AWS-owned, not this resource type
-- `AWS::ResilienceHubV2::System`: `AWS::RDS::DBCluster.DBSystemId`, `AWS::RDS::DBInstance.DBSystemId`. FABRICATED: DBSystemId is an Oracle CDB name
-- `AWS::AmplifyUIBuilder::Form`: `AWS::Signer::SigningProfile.PlatformId`. FABRICATED: Signer's PlatformId is a signing platform
-- `AWS::Deadline::Limit`: `AWS::BedrockAgentCore::GatewayRateLimit.RateLimitId`. FABRICATED: a BedrockAgentCore gateway rate limit is not a Deadline limit
-- `AWS::DirectConnect::Lag`: `AWS::EC2::LocalGatewayVirtualInterface.OutpostLagId`. FABRICATED: an Outpost LAG, not a Direct Connect LAG
-- `AWS::GameLift::Location`: `AWS::DataSync::Task.DestinationLocationArn`. FABRICATED: a DataSync location, not a GameLift location
-- `AWS::Inspector::ResourceGroup`: `AWS::EC2::Instance.HostResourceGroupArn`. FABRICATED: EC2 host resource groups belong to License Manager
-- `AWS::Panorama::Package`: `AWS::Inspector::AssessmentTemplate.RulesPackageArns`. FABRICATED: Inspector rules packages
-- `AWS::WorkSpacesWeb::IdentityProvider`: `AWS::QBusiness::Application.IamIdentityProviderArn`. FABRICATED: QBusiness wants an IAM identity provider
-
-### In tier 1 (ALREADY ACCEPTED, and in the catalog)
-
-An exact name match is still wrong when the name is generic. These are only the ones found by scanning tier-1 edges that cross services. Same-service tier-1 edges were not reviewed. None are rejected yet; each is a candidate for `references.reject`.
-
-- `AWS::ApiGateway::Resource` (9): FABRICATED: a generic `ResourceId` (an autoscaling target, a flow log's VPC or subnet, a Route 53 resolver's VPC, and so on), not an API Gateway resource. Sources: `AWS::ApplicationAutoScaling::ScalableTarget.ResourceId`, `AWS::ApplicationAutoScaling::ScalingPolicy.ResourceId`, `AWS::EC2::FlowLog.ResourceId`, `AWS::MediaPackage::Asset.ResourceId`, `AWS::Route53Profiles::ProfileAssociation.ResourceId`, `AWS::Route53Resolver::ResolverConfig.ResourceId`, `AWS::Route53Resolver::ResolverDNSSECConfig.ResourceId`, `AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation.ResourceId`, `AWS::ServiceCatalog::TagOptionAssociation.ResourceId`
-- `AWS::Connect::Notification` (2): FABRICATED: Service Catalog's `NotificationArns` are SNS topic arns. Sources: `AWS::ServiceCatalog::CloudFormationProvisionedProduct.NotificationArns`, `AWS::ServiceCatalog::LaunchNotificationConstraint.NotificationArns`
-- `AWS::GuardDuty::Member` (2): FABRICATED: Detective's `MemberId` is an account id; IdentityStore's is a user or group. Sources: `AWS::Detective::MemberInvitation.MemberId`, `AWS::IdentityStore::GroupMembership.MemberId`
-- `AWS::MediaTailor::SourceLocation` (1): FABRICATED: a DataSync source location. Sources: `AWS::DataSync::Task.SourceLocationArn`
-- `AWS::Glue::Catalog` (1): unsure: Lake Formation's `CatalogId` is usually an account id. Sources: `AWS::LakeFormation::Tag.CatalogId`
+| status | edges | reaches the catalog |
+| --- | ---: | --- |
+| accepted | 785 | yes |
+| approved | 136 | yes |
+| pending | 46 | no |
+| rejected | 24 | no |
+
+Candidate properties: 1503. Resolved to an edge: 991 (65.9%). Unresolved: 285 ambiguous, 143 no such type, 84 target lacks the attribute. Only top-level properties are considered: infrena refuses references on nested attributes.
+
+The infrena session measured 1614 candidates and 832/161 tier 1/tier 2 over every AWS type in the bundle; this run takes sources and targets from the 1584 provisionable types only, and picks the target attribute in a slightly different order, so a few edges land in other buckets.
+
+All four `requirements:` in the overlay are backed by an accepted edge (Subnet.VpcId, RouteTable.VpcId, Route.RouteTableId, DBSubnetGroup.SubnetIds).
+
+## Decisions
+
+### 1. Cross-service exact matches need an allowlisted target
+
+An exact name match is tier 1 only when source and target are in the same AWS service, or the target is one of `references.cross_service_targets`: `AWS::IAM::Role`, `AWS::EC2::Subnet`, `AWS::EC2::SecurityGroup`, `AWS::EC2::VPC`, `AWS::EC2::PrefixList`, `AWS::EC2::TransitGateway`, `AWS::KMS::Key`, `AWS::Logs::LogGroup`, `AWS::S3::Bucket`, `AWS::Lambda::Function`. Any other cross-service exact match is tier 2.
+
+That moved 30 locked edges from tier 1 accepted to tier 2. Their status now:
+
+- `AWS::AmazonMQ::Broker.ResourceShareArns` -> `AWS::RAM::ResourceShare.Arn`: pending
+- `AWS::ApiGatewayV2::Stage.ClientCertificateId` -> `AWS::ApiGateway::ClientCertificate.ClientCertificateId`: pending
+- `AWS::ApplicationAutoScaling::ScalableTarget.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::ApplicationAutoScaling::ScalingPolicy.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::CUR::ReportDefinition.BillingViewArn` -> `AWS::Billing::BillingView.Arn`: pending
+- `AWS::DataSync::Task.SourceLocationArn` -> `AWS::MediaTailor::SourceLocation.Arn`: pending
+- `AWS::Detective::MemberInvitation.MemberId` -> `AWS::GuardDuty::Member.MemberId`: pending
+- `AWS::EC2::FlowLog.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::EC2::Route.CoreNetworkArn` -> `AWS::NetworkManager::CoreNetwork.CoreNetworkArn`: pending
+- `AWS::EC2::Route.OdbNetworkArn` -> `AWS::ODB::OdbNetwork.OdbNetworkArn`: pending
+- `AWS::EC2::VPCEndpoint.ResourceConfigurationArn` -> `AWS::VpcLattice::ResourceConfiguration.Arn`: pending
+- `AWS::EC2::VPCEndpoint.ServiceNetworkArn` -> `AWS::VpcLattice::ServiceNetwork.Arn`: pending
+- `AWS::IdentityStore::GroupMembership.MemberId` -> `AWS::GuardDuty::Member.MemberId`: pending
+- `AWS::IoT::DomainConfiguration.ServerCertificateArns` -> `AWS::IAM::ServerCertificate.Arn`: pending
+- `AWS::IoTWireless::WirelessDevice.ThingArn` -> `AWS::IoT::Thing.Arn`: pending
+- `AWS::IoTWireless::WirelessGateway.ThingArn` -> `AWS::IoT::Thing.Arn`: pending
+- `AWS::LakeFormation::Tag.CatalogId` -> `AWS::Glue::Catalog.CatalogId`: pending
+- `AWS::Lambda::LayerVersionPermission.OrganizationId` -> `AWS::Organizations::Organization.Id`: pending
+- `AWS::MediaPackage::Asset.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::NetworkManager::DirectConnectGatewayAttachment.DirectConnectGatewayArn` -> `AWS::DirectConnect::DirectConnectGateway.DirectConnectGatewayArn`: pending
+- `AWS::Notifications::OrganizationalUnitAssociation.OrganizationalUnitId` -> `AWS::Organizations::OrganizationalUnit.Id`: pending
+- `AWS::RolesAnywhere::Profile.ManagedPolicyArns` -> `AWS::IAM::ManagedPolicy.PolicyArn`: pending
+- `AWS::Route53GlobalResolver::HostedZoneAssociation.HostedZoneId` -> `AWS::Route53::HostedZone.Id`: pending
+- `AWS::Route53Profiles::ProfileAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::Route53Resolver::ResolverConfig.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::Route53Resolver::ResolverDNSSECConfig.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::ServiceCatalog::CloudFormationProvisionedProduct.NotificationArns` -> `AWS::Connect::Notification.Arn`: rejected
+- `AWS::ServiceCatalog::LaunchNotificationConstraint.NotificationArns` -> `AWS::Connect::Notification.Arn`: rejected
+- `AWS::ServiceCatalog::TagOptionAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+
+### 2. Approved targets
+
+| target | approved edges |
+| --- | ---: |
+| `AWS::IAM::Role` | 83 |
+| `AWS::EC2::SecurityGroup` | 14 |
+| `AWS::EC2::IPAMPool` | 8 |
+| `AWS::EC2::Subnet` | 7 |
+| `AWS::DMS::Endpoint` | 4 |
+| `AWS::EC2::TransitGatewayAttachment` | 4 |
+| `AWS::EC2::PrefixList` | 3 |
+| `AWS::EC2::VPC` | 3 |
+| `AWS::KMS::Key` | 2 |
+| `AWS::Logs::LogGroup` | 2 |
+| `AWS::Transfer::Profile` | 2 |
+| `AWS::EC2::TransitGateway` | 1 |
+| `AWS::EC2::Volume` | 1 |
+| `AWS::Lambda::Function` | 1 |
+| `AWS::MSK::Cluster` | 1 |
+| **total** | **136** |
+
+No edge moved by decision 1 targets an approved type, so all of these are suffix matches.
+
+### 3. Rejected
+
+Every edge to `AWS::Connect::Notification`, `AWS::Lambda::Version`, `AWS::ResilienceHubV2::System` and `AWS::ApiGateway::Resource` (`reject_targets`), plus four single edges (`reject`): the three transit gateway route table ids matched to `AWS::EC2::RouteTable`, and Route 53 Resolver's query log config id matched to `AWS::GroundStation::Config`.
+
+- `AWS::ApiGateway::Method.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 1 (was tier 1)
+- `AWS::ApplicationAutoScaling::ScalableTarget.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::ApplicationAutoScaling::ScalingPolicy.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::ApplicationInsights::Application.SNSNotificationArn` -> `AWS::Connect::Notification.Arn`, tier 2
+- `AWS::CloudFormation::HookDefaultVersion.TypeVersionArn` -> `AWS::Lambda::Version.FunctionArn`, tier 2
+- `AWS::CloudFormation::ResourceDefaultVersion.TypeVersionArn` -> `AWS::Lambda::Version.FunctionArn`, tier 2
+- `AWS::EC2::FlowLog.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::EC2::TransitGateway.AssociationDefaultRouteTableId` -> `AWS::EC2::RouteTable.RouteTableId`, tier 2
+- `AWS::EC2::TransitGateway.PropagationDefaultRouteTableId` -> `AWS::EC2::RouteTable.RouteTableId`, tier 2
+- `AWS::EC2::TransitGatewayPolicyTableEntry.TargetRouteTableId` -> `AWS::EC2::RouteTable.RouteTableId`, tier 2
+- `AWS::EC2::VPCEndpointConnectionNotification.ConnectionNotificationArn` -> `AWS::Connect::Notification.Arn`, tier 2
+- `AWS::MediaPackage::Asset.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::RDS::DBCluster.DBSystemId` -> `AWS::ResilienceHubV2::System.SystemId`, tier 2
+- `AWS::RDS::DBCluster.SourceDbClusterResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2
+- `AWS::RDS::DBInstance.DBSystemId` -> `AWS::ResilienceHubV2::System.SystemId`, tier 2
+- `AWS::RDS::DBInstance.SourceDbiResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2
+- `AWS::Route53Profiles::ProfileAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::Route53Resolver::ResolverConfig.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::Route53Resolver::ResolverDNSSECConfig.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation.ResolverQueryLogConfigId` -> `AWS::GroundStation::Config.Id`, tier 2
+- `AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::ServiceCatalog::CloudFormationProvisionedProduct.NotificationArns` -> `AWS::Connect::Notification.Arn`, tier 2 (was tier 1)
+- `AWS::ServiceCatalog::LaunchNotificationConstraint.NotificationArns` -> `AWS::Connect::Notification.Arn`, tier 2 (was tier 1)
+- `AWS::ServiceCatalog::TagOptionAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+
+`AWS::ApiGateway::Method.ResourceId` is the one same-service tier-1 edge rejected by target. Unlike the others it very likely does hold an API Gateway resource id; it is rejected because the whole target was refused. To restore it, drop `AWS::ApiGateway::Resource` from `reject_targets` and reject its fabricated edges one by one instead.
+
+## Still pending
+
+46 edges, not in the catalog. Marked * where the edge was an exact cross-service match before decision 1; those were never reviewed as tier 2.
+
+| target | at | edges | verdict | sources |
+| --- | --- | ---: | --- | --- |
+| `AWS::Glue::Catalog` | `CatalogId` | 2 | unsure: a Lake Formation catalog id is usually an account id | `AWS::LakeFormation::DataCellsFilter.TableCatalogId`, `AWS::LakeFormation::Tag.CatalogId`* |
+| `AWS::GroundStation::Config` | `Arn` | 2 | looks right: the two MissionProfile config arns (the Route 53 Resolver edge to this target is rejected) | `AWS::GroundStation::MissionProfile.TelemetrySinkConfigArn`, `AWS::GroundStation::MissionProfile.TrackingConfigArn` |
+| `AWS::GuardDuty::Member` | `MemberId` | 2 | FABRICATED: Detective's MemberId is an account id; IdentityStore's is a user or group | `AWS::Detective::MemberInvitation.MemberId`*, `AWS::IdentityStore::GroupMembership.MemberId`* |
+| `AWS::IoT::Thing` | `Arn` | 2 | not reviewed | `AWS::IoTWireless::WirelessDevice.ThingArn`*, `AWS::IoTWireless::WirelessGateway.ThingArn`* |
+| `AWS::Notifications::NotificationConfiguration` | `Arn` | 2 | probably FABRICATED: a managed notification configuration is AWS-owned, not this resource type | `AWS::Notifications::ManagedNotificationAccountContactAssociation.ManagedNotificationConfigurationArn`, `AWS::Notifications::ManagedNotificationAdditionalChannelAssociation.ManagedNotificationConfigurationArn` |
+| `AWS::AmazonMQ::Broker` | `Arn` | 1 | looks right (self reference) | `AWS::AmazonMQ::Broker.DataReplicationPrimaryBrokerArn` |
+| `AWS::AmplifyUIBuilder::Form` | `Id` | 1 | FABRICATED: Signer's PlatformId is a signing platform | `AWS::Signer::SigningProfile.PlatformId` |
+| `AWS::ApiGateway::ClientCertificate` | `ClientCertificateId` | 1 | not reviewed | `AWS::ApiGatewayV2::Stage.ClientCertificateId`* |
+| `AWS::BedrockAgentCore::Runtime` | `AgentRuntimeId` | 1 | looks right | `AWS::BedrockAgentCore::RuntimeEndpoint.AgentRuntimeId` |
+| `AWS::Billing::BillingView` | `Arn` | 1 | not reviewed | `AWS::CUR::ReportDefinition.BillingViewArn`* |
+| `AWS::Connect::ContactFlow` | `ContactFlowArn` | 1 | looks right | `AWS::Connect::TaskTemplate.SelfAssignContactFlowArn` |
+| `AWS::Connect::PhoneNumber` | `PhoneNumberArn` | 1 | looks right (self reference) | `AWS::Connect::PhoneNumber.SourcePhoneNumberArn` |
+| `AWS::Connect::Queue` | `QueueArn` | 1 | looks right | `AWS::Connect::RoutingProfile.DefaultOutboundQueueArn` |
+| `AWS::Deadline::Limit` | `LimitId` | 1 | FABRICATED: a BedrockAgentCore gateway rate limit is not a Deadline limit | `AWS::BedrockAgentCore::GatewayRateLimit.RateLimitId` |
+| `AWS::Deadline::StorageProfile` | `StorageProfileId` | 1 | looks right | `AWS::Deadline::Queue.AllowedStorageProfileIds` |
+| `AWS::DevOpsAgent::Association` | `AssociationId` | 1 | looks right (self reference) | `AWS::DevOpsAgent::Association.LinkedAssociationIds` |
+| `AWS::DirectConnect::DirectConnectGateway` | `DirectConnectGatewayArn` | 1 | not reviewed | `AWS::NetworkManager::DirectConnectGatewayAttachment.DirectConnectGatewayArn`* |
+| `AWS::DirectConnect::Lag` | `LagId` | 1 | FABRICATED: an Outpost LAG, not a Direct Connect LAG | `AWS::EC2::LocalGatewayVirtualInterface.OutpostLagId` |
+| `AWS::EC2::RouteTable` | `RouteTableId` | 1 | looks right for ODB's peer network route tables (the three transit gateway route table edges are rejected) | `AWS::ODB::OdbPeeringConnection.PeerNetworkRouteTableIds` |
+| `AWS::EKS::CertificateAuthority` | `Id` | 1 | unsure: check what Cluster.ActiveCertificateAuthorityId holds | `AWS::EKS::Cluster.ActiveCertificateAuthorityId` |
+| `AWS::GameLift::Location` | `LocationArn` | 1 | FABRICATED: a DataSync location, not a GameLift location | `AWS::DataSync::Task.DestinationLocationArn` |
+| `AWS::IAM::ManagedPolicy` | `PolicyArn` | 1 | not reviewed | `AWS::RolesAnywhere::Profile.ManagedPolicyArns`* |
+| `AWS::IAM::ServerCertificate` | `Arn` | 1 | not reviewed | `AWS::IoT::DomainConfiguration.ServerCertificateArns`* |
+| `AWS::Inspector::ResourceGroup` | `Arn` | 1 | FABRICATED: EC2 host resource groups belong to License Manager | `AWS::EC2::Instance.HostResourceGroupArn` |
+| `AWS::IoT::Certificate` | `Arn` | 1 | looks right | `AWS::IoT::DomainConfiguration.ValidationCertificateArn` |
+| `AWS::IoTTwinMaker::Entity` | `EntityId` | 1 | looks right (self reference) | `AWS::IoTTwinMaker::Entity.ParentEntityId` |
+| `AWS::MPA::ApprovalTeam` | `Arn` | 1 | looks right | `AWS::Backup::LogicallyAirGappedBackupVault.MpaApprovalTeamArn` |
+| `AWS::MediaTailor::SourceLocation` | `Arn` | 1 | FABRICATED: a DataSync source location | `AWS::DataSync::Task.SourceLocationArn`* |
+| `AWS::NetworkManager::CoreNetwork` | `CoreNetworkArn` | 1 | not reviewed | `AWS::EC2::Route.CoreNetworkArn`* |
+| `AWS::ODB::OdbNetwork` | `OdbNetworkArn` | 1 | not reviewed | `AWS::EC2::Route.OdbNetworkArn`* |
+| `AWS::Organizations::Organization` | `Id` | 1 | not reviewed | `AWS::Lambda::LayerVersionPermission.OrganizationId`* |
+| `AWS::Organizations::OrganizationalUnit` | `Id` | 1 | not reviewed | `AWS::Notifications::OrganizationalUnitAssociation.OrganizationalUnitId`* |
+| `AWS::Panorama::Package` | `Arn` | 1 | FABRICATED: Inspector rules packages | `AWS::Inspector::AssessmentTemplate.RulesPackageArns` |
+| `AWS::QuickSight::Folder` | `Arn` | 1 | looks right (self reference) | `AWS::QuickSight::Folder.ParentFolderArn` |
+| `AWS::QuickSight::Theme` | `ThemeId` | 1 | looks right (self reference) | `AWS::QuickSight::Theme.BaseThemeId` |
+| `AWS::RAM::ResourceShare` | `Arn` | 1 | not reviewed | `AWS::AmazonMQ::Broker.ResourceShareArns`* |
+| `AWS::Route53::HostedZone` | `Id` | 1 | not reviewed | `AWS::Route53GlobalResolver::HostedZoneAssociation.HostedZoneId`* |
+| `AWS::ServiceCatalog::Portfolio` | `Id` | 1 | looks right | `AWS::ServiceCatalog::PortfolioProductAssociation.SourcePortfolioId` |
+| `AWS::VpcLattice::ResourceConfiguration` | `Arn` | 1 | not reviewed | `AWS::EC2::VPCEndpoint.ResourceConfigurationArn`* |
+| `AWS::VpcLattice::ServiceNetwork` | `Arn` | 1 | not reviewed | `AWS::EC2::VPCEndpoint.ServiceNetworkArn`* |
+| `AWS::WorkSpacesWeb::IdentityProvider` | `IdentityProviderArn` | 1 | FABRICATED: QBusiness wants an IAM identity provider | `AWS::QBusiness::Application.IamIdentityProviderArn` |
 
 ## Unresolved: ambiguous (285 properties, 51 candidate sets)
 

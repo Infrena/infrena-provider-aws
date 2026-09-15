@@ -94,6 +94,11 @@ func TestGenerateCarriesOnlyAcceptedAndApprovedReferences(t *testing.T) {
 	if _, _, err := Generate(fixtureSchemas(t), "x", &Lock{}, &ReferenceLock{}, o, ReferenceFlags{AcceptNew: true}); err == nil || !strings.Contains(err.Error(), "AWS::KMS::Keyy") {
 		t.Errorf("a misspelt cross-service target was accepted: err = %v", err)
 	}
+	o = overlay(t)
+	o.References.RejectTargets = []string{"AWS::IAM::Rolle"}
+	if _, _, err := Generate(fixtureSchemas(t), "x", &Lock{}, &ReferenceLock{}, o, ReferenceFlags{AcceptNew: true}); err == nil || !strings.Contains(err.Error(), "AWS::IAM::Rolle") {
+		t.Errorf("a misspelt reject target was accepted: err = %v", err)
+	}
 }
 
 func TestGenerateSkipsTypesCloudControlCannotManage(t *testing.T) {

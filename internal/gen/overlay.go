@@ -28,6 +28,8 @@ type OverlayReferences struct {
 	CrossServiceTargets []string `yaml:"cross_service_targets"`
 	// ApproveTargets lists target types whose tier-2 edges are approved, all of them at once.
 	ApproveTargets []string `yaml:"approve_targets"`
+	// RejectTargets lists target types every edge to which is refused, whatever its tier and even if approved.
+	RejectTargets []string `yaml:"reject_targets"`
 	// Reject lists Type.Property edges refused whatever their tier.
 	Reject []string `yaml:"reject"`
 }

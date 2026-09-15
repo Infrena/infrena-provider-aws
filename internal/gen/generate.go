@@ -101,6 +101,9 @@ func checkOverlay(o *Overlay, cfnTypes []string) error {
 	for _, t := range o.References.ApproveTargets {
 		check("references approve_targets", t)
 	}
+	for _, t := range o.References.RejectTargets {
+		check("references reject_targets", t)
+	}
 	for _, p := range o.Global {
 		if !strings.HasSuffix(p, "*") {
 			check("global", p)

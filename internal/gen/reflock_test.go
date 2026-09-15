@@ -261,6 +261,38 @@ func TestAReclassificationFailsWithoutItsFlag(t *testing.T) {
 	}
 }
 
+// TestARejectedTargetRejectsEveryEdgeToIt: a fabricated target type is refused whole, whatever the tier of the edges
+// reaching it, and even over an approval of the same target.
+func TestARejectedTargetRejectsEveryEdgeToIt(t *testing.T) {
+	derived := append(crossService(), resolved("AWS::ApiGateway::Method", "ResourceId", "AWS::ApiGateway::Resource", "ResourceId", 1))
+	live := map[string][]string{"AWS::ApiGateway::Method": {"ResourceId"}}
+	for k, v := range crossServiceLive {
+		live[k] = v
+	}
+	l := &ReferenceLock{}
+	o := OverlayReferences{
+		CrossServiceTargets: []string{"AWS::KMS::Key"},
+		ApproveTargets:      []string{"AWS::ApiGateway::Resource"},
+		RejectTargets:       []string{"AWS::ApiGateway::Resource"},
+	}
+	usable, _, err := l.Reconcile(derived, live, o, ReferenceFlags{AcceptNew: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]string{
+		"AWS::ApiGateway::Method.ResourceId": StatusRejected, // tier 1, same service
+		"AWS::EC2::FlowLog.ResourceId":       StatusRejected, // tier 2, approved target
+		"AWS::Lambda::Function.KmsKeyId":     StatusAccepted,
+	} {
+		if got := status(t, l, key); got != want {
+			t.Errorf("%s = %s, want %s", key, got, want)
+		}
+	}
+	if keys(usable) != "AWS::EC2::Subnet.VpcId,AWS::Lambda::Function.KmsKeyId" {
+		t.Errorf("usable = %s", keys(usable))
+	}
+}
+
 func TestTheReferenceLockRoundTripsSorted(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "references.lock.json")
 	l, err := LoadReferenceLock(path)

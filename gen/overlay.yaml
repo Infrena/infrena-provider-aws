@@ -135,7 +135,34 @@ references:
     - AWS::Logs::LogGroup
     - AWS::S3::Bucket
     - AWS::Lambda::Function
-  # Target types whose tier-2 edges are approved, all at once. Approving is James's decision: nothing is approved yet.
-  approve_targets: []
-  # Specific Type.Property edges refused, even in tier 1.
-  reject: []
+  # Target types whose tier-2 edges are approved, all at once. James's review of docs/references-review.md.
+  approve_targets:
+    - AWS::IAM::Role
+    - AWS::EC2::SecurityGroup
+    - AWS::EC2::IPAMPool
+    - AWS::EC2::Subnet
+    - AWS::DMS::Endpoint
+    - AWS::EC2::TransitGatewayAttachment
+    - AWS::EC2::VPC
+    - AWS::EC2::PrefixList
+    - AWS::Logs::LogGroup
+    - AWS::Transfer::Profile
+    - AWS::KMS::Key
+    - AWS::Lambda::Function
+    - AWS::MSK::Cluster
+    - AWS::EC2::TransitGateway
+    - AWS::EC2::Volume
+  # Target types every edge to which is refused, whatever its tier. The heuristic's matches to these were fabricated.
+  reject_targets:
+    - AWS::Connect::Notification
+    - AWS::Lambda::Version
+    - AWS::ResilienceHubV2::System
+    - AWS::ApiGateway::Resource
+  # Specific Type.Property edges refused, whatever their tier.
+  reject:
+    # Transit gateway route table ids, not VPC route tables.
+    - AWS::EC2::TransitGateway.AssociationDefaultRouteTableId
+    - AWS::EC2::TransitGateway.PropagationDefaultRouteTableId
+    - AWS::EC2::TransitGatewayPolicyTableEntry.TargetRouteTableId
+    # A Route 53 Resolver query log config, not a Ground Station config.
+    - AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation.ResolverQueryLogConfigId
