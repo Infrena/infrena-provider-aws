@@ -144,8 +144,10 @@ func (l *ReferenceLock) Reconcile(derived []Derivation, live map[string][]string
 		rejectedTarget[t] = true
 	}
 	statusOf := func(r LockedReference) string {
+		sourceService, _, _ := split(r.Source)
+		targetService, _, _ := split(r.Target)
 		switch {
-		case rejected[r.key()], rejectedTarget[r.Target]:
+		case rejected[r.key()], rejectedTarget[r.Target] && sourceService != targetService:
 			return StatusRejected
 		case r.Tier == 1:
 			return StatusAccepted

@@ -92,9 +92,8 @@ No edge moved by decision 1 targets an approved type, so all of these are suffix
 
 ### 3. Rejected
 
-Every edge to `AWS::Connect::Notification`, `AWS::Lambda::Version`, `AWS::ResilienceHubV2::System` and `AWS::ApiGateway::Resource` (`reject_targets`), plus four single edges (`reject`): the three transit gateway route table ids matched to `AWS::EC2::RouteTable`, and Route 53 Resolver's query log config id matched to `AWS::GroundStation::Config`.
+Every edge from another service to `AWS::Connect::Notification`, `AWS::Lambda::Version`, `AWS::ResilienceHubV2::System` and `AWS::ApiGateway::Resource` (`reject_targets`), plus four single edges (`reject`): the three transit gateway route table ids matched to `AWS::EC2::RouteTable`, and Route 53 Resolver's query log config id matched to `AWS::GroundStation::Config`.
 
-- `AWS::ApiGateway::Method.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 1 (was tier 1)
 - `AWS::ApplicationAutoScaling::ScalableTarget.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
 - `AWS::ApplicationAutoScaling::ScalingPolicy.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
 - `AWS::ApplicationInsights::Application.SNSNotificationArn` -> `AWS::Connect::Notification.Arn`, tier 2
@@ -119,7 +118,7 @@ Every edge to `AWS::Connect::Notification`, `AWS::Lambda::Version`, `AWS::Resili
 - `AWS::ServiceCatalog::LaunchNotificationConstraint.NotificationArns` -> `AWS::Connect::Notification.Arn`, tier 2 (was tier 1)
 - `AWS::ServiceCatalog::TagOptionAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
 
-`AWS::ApiGateway::Method.ResourceId` is the one same-service tier-1 edge rejected by target. Unlike the others it very likely does hold an API Gateway resource id; it is rejected because the whole target was refused. To restore it, drop `AWS::ApiGateway::Resource` from `reject_targets` and reject its fabricated edges one by one instead.
+`AWS::ApiGateway::Method.ResourceId` holds a real API Gateway resource id. James decided (2026-09-14) that `reject_targets` refuses only edges from other services, so this same-service edge is accepted again; the RDS edges that fabricated a link to `AWS::ApiGateway::Resource` stay rejected.
 
 ## Still pending
 

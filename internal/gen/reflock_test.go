@@ -261,8 +261,9 @@ func TestAReclassificationFailsWithoutItsFlag(t *testing.T) {
 	}
 }
 
-// TestARejectedTargetRejectsEveryEdgeToIt: a fabricated target type is refused whole, whatever the tier of the edges
-// reaching it, and even over an approval of the same target.
+// TestARejectedTargetRejectsEveryEdgeToIt: a fabricated target type is refused for every edge reaching it from another
+// service, whatever its tier and even over an approval of the same target, while an edge from the target's own service
+// (ApiGateway::Method.ResourceId, which really holds an API Gateway resource id) keeps its normal status.
 func TestARejectedTargetRejectsEveryEdgeToIt(t *testing.T) {
 	derived := append(crossService(), resolved("AWS::ApiGateway::Method", "ResourceId", "AWS::ApiGateway::Resource", "ResourceId", 1))
 	live := map[string][]string{"AWS::ApiGateway::Method": {"ResourceId"}}
@@ -280,7 +281,7 @@ func TestARejectedTargetRejectsEveryEdgeToIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	for key, want := range map[string]string{
-		"AWS::ApiGateway::Method.ResourceId": StatusRejected, // tier 1, same service
+		"AWS::ApiGateway::Method.ResourceId": StatusAccepted, // tier 1, same service: not a fabrication
 		"AWS::EC2::FlowLog.ResourceId":       StatusRejected, // tier 2, approved target
 		"AWS::Lambda::Function.KmsKeyId":     StatusAccepted,
 	} {
@@ -288,7 +289,7 @@ func TestARejectedTargetRejectsEveryEdgeToIt(t *testing.T) {
 			t.Errorf("%s = %s, want %s", key, got, want)
 		}
 	}
-	if keys(usable) != "AWS::EC2::Subnet.VpcId,AWS::Lambda::Function.KmsKeyId" {
+	if keys(usable) != "AWS::ApiGateway::Method.ResourceId,AWS::EC2::Subnet.VpcId,AWS::Lambda::Function.KmsKeyId" {
 		t.Errorf("usable = %s", keys(usable))
 	}
 }

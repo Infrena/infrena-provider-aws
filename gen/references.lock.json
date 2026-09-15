@@ -222,7 +222,7 @@
       "target": "AWS::ApiGateway::Resource",
       "attribute": "ResourceId",
       "tier": 1,
-      "status": "rejected"
+      "status": "accepted"
     },
     {
       "source": "AWS::ApiGateway::Method",

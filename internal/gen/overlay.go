@@ -28,7 +28,9 @@ type OverlayReferences struct {
 	CrossServiceTargets []string `yaml:"cross_service_targets"`
 	// ApproveTargets lists target types whose tier-2 edges are approved, all of them at once.
 	ApproveTargets []string `yaml:"approve_targets"`
-	// RejectTargets lists target types every edge to which is refused, whatever its tier and even if approved.
+	// RejectTargets lists target types every edge to which from ANOTHER service is refused, whatever its tier and even
+	// if approved. Edges from the target's own service keep their normal status: the fabrications this exists for come
+	// from generic names in other services (RDS's SourceDbiResourceId), while ApiGateway::Method.ResourceId is real.
 	RejectTargets []string `yaml:"reject_targets"`
 	// Reject lists Type.Property edges refused whatever their tier.
 	Reject []string `yaml:"reject"`
