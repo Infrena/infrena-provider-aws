@@ -1,0 +1,113 @@
+inputs:
+  cidr:
+    type: string
+    default: 10.0.0.0/16
+  azs:
+    type: list
+    default:
+      - us-east-1a
+      - us-east-1b
+  name:
+    type: string
+    default: vpc
+
+resources:
+  vpc:
+    type: aws.vpc
+    cidr: ${var.cidr}
+    tags:
+      Name: ${var.name}
+
+  igw:
+    type: aws.internetgateway
+    tags:
+      Name: ${var.name}-igw
+
+  igw_attach:
+    type: aws.vpcgatewayattachment
+    vpc_id: ${vpc.VpcId}
+    internet_gateway_id: ${igw.InternetGatewayId}
+
+  public_rt:
+    type: aws.routetable
+    vpc_id: ${vpc.VpcId}
+    tags:
+      Name: ${var.name}-public-rt
+
+  private_rt:
+    type: aws.routetable
+    vpc_id: ${vpc.VpcId}
+    tags:
+      Name: ${var.name}-private-rt
+
+  public_route:
+    type: aws.ec2.route
+    route_table_id: ${public_rt.RouteTableId}
+    destination_cidr_block: 0.0.0.0/0
+    gateway_id: ${igw.InternetGatewayId}
+
+  public_subnet_1:
+    type: aws.subnet
+    vpc_id: ${vpc.VpcId}
+    cidr_block: 10.0.1.0/24
+    availability_zone: ${var.azs[0]}
+    map_public_ip_on_launch: true
+    tags:
+      Name: ${var.name}-public-1
+
+  public_subnet_2:
+    type: aws.subnet
+    vpc_id: ${vpc.VpcId}
+    cidr_block: 10.0.2.0/24
+    availability_zone: ${var.azs[1]}
+    map_public_ip_on_launch: true
+    tags:
+      Name: ${var.name}-public-2
+
+  private_subnet_1:
+    type: aws.subnet
+    vpc_id: ${vpc.VpcId}
+    cidr_block: 10.0.11.0/24
+    availability_zone: ${var.azs[0]}
+    tags:
+      Name: ${var.name}-private-1
+
+  private_subnet_2:
+    type: aws.subnet
+    vpc_id: ${vpc.VpcId}
+    cidr_block: 10.0.12.0/24
+    availability_zone: ${var.azs[1]}
+    tags:
+      Name: ${var.name}-private-2
+
+  public_rt_assoc_1:
+    type: aws.subnetroutetableassociation
+    subnet_id: ${public_subnet_1.SubnetId}
+    route_table_id: ${public_rt.RouteTableId}
+
+  public_rt_assoc_2:
+    type: aws.subnetroutetableassociation
+    subnet_id: ${public_subnet_2.SubnetId}
+    route_table_id: ${public_rt.RouteTableId}
+
+  private_rt_assoc_1:
+    type: aws.subnetroutetableassociation
+    subnet_id: ${private_subnet_1.SubnetId}
+    route_table_id: ${private_rt.RouteTableId}
+
+  private_rt_assoc_2:
+    type: aws.subnetroutetableassociation
+    subnet_id: ${private_subnet_2.SubnetId}
+    route_table_id: ${private_rt.RouteTableId}
+
+outputs:
+  vpc_id:
+    value: ${vpc.VpcId}
+  public_subnet_1_id:
+    value: ${public_subnet_1.SubnetId}
+  public_subnet_2_id:
+    value: ${public_subnet_2.SubnetId}
+  private_subnet_1_id:
+    value: ${private_subnet_1.SubnetId}
+  private_subnet_2_id:
+    value: ${private_subnet_2.SubnetId}

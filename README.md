@@ -6,6 +6,8 @@ supports, generated from AWS's published CloudFormation resource schemas — the
 `aws.vpc` or `aws.subnet` anymore. `infrena explain <type>` is the reference for any one of them: it
 prints every attribute, its spellings, and the type's import ID shape.
 
+**Documentation:** [service guides, a reference page for every type, examples and modules](docs/README.md).
+
 ## Building it, and where infrena finds it
 
 ```bash

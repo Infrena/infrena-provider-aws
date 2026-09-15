@@ -1,0 +1,37 @@
+infrena: ">= 0.7"
+
+project: module-lambda-function
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+modules:
+  - ../../modules/s3-private-bucket
+  - ../../modules/lambda-function
+
+resources:
+  code_bucket:
+    type: module.s3_private_bucket
+    name: lambda-code-bucket-demo
+    tags:
+      Environment: dev
+
+  api_handler:
+    type: module.lambda_function
+    name: demo-handler
+    s3_bucket: lambda-code-bucket-demo
+    s3_key: handler.zip
+    handler: index.handler
+    runtime: python3.12
+    memory: 256
+    timeout: 30

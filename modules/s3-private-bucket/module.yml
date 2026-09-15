@@ -1,0 +1,29 @@
+inputs:
+  name:
+    type: string
+  tags:
+    type: map
+    default: {}
+
+resources:
+  bucket:
+    type: aws.s3.bucket
+    bucket_name: ${var.name}
+    versioning_configuration:
+      Status: Enabled
+    bucket_encryption:
+      Rules:
+        - ApplyServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+    public_access_block_configuration:
+      BlockPublicAcls: true
+      BlockPublicPolicy: true
+      IgnorePublicAcls: true
+      RestrictPublicBuckets: true
+    tags: ${var.tags}
+
+outputs:
+  bucket_name:
+    value: ${bucket.BucketName}
+  bucket_arn:
+    value: ${bucket.Arn}

@@ -1,0 +1,27 @@
+infrena: ">= 0.7"
+
+project: module-s3-private-bucket
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+modules:
+  - ../../modules/s3-private-bucket
+
+resources:
+  app_bucket:
+    type: module.s3_private_bucket
+    name: my-app-data-bucket-demo
+    tags:
+      Environment: dev
+      Application: demo
