@@ -20,7 +20,8 @@ func openHost(t *testing.T) *plugintest.Host {
 }
 
 // TestTheWholeCatalogLoadsThroughTheHost: every generated definition crosses the wire and passes infrena's load checks
-// (prefix, reserved names, validation, alias folding) at protocol 2.
+// (prefix, reserved names, validation, alias folding, and since infrena 0.6.1 ValidateAll's check that every References
+// names a declared type and attribute) at protocol 3. A dangling reference makes plugintest.Open, and so this, fail.
 func TestTheWholeCatalogLoadsThroughTheHost(t *testing.T) {
 	cat, err := catalog.Embedded()
 	if err != nil {
@@ -46,9 +47,9 @@ func TestTheWholeCatalogLoadsThroughTheHost(t *testing.T) {
 	t.Fatal("aws.vpc did not arrive")
 }
 
-// TestTheWholeCatalogPassesValidateAll: plugintest.Open does not run schema.ValidateAll in infrena v0.6.0, and the
-// host does on load, so a dangling reference would fail a user's load and no test. This runs it on the definitions as
-// they arrive over the wire, and checks every accepted and approved edge arrived as a References and nothing else did.
+// TestTheWholeCatalogPassesValidateAll runs infrena's schema.ValidateAll on the catalog's definitions and again on
+// them as they arrive over the wire, so a reference to a type or attribute that does not exist fails here by name.
+// It also checks every accepted and approved edge arrived as a References, and that no attribute declares Fields.
 func TestTheWholeCatalogPassesValidateAll(t *testing.T) {
 	cat, err := catalog.Embedded()
 	if err != nil {

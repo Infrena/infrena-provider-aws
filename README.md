@@ -148,7 +148,7 @@ the plugin declares no reference, `${vpc}` is a compile error telling you to nam
 declarations are derived from AWS's property names and reviewed; `infrena explain <type>` shows each one as
 "refers to". A list of ids takes whole resources too (`SubnetIds: [...]` with `- ${private_a}` items).
 
-With infrena 0.6.0, write the attribute receiving `${vpc}` with AWS's own name (`VpcId`, any case). infrena
+With infrena 0.6.0 and 0.6.1, write the attribute receiving `${vpc}` with AWS's own name (`VpcId`, any case). infrena
 looks up the receiving attribute's declaration before it folds aliases, so `vpc_id: ${vpc}` or `vpc: ${vpc}`
 reports that the attribute declares no reference.
 
