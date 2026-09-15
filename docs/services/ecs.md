@@ -92,9 +92,9 @@ An ECS service runs and maintains a specified number of tasks. Services manage t
 ```yaml
 service:
   type: aws.ecs.service
-  cluster: ${ecs_cluster}
+  cluster: ${ecs_cluster.ClusterName}
   service_name: api-service
-  task_definition: ${task_def}
+  task_definition: ${task_def.TaskDefinitionArn}
   desired_count: 2
   launch_type: FARGATE
   platform_version: "1.4.0"

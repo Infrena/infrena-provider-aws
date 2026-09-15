@@ -87,7 +87,7 @@ A Lambda permission grants an AWS service, account, or principal permission to i
 ```yaml
 api_permission:
   type: aws.lambda.permission
-  function_name: ${api_function}
+  function_name: ${api_function.FunctionName}
   principal: apigateway.amazonaws.com
   action: lambda:InvokeFunction
   source_arn: arn:aws:execute-api:us-east-1:123456789012:abcdefg1234/*/*/*

@@ -11,7 +11,7 @@ Creates a load balancer — an Application Load Balancer (ALB) or Network Load B
 **Key attributes:**
 - `subnets` — list of subnet IDs where the load balancer is deployed (one per AZ; required, or use `subnet_mappings` to assign static IPs)
 - `security_groups` — list of security group IDs to apply to the load balancer
-- `type_value` (or `type`) — the load balancer type: `application` (ALB, default), `network` (NLB), or `gateway` (GLB)
+- `type_value` — the load balancer type (write `type_value`: `type` is infrena's own key): `application` (ALB, default), `network` (NLB), or `gateway` (GLB)
 - `scheme` — `internet-facing` (default, public IP) or `internal` (private IP only)
 - `name` — the load balancer name (32 characters max, alphanumeric and hyphens only, cannot start/end with hyphen)
 - `tags` — resource tags
