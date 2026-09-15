@@ -9,15 +9,19 @@ import (
 	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
-// Generate builds the catalog from every provisionable AWS schema. The lock gains names for new types; saving it is
-// the caller's job.
-func Generate(schemas []*cfn.Schema, bundleSHA string, lock *Lock, o *Overlay) (*catalog.Catalog, []string, error) {
+// Generate builds the catalog from every provisionable AWS schema. The lock gains names for new types and refs gains
+// derived reference edges, the latter only when acceptNew is set; saving both is the caller's job.
+func Generate(schemas []*cfn.Schema, bundleSHA string, lock *Lock, refs *ReferenceLock, o *Overlay, acceptNew bool) (*catalog.Catalog, []string, error) {
 	var provisionable []*cfn.Schema
 	var cfnTypes []string
+	live := map[string][]string{}
 	for _, s := range schemas {
 		if strings.HasPrefix(s.TypeName, "AWS::") && s.Provisionable() {
 			provisionable = append(provisionable, s)
 			cfnTypes = append(cfnTypes, s.TypeName)
+			for p := range s.Properties {
+				live[s.TypeName] = append(live[s.TypeName], p)
+			}
 		}
 	}
 	if err := checkOverlay(o, cfnTypes); err != nil {
@@ -27,8 +31,13 @@ func Generate(schemas []*cfn.Schema, bundleSHA string, lock *Lock, o *Overlay) (
 	if err != nil {
 		return nil, nil, err
 	}
+	usable, warnings, err := refs.Reconcile(DeriveReferences(provisionable), live, o.References, acceptNew)
+	if err != nil {
+		return nil, nil, err
+	}
+	warnings = append(warnings, CheckRequirements(o.Requirements, usable, refs.References)...)
 	cat := &catalog.Catalog{Bundle: bundleSHA}
-	var warnings []string
+	byCFN := map[string]*catalog.Type{}
 	for _, s := range provisionable {
 		t, w, err := BuildType(s, names, o)
 		warnings = append(warnings, w...)
@@ -36,6 +45,18 @@ func Generate(schemas []*cfn.Schema, bundleSHA string, lock *Lock, o *Overlay) (
 			return nil, warnings, err
 		}
 		cat.Types = append(cat.Types, t)
+		byCFN[t.CFN] = t
+	}
+	for _, r := range usable {
+		a, ok := byCFN[r.Source].Attribute(r.Property)
+		target, tok := byCFN[r.Target]
+		if !ok || !tok {
+			return nil, warnings, fmt.Errorf("reference %s: source or target missing from the catalog", r)
+		}
+		if _, has := target.Attribute(r.Attribute); !has {
+			return nil, warnings, fmt.Errorf("reference %s: %s has no attribute %s", r, target.Name, r.Attribute)
+		}
+		a.References = &catalog.Reference{Type: target.Name, Attribute: r.Attribute}
 	}
 	for _, cfnType := range o.DiscoverDefault {
 		cat.DiscoverDefault = append(cat.DiscoverDefault, names[cfnType])
@@ -73,6 +94,9 @@ func checkOverlay(o *Overlay, cfnTypes []string) error {
 	}
 	for _, t := range o.DiscoverDefault {
 		check("discover_default", t)
+	}
+	for _, t := range o.References.ApproveTargets {
+		check("references approve_targets", t)
 	}
 	for _, p := range o.Global {
 		if !strings.HasSuffix(p, "*") {

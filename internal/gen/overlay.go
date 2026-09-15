@@ -16,6 +16,16 @@ type Overlay struct {
 	Aliases         map[string]map[string][]string  `yaml:"aliases"`
 	Sensitive       map[string][]string             `yaml:"sensitive"`
 	Requirements    map[string][]OverlayRequirement `yaml:"requirements"`
+	References      OverlayReferences               `yaml:"references"`
+}
+
+// OverlayReferences is the human review of derived reference edges (resource references design §4.2), written with
+// CloudFormation type names.
+type OverlayReferences struct {
+	// ApproveTargets lists target types whose tier-2 (suffix-match) edges are approved, all of them at once.
+	ApproveTargets []string `yaml:"approve_targets"`
+	// Reject lists Type.Property edges refused whatever their tier.
+	Reject []string `yaml:"reject"`
 }
 
 // OverlayRequirement is a pre-flight hint, written with CloudFormation type names.

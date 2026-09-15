@@ -37,13 +37,45 @@ func TestTheCommittedCatalogMatchesTheBundleItClaims(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	refs, err := LoadReferenceLock("../../gen/references.lock.json")
+	if err != nil {
+		t.Fatal(err)
+	}
 	before := len(lock.Names)
-	cat, _, err := Generate(schemas, sha, lock, o)
+	cat, _, err := Generate(schemas, sha, lock, refs, o, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(lock.Names) != before {
 		t.Errorf("regeneration assigned %d new names: the committed lock is stale", len(lock.Names)-before)
+	}
+	committedRefs, err := os.ReadFile("../../gen/references.lock.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	regenerated := t.TempDir() + "/references.lock.json"
+	if err := refs.Save(regenerated); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := os.ReadFile(regenerated); string(again) != string(committedRefs) {
+		t.Error("regeneration changed gen/references.lock.json: the committed reference lock is stale")
+	}
+	usable := 0
+	for _, r := range refs.References {
+		if r.Usable() {
+			usable++
+		}
+	}
+	carried := 0
+	for _, typ := range committed.Types {
+		for _, a := range typ.Attributes {
+			if a.References != nil {
+				carried++
+			}
+		}
+	}
+	if carried != usable {
+		t.Errorf("committed catalog carries %d references, the lock allows %d", carried, usable)
 	}
 	if len(cat.Types) != len(committed.Types) {
 		t.Errorf("regenerated %d types, committed catalog has %d", len(cat.Types), len(committed.Types))

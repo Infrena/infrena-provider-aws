@@ -64,6 +64,15 @@ type Attribute struct {
 	Aliases     []string `json:"aliases,omitempty"`
 	Description string   `json:"description,omitempty"`
 	Shape       *Shape   `json:"shape,omitempty"` // for list and map kinds
+	// References is set when the attribute holds another resource's identifier: an accepted or approved edge from
+	// gen/references.lock.json.
+	References *Reference `json:"references,omitempty"`
+}
+
+// Reference names the attribute of another type that an attribute holds.
+type Reference struct {
+	Type      string `json:"type"`      // infrena type name, e.g. aws.vpc
+	Attribute string `json:"attribute"` // canonical attribute name, never an alias, e.g. VpcId
 }
 
 // Shape describes a nested value for reconciliation.
@@ -152,6 +161,7 @@ func (t *Type) Definition() *schema.ResourceDefinition {
 	attrs := make(map[string]schema.Attribute, len(t.Attributes)+1)
 	for _, a := range t.Attributes {
 		kind, _ := value.ParseKind(a.Kind)
+		// a.References is not passed on: schema.Attribute has no References field until infrena ships it.
 		attrs[a.Name] = schema.Attribute{
 			Kind: kind, Required: a.Required, Computed: a.Computed, Optional: a.Optional,
 			ForceNew: a.ForceNew, Sensitive: a.Sensitive, Aliases: a.Aliases, Description: a.Description,
