@@ -34,11 +34,13 @@ aliases:
   AWS::EC2::Subnet:
     CidrBlock: [cidr]
     AvailabilityZone: [az]
+    VpcId: [vpc]
   AWS::EC2::SecurityGroup:
     GroupName: [name]
     GroupDescription: [description]
     SecurityGroupIngress: [ingress]
     SecurityGroupEgress: [egress]
+    VpcId: [vpc]
   AWS::EC2::Route:
     DestinationCidrBlock: [destination_cidr]
   AWS::EC2::Instance:
