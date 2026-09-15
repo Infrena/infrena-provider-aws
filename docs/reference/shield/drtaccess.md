@@ -1,0 +1,21 @@
+# aws.drtaccess
+
+**CloudFormation type:** `AWS::Shield::DRTAccess`
+
+Config the role and list of Amazon S3 log buckets used by the Shield Response Team (SRT) to access your AWS account while assisting with attack mitigation.
+
+Region attribute: `region`
+
+**Import ID:** `<region>/AccountId` (AWS::Shield::DRTAccess)
+
+## Attributes
+
+| Attribute | Also written as | Kind | Flags | References | Description |
+|-----------|-----------------|------|-------|------------|-------------|
+| `AccountId` | account_id | `string` | computed |  |  |
+| `LogBucketList` | log_bucket_list | `list` | optional, computed, provider-chosen |  | Authorizes the Shield Response Team (SRT) to access the specified Amazon S3 bucket containing log data such as Application Load Balancer access logs, CloudFront logs, or logs from third party sources. You can associate up to 10 Amazon S3 buckets with your subscription. |
+| `RoleArn` | role_arn | `string` | required | aws.role.Arn | Authorizes the Shield Response Team (SRT) using the specified role, to access your AWS account to assist with DDoS attack mitigation during potential attacks. This enables the SRT to inspect your AWS WAF configuration and create or update AWS WAF rules and web ACLs. |
+
+Supports update: yes
+
+Discovery: supported
