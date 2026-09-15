@@ -120,14 +120,14 @@ resources:
 
   private_a:
     type: aws.subnet
-    VpcId: ${vpc}
+    vpc: ${vpc}
     cidr: 10.0.1.0/24
     az: us-east-1a
 
   web:
     type: aws.securitygroup
     description: web servers
-    VpcId: ${vpc}
+    vpc_id: ${vpc}
     ingress:
       - ip_protocol: tcp
         from_port: 443
@@ -148,9 +148,19 @@ the plugin declares no reference, `${vpc}` is a compile error telling you to nam
 declarations are derived from AWS's property names and reviewed; `infrena explain <type>` shows each one as
 "refers to". A list of ids takes whole resources too (`SubnetIds: [...]` with `- ${private_a}` items).
 
-With infrena 0.6.0 and 0.6.1, write the attribute receiving `${vpc}` with AWS's own name (`VpcId`, any case). infrena
-looks up the receiving attribute's declaration before it folds aliases, so `vpc_id: ${vpc}` or `vpc: ${vpc}`
-reports that the attribute declares no reference.
+A whole-resource reference into an attribute written with a friendly alias or snake_case name (`vpc: ${vpc}`,
+`vpc_id: ${vpc}`) needs infrena v0.6.2 or newer. On infrena 0.6.0 and 0.6.1, write the attribute receiving `${vpc}`
+with AWS's own name instead (`VpcId: ${vpc}`, any case): those releases look up the receiving attribute's
+declaration before folding aliases, so the aliased spellings wrongly report that the attribute declares no
+reference.
+
+## Breaking changes in 0.2.0
+
+- Needs infrena 0.6.2 or newer (plugin protocol 3).
+- Attributes that now declare a reference type-check explicit references, so a mismatched target is an error where
+  it previously was not: for example `vpc_id: ${subnet.arn}` is refused, because a security group's `vpc_id` refers
+  to a VPC, not a subnet. The full list of attributes that declare a reference is `gen/references.lock.json`'s
+  `accepted` and `approved` entries.
 
 ## Behaviour worth knowing
 

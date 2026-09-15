@@ -26,14 +26,14 @@ resources:
 
   private_a:
     type: aws.subnet
-    VpcId: ${vpc}
+    vpc: ${vpc}
     cidr: 10.0.1.0/24
     az: us-east-1a
 
   web:
     type: aws.securitygroup
     description: web servers
-    VpcId: ${vpc}
+    vpc_id: ${vpc}
     ingress:
       - ip_protocol: tcp
         from_port: 443

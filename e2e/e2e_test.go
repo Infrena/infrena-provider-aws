@@ -313,6 +313,19 @@ func TestAnUnknownNestedKeyFailsTheApplyNamingIt(t *testing.T) {
 	}
 }
 
+// TestAWholeResourceIntoTheCanonicalAttributeNameStillWorks: VpcId: ${vpc}, AWS's own property name, worked even
+// on infrena 0.6.0 and 0.6.1, which had a compiler bug refusing the same reference written through an alias
+// (vpc: ${vpc}, vpc_id: ${vpc}, both used elsewhere in this fixture). This confirms the canonical spelling is
+// still accepted alongside the alias spellings the fixture now exercises.
+func TestAWholeResourceIntoTheCanonicalAttributeNameStillWorks(t *testing.T) {
+	e := project(t, strings.Replace(fixture(t, "basic"), "    vpc: ${vpc}\n", "    VpcId: ${vpc}\n", 1))
+	e.expect(t, 2, []string{"0 failed"}, "apply", "dev", "--auto-approve")
+	vpcID, _ := e.only(t, "AWS::EC2::VPC")
+	if _, subnet := e.only(t, "AWS::EC2::Subnet"); subnet["VpcId"] != vpcID {
+		t.Fatalf("the subnet's VpcId = %v, want %s: VpcId: ${vpc} did not project to the VPC's VpcId", subnet["VpcId"], vpcID)
+	}
+}
+
 // TestAWholeResourceIntoAnUndeclaredAttributeNamesTheFix: CidrBlock declares no reference, so ${vpc} there is a
 // compile error telling the user to name the attribute, and nothing is created.
 func TestAWholeResourceIntoAnUndeclaredAttributeNamesTheFix(t *testing.T) {
