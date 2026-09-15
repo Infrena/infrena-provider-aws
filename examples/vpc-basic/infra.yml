@@ -1,0 +1,42 @@
+infrena: ">= 0.7"
+
+project: vpc-basic
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  vpc:
+    type: aws.vpc
+    cidr: 10.0.0.0/16
+    tags:
+      Name: basic
+
+  public_a:
+    type: aws.subnet
+    vpc: ${vpc}
+    cidr: 10.0.1.0/24
+    az: us-east-1a
+    map_public_ip_on_launch: true
+    tags:
+      Name: basic-public-a
+
+  web:
+    type: aws.securitygroup
+    description: web servers
+    vpc_id: ${vpc}
+    ingress:
+      - ip_protocol: tcp
+        from_port: 443
+        to_port: 443
+        cidr_ip: 0.0.0.0/0
