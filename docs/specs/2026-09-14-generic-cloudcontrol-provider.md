@@ -4,7 +4,7 @@
 (Tasks 1–17 done); e2e passes 12/12 against infrena v0.4.0; the live suite against real AWS is pending James's
 approval and has not run. **Supersedes** Tasks 5–6 of
 `docs/plans/2026-09-13-first-slice-vpc-subnet.md` (handwritten `aws.vpc`/`aws.subnet`). **Evidence:**
-`docs/investigations/2026-09-13-generic-aws-provider.md` and `spikes/generic-aws/`. **Contract:** infrata **v0.3.0**
+`docs/investigations/2026-09-13-generic-aws-provider.md` and `spikes/generic-aws/`. **Contract:** infrena **v0.3.0**
 (`45deb30`): plugin protocol 2, `schema.Attribute.Optional` and `Aliases` (PLAN §14.1), `lifecycle: ignore_changes`
 (§14.2, host-only).
 
@@ -17,10 +17,10 @@ approval and has not run. **Supersedes** Tasks 5–6 of
 | J3 | **Names never move.** A committed name map locks each assigned name. A later AWS type whose segment clashes with a locked short name gets the qualified form; the locked name keeps its owner. |
 | J4 | **Attributes accept several spellings:** AWS's property name case-insensitively, a generated snake_case form, and curated friendly aliases (`cidr`). |
 | J5 | **Plans, `explain` and `import --generate` show the friendly alias** where one exists. |
-| J6 | **Engine support comes from infrata**, not the plugin: done in v0.3.0. |
-| J7 | **Without a curated alias, the shown name is snake_case** (`cidr_block`), because infrata displays the first alias (Q1). |
+| J6 | **Engine support comes from infrena**, not the plugin: done in v0.3.0. |
+| J7 | **Without a curated alias, the shown name is snake_case** (`cidr_block`), because infrena displays the first alias (Q1). |
 | J8 | **Nested keys accept any spelling too**, rewritten by the plugin (Q2). |
-| J9 | **Properties named like infrata keywords** show as `type_value`, `provider_value`, `lifecycle_value`; the plugin's region is `aws_region` on regional types with their own `Region` (Q3). |
+| J9 | **Properties named like infrena keywords** show as `type_value`, `provider_value`, `lifecycle_value`; the plugin's region is `aws_region` on regional types with their own `Region` (Q3). |
 | J10 | **Curated aliases ship first for the core set** (Q4, §3.2). |
 
 ## 2. Facts this design rests on (measured 2026-09-14, us-east-1)
@@ -35,13 +35,13 @@ approval and has not run. **Supersedes** Tasks 5–6 of
 - Short names: 1,073 unique; 152 clashing segments cover 511 types; `service.resource` never clashes.
 - Handler shape: 297 types lack `update` (every change replaces); 217 lack `list`; 381 declare a list `handlerSchema`
   (listing needs a parent `ResourceModel`); 306 have composite primary identifiers.
-- Flags on **nested** pointers: 955 (infrata flags are top-level only).
+- Flags on **nested** pointers: 955 (infrena flags are top-level only).
 - `writeOnlyProperties`: 1,170, of which 86 look secret by name (password, secret, token, private key, credential).
-- Properties whose name folds to an infrata resource key: `Type` (95 types), `Provider` (8), `Region` (5, e.g.
-  `AWS::Route53::RecordSet`), `Lifecycle` (1). infrata matches resource keys **exactly** (`type`, `depends_on`,
+- Properties whose name folds to an infrena resource key: `Type` (95 types), `Provider` (8), `Region` (5, e.g.
+  `AWS::Route53::RecordSet`), `Lifecycle` (1). infrena matches resource keys **exactly** (`type`, `depends_on`,
   `provider`, `skip`, `only`, `lifecycle` in `internal/config/decode.go`); reserved attributes are exactly
   `prevent_destroy` and `retain`, which no AWS property uses.
-- Generated definitions as JSON: ~1.74 MB with one-line descriptions (~0.30 MB gzipped), ~0.90 MB without. infrata
+- Generated definitions as JSON: ~1.74 MB with one-line descriptions (~0.30 MB gzipped), ~0.90 MB without. infrena
   loads every plugin's schemas on **every** command, `validate` included.
 
 ## 3. Architecture
@@ -53,7 +53,7 @@ schema bundle (pinned, fetched)          overlay.yaml (curated, committed)
                                   │
           names.lock.json (committed)    internal/catalog/catalog.json.gz (committed, embedded)
                                   │
-internal/catalog  ── infrata definitions + per-type runtime metadata (CFN type, identifier, write-only, tagging)
+internal/catalog  ── infrena definitions + per-type runtime metadata (CFN type, identifier, write-only, tagging)
 internal/cloudcontrol ── the generic Provider: one implementation, dispatch by catalog entry
 internal/awsprov  ── Plugin, instance config, credentials, clients, error classification (Tasks 1–4, adapted)
 internal/ccfake   ── in-process Cloud Control fake (awsJson1_0), replaces internal/ec2fake
@@ -75,7 +75,7 @@ Runs by hand or in the bump workflow, never at build or run time. Inputs: the bu
 
 **Attributes**, per top-level property:
 
-| Schema says | infrata attribute |
+| Schema says | infrena attribute |
 | --- | --- |
 | `readOnlyProperties` | `Computed` |
 | in `required` | `Required` |
@@ -85,22 +85,22 @@ Runs by hand or in the bump workflow, never at build or run time. Inputs: the bu
 | JSON type `string`/`integer`/`number`/`boolean`/`array`/`object` (following `$ref`) | `KindString`/`Int`/`Float`/`Bool`/`List`/`Map`; unions and untyped → `KindString` + reported |
 
 Name and spellings: **canonical = AWS's property name** (`CidrBlock`); `Aliases` = curated aliases from the overlay
-first, then the snake_case form (`cidr_block`) if it differs from the lowercased name. infrata's `Display` shows the
+first, then the snake_case form (`cidr_block`) if it differs from the lowercased name. infrena's `Display` shows the
 first alias.
 
-Collisions the generator must resolve rather than emit (infrata's `Validate` would refuse the plugin):
+Collisions the generator must resolve rather than emit (infrena's `Validate` would refuse the plugin):
 
 - A property folding to `region` on a **regional** type (5 types have one; 4 if `AWS::Route53::RecordSet` is global per the overlay) clashes with the plugin's own `region`. The
   plugin's attribute stays `region` everywhere else; on these types it is `aws_region` and the property keeps its name.
 - A property folding to `type`, `provider` or `lifecycle`: the canonical name is legal, but its lowercase spelling is
-  claimed by infrata's resource keys. The generator gives it a first alias `<name>_value` (e.g. `type_value`) so
+  claimed by infrena's resource keys. The generator gives it a first alias `<name>_value` (e.g. `type_value`) so
   `Display` never renders something that decodes as a resource key.
 
-**Per-type runtime metadata** (not sent to infrata): CFN type name, primary identifier pointers, write-only
+**Per-type runtime metadata** (not sent to infrena): CFN type name, primary identifier pointers, write-only
 properties, whether `update`/`list` exist, list `handlerSchema` inputs, the tagging property, and regional vs global
 (overlay).
 
-**Output size:** one-line descriptions only; gzip-embedded. Task 1 measures `infrata validate` with the full catalog
+**Output size:** one-line descriptions only; gzip-embedded. Task 1 measures `infrena validate` with the full catalog
 against a no-op plugin before anything else is built (§6).
 
 ### 3.2 Overlay (`overlay.yaml`)
@@ -129,7 +129,7 @@ Every method looks the type up in the catalog, then:
   are carried forward from current state (AWS never returns them).
 - **Update:** compute an RFC 6902 patch at top-level property granularity: `add` or `replace` for each property in
   the desired state whose value differs from current. No `remove`: every settable property is Optional+Computed, so
-  a property dropped from configuration produces no diff in infrata and its current AWS value is kept, as PLAN §14.1
+  a property dropped from configuration produces no diff in infrena and its current AWS value is kept, as PLAN §14.1
   specifies (state cannot say whether configuration ever set it). Skip `readOnly`. `UpdateResource` with a
   `ClientToken`, await, read back.
 - **Delete:** `DeleteResource` with a `ClientToken`, await. `NotFound` at any point is success.
@@ -140,7 +140,7 @@ Every method looks the type up in the catalog, then:
 - **Import:** `GetResource` for `<region>/<identifier>`.
 - **Provider ID:** `<region>/<identifier>`, split at the first `/` only, because identifiers can be ARNs and
   composite identifiers use `|`.
-- **ClassifyError:** Cloud Control exceptions and handler error codes → infrata classes. `ThrottlingException`,
+- **ClassifyError:** Cloud Control exceptions and handler error codes → infrena classes. `ThrottlingException`,
   `ConcurrentOperationException`, `ResourceConflictException` → `SafeToRetry` (refused before acting; a create also
   carries a token). `HandlerInternalFailureException`, `ServiceInternalErrorException`, `NetworkFailureException`,
   `NotStabilizedException`, HTTP ≥ 500, timeouts → `ConditionallyRetryable`. Everything else → `NotSafeToRetry`.
@@ -148,8 +148,8 @@ Every method looks the type up in the catalog, then:
 
 ### 3.4 Values
 
-- **Top level:** infrata values ↔ JSON directly (`KindMap` ↔ object, `KindList` ↔ array).
-- **Nested values are reconciled by the plugin (J8).** infrata compares nested values with `value.Equal`, which
+- **Top level:** infrena values ↔ JSON directly (`KindMap` ↔ object, `KindList` ↔ array).
+- **Nested values are reconciled by the plugin (J8).** infrena compares nested values with `value.Equal`, which
   requires maps to have exactly the same keys and the same number of keys, and lists to match position by position
   (`pkg/value/value.go`, v0.3.0). It does not canonicalise inside map or list values. Three things would therefore
   diff forever, and the plugin handles each:
@@ -184,13 +184,13 @@ handwritten `aws.vpc`/`aws.subnet` code, `internal/ec2fake`, EC2-specific classi
 - **Generator:** golden tests on a handful of committed real schemas (VPC, Subnet, S3 Bucket, IAM Role, RDS
   DBInstance, one with `Region`, one with `Type`), asserting flags, spellings, name assignment and lock stability
   (adding a clashing type never renames a locked one).
-- **Catalog:** every definition passes `schema.Validate` and `plugintest.Open` (the whole catalog loads in infrata's
+- **Catalog:** every definition passes `schema.Validate` and `plugintest.Open` (the whole catalog loads in infrena's
   host).
 - **Provider:** against `internal/ccfake`, an awsJson1_0 server (`X-Amz-Target: CloudApiService.<Op>`,
   `application/x-amz-json-1.0`) holding resources in memory, returning `IN_PROGRESS` then `SUCCESS` across polls,
   adding provider-chosen properties on read (to exercise Optional+Computed), honouring `ClientToken` idempotency,
   with fault and delay injection. The real SDK is the oracle for its wire format, as with `ec2fake`.
-- **e2e:** infrata v0.3.0 built from source against the binary and the fake (`AWS_ENDPOINT_URL_CLOUDCONTROL`, checked in `service/cloudcontrol` v1.38.0 `endpoints.go`),
+- **e2e:** infrena v0.3.0 built from source against the binary and the fake (`AWS_ENDPOINT_URL_CLOUDCONTROL`, checked in `service/cloudcontrol` v1.38.0 `endpoints.go`),
   covering plan/apply/re-plan clean, an unset provider-chosen attribute staying clean, drift, replacement from a
   create-only change, tags as a map, discover and import, destroy.
 - **Live** (`-tags live`, account guard, never CI): VPC + Subnet + Security Group through the real API, then IAM Role
@@ -205,7 +205,7 @@ types; per-region schema differences (the us-east-1 bundle is authoritative).
 ## 5. Risks
 
 - **Load cost on every command** (~1.7 MB of schemas through the pipe). Measured first; fallback is dropping
-  descriptions (~0.9 MB) or asking infrata for lazy schema loading.
+  descriptions (~0.9 MB) or asking infrena for lazy schema loading.
 - **Perpetual diffs** from AWS normalising scalar values (casing, CIDR forms). Nested spelling, AWS-added nested keys and
   unordered lists are handled by reconciliation (§3.4); scalar normalisation is found per type by the e2e and live
   suites and recorded in the overlay.
@@ -218,7 +218,7 @@ types; per-region schema differences (the us-east-1 bundle is authoritative).
 
 1. Measure load cost with a generated catalog behind a no-op plugin. Stop and report if unacceptable.
 2. Generator + lock + overlay + golden tests; commit the generated catalog.
-3. Adapt Tasks 1–4 onto infrata v0.3.0 (`protocol: [2]`), catalog-backed `Definitions`.
+3. Adapt Tasks 1–4 onto infrena v0.3.0 (`protocol: [2]`), catalog-backed `Definitions`.
 4. `internal/ccfake`.
 5. Generic provider: create/read/delete, then update (patch), then discover/import, then classification.
 6. Tags transform and value translation.
@@ -226,14 +226,14 @@ types; per-region schema differences (the us-east-1 bundle is authoritative).
 
 ## 7. Questions James answered (2026-09-14)
 
-- **Q1 — displayed name when there is no curated alias. Answer: snake_case (J7).** infrata's `Display` shows the FIRST alias, and every property
+- **Q1 — displayed name when there is no curated alias. Answer: snake_case (J7).** infrena's `Display` shows the FIRST alias, and every property
   gets a snake_case alias, so without a curated alias the display is `cidr_block`, not `CidrBlock`. Recommended:
-  accept that (lowercase, matches infrata's own examples). The alternative, showing AWS's name, means not generating
-  snake_case aliases or asking infrata for a separate display field.
+  accept that (lowercase, matches infrena's own examples). The alternative, showing AWS's name, means not generating
+  snake_case aliases or asking infrena for a separate display field.
 - **Q2 — nested keys. Answer: any spelling, rewritten by the plugin (J8, §3.4). Recommendation below not taken.** Recommended: AWS's exact names inside objects and lists for the first release, plus the
   generic tags-as-map transform. Accepting other spellings inside nested values would need the plugin to rewrite them
   to match what AWS returns, which is doable later.
-- **Q3 — clashes with infrata keywords. Answer: as recommended (J9).** Recommended: `type_value`/`provider_value`/`lifecycle_value` as the shown name
+- **Q3 — clashes with infrena keywords. Answer: as recommended (J9).** Recommended: `type_value`/`provider_value`/`lifecycle_value` as the shown name
   for those properties, and `aws_region` for the plugin's region on the 4 regional types that have their own `Region`.
 - **Q4 — which types get curated aliases first. Answer: the core set (J10).** Recommended: EC2 networking (VPC, Subnet, SecurityGroup,
   InternetGateway, RouteTable, Route), EC2 Instance, S3 Bucket, IAM Role/Policy, RDS DBInstance/DBSubnetGroup, Lambda

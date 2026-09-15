@@ -6,24 +6,24 @@
 AWS Cloud Control API supports, generated from the published CloudFormation resource schemas.
 
 **Architecture:** A build-time generator (`cmd/gen-cloudcontrol`) reads the pinned schema bundle, a committed name lock
-and a curated overlay, and writes an embedded catalog: infrata resource definitions plus the runtime metadata the
+and a curated overlay, and writes an embedded catalog: infrena resource definitions plus the runtime metadata the
 provider needs. One provider (`internal/ccprov`) serves every catalog type through Cloud Control, reconciling nested
 values so plans converge. Tests run against an in-process Cloud Control fake (`internal/ccfake`); a live suite runs by
 hand against a real account.
 
-**Tech Stack:** Go 1.27.0; `github.com/infrata/infrata` **v0.3.0** (plugin protocol 2); AWS SDK for Go v2:
+**Tech Stack:** Go 1.27.0; `github.com/infrena/infrena` **v0.3.0** (plugin protocol 2); AWS SDK for Go v2:
 `aws-sdk-go-v2 v1.47.0`, `config v1.33.4`, `credentials v1.20.4`, `service/sts v1.50.0`, `service/cloudcontrol v1.38.0`,
-`smithy-go v1.28.1`; `gopkg.in/yaml.v3 v3.0.1` (already in infrata's module graph) for the overlay.
+`smithy-go v1.28.1`; `gopkg.in/yaml.v3 v3.0.1` (already in infrena's module graph) for the overlay.
 
 **Spec:** `docs/specs/2026-09-14-generic-cloudcontrol-provider.md` (read its §1 decisions J1 to J10 and §3 before any task).
 Evidence: `docs/investigations/2026-09-13-generic-aws-provider.md`.
 
 ## Global Constraints
 
-- Module `github.com/infrata/infrata-provider-aws`; branch `generic-cloudcontrol`.
-- `go 1.27.0`; `require github.com/infrata/infrata v0.3.0`, no `replace`; local work through a gitignored `go.work`.
-- Plugin name `aws`; binary `infrata-plugin-aws`; every type prefixed `aws.`.
-- `plugin.yaml`: `protocol: [2]`, `infrata: ">= 0.3.0"`.
+- Module `github.com/infrena/infrena-provider-aws`; branch `generic-cloudcontrol`.
+- `go 1.27.0`; `require github.com/infrena/infrena v0.3.0`, no `replace`; local work through a gitignored `go.work`.
+- Plugin name `aws`; binary `infrena-plugin-aws`; every type prefixed `aws.`.
+- `plugin.yaml`: `protocol: [2]`, `infrena: ">= 0.3.0"`.
 - `Version` defaults to `"0.0.0-dev"`, stamped only by `-ldflags -X` at release.
 - Type names follow J2/J3 and never change once in `gen/names.lock.json`.
 - Attribute canonical name is AWS's property name; `Aliases` lists curated aliases first, then snake_case (J4, J7).
@@ -36,7 +36,7 @@ Evidence: `docs/investigations/2026-09-13-generic-aws-provider.md`.
 - Stage explicit paths only. Never `git add -A`, `git add .` or `git commit -am`. Ask James before any push or tag.
 - **Commit messages (James's rule):** plain English, short, human-sounding, no em-dashes, and no AI or Claude
   attribution of any kind.
-- Do not modify `../infrata`. Defects there go to the vault note's follow-ups and to James.
+- Do not modify `../infrena`. Defects there go to the vault note's follow-ups and to James.
 
 ---
 
@@ -47,24 +47,24 @@ Evidence: `docs/investigations/2026-09-13-generic-aws-provider.md`.
 | P1 | The generic provider package is `internal/ccprov`, not `internal/cloudcontrol` | The SDK package is `cloudcontrol`; the same name would shadow it at every import site. |
 | P2 | Shared runtime pieces move into `ccprov`: clients, error classification, provider IDs, patience | The provider needs them and `awsprov` must import `ccprov`; keeping them in `awsprov` would make an import cycle. `awsprov` keeps only the plugin, instance configuration and credentials. |
 | P3 | Provider IDs are `<scope>/<identifier>`, where scope is the region, or `global` for global types | Identifiers can be ARNs with `/`, so the split is at the first `/` only; global types have no region. |
-| P4 | New instance key **`discover_types`** (list of infrata type names). Default: the overlay's `discover_default` list (the core set, J10) | infrata's discovery, and every `import`, asks every type an instance offers. Unfiltered that is ~1,584 `ListResources` calls per region per run. Found while planning; not in the spec. |
+| P4 | New instance key **`discover_types`** (list of infrena type names). Default: the overlay's `discover_default` list (the core set, J10) | infrena's discovery, and every `import`, asks every type an instance offers. Unfiltered that is ~1,584 `ListResources` calls per region per run. Found while planning; not in the spec. |
 | P5 | Reconciliation (spec §3.4) treats a nested value as **opaque** (copied exactly, no key translation, nothing dropped, no reordering) when its schema node has `patternProperties`, `additionalProperties` without `properties`, no `properties` at all, `oneOf`/`anyOf`/`allOf`, or a multi-type `type` | The bundle has 447 free-form maps, 323 opaque objects, 384 combinators and 74 type unions; translating or pruning their keys would corrupt user data. |
 | P6 | The catalog stores each attribute's nested **shape** (object properties, array item, `insertionOrder`) resolved from `$ref` | Reconciliation needs nested names and ordering at runtime, offline. Its size is measured in Task 6. |
-| P7 | Load-cost gate (Task 6): acceptable if the median extra time `infrata validate` takes with the full catalog is at most 500 ms over the fake plugin. Above that, stop and report to James with the numbers | The spec says measure first; this makes "acceptable" checkable. |
+| P7 | Load-cost gate (Task 6): acceptable if the median extra time `infrena validate` takes with the full catalog is at most 500 ms over the fake plugin. Above that, stop and report to James with the numbers | The spec says measure first; this makes "acceptable" checkable. |
 | P8 | The first real catalog is generated in Task 5 and committed; regenerating is a normal reviewed diff | Generated code is reviewed as a diff, never produced at build time. |
 
 ## Verification log (facts the tasks rely on, checked 2026-09-14)
 
 | Claim | Checked against | Result |
 | --- | --- | --- |
-| infrata v0.3.0 is `45deb30`, protocol `Version = 2`, `Supported = {2, 1}` | `git show v0.3.0:pkg/pluginproto/proto.go` | ✔ |
+| infrena v0.3.0 is `45deb30`, protocol `Version = 2`, `Supported = {2, 1}` | `git show v0.3.0:pkg/pluginproto/proto.go` | ✔ |
 | `schema.Attribute` has `Optional` and `Aliases`; `Validate` refuses `Optional` without `Computed` and names that fold together | `v0.3.0:pkg/schema/attribute.go`, `definition.go:94-103`, `alias.go` | ✔ |
 | Plans and `import --generate` show `Display` (first alias) | `v0.3.0:internal/planner/render.go:128,197`, `internal/generator/generate.go:276` | ✔ |
 | `provider.DiscoverRequest` is `{Types []string}` (no Region) | `v0.3.0:pkg/provider/provider.go:68` | ✔ |
 | Reserved attributes are exactly `prevent_destroy`, `retain` (exact match) | `v0.3.0:internal/registry/registry.go:291`, `internal/pluginhost/adapter.go:367` | ✔ |
 | Resource keys `type`, `depends_on`, `provider`, `skip`, `only`, `lifecycle` match exactly | `v0.3.0:internal/config/decode.go:455-521` | ✔ |
 | `value.Equal` needs identical map keys and counts, lists by position | `v0.3.0:pkg/value/value.go:235-280` | ✔ |
-| infrata release asset for linux/amd64 is `infrata_0.3.0_linux_amd64.tar.gz` | `gh release view v0.3.0 --repo infrata/infrata` | ✔ |
+| infrena release asset for linux/amd64 is `infrena_0.3.0_linux_amd64.tar.gz` | `gh release view v0.3.0 --repo infrena/infrena` | ✔ |
 | Schema bundle URL and size; 1,729 `AWS::` schemas; 1,584 with create/read/delete handlers = Cloud Control's provisionable set | download + `cloudformation list-types` | ✔ |
 | No property-name fold or snake_case collisions within a type | bundle analysis (Python regex equivalent to Task 1's `SnakeCase`) | ✔ (Task 5 re-proves it through `Validate` in Go) |
 | Keyword clashes: `Type` 95, `Provider` 8, `Region` 5, `Lifecycle` 1 | bundle analysis | ✔ |
@@ -78,21 +78,21 @@ Evidence: `docs/investigations/2026-09-13-generic-aws-provider.md`.
 | `AWS_ENDPOINT_URL_CLOUDCONTROL` overrides the endpoint | `service/cloudcontrol@v1.38.0/endpoints.go` | ✔ |
 | Live Cloud Control create/update/delete of a VPC works; `GetResource` returns provider-chosen properties | spike `cmd/cloudcontrol-poc -live` | ✔ |
 | Correction (Task 8): a known/registered error shape (e.g. `InvalidRequestException`) is decoded by the schema deserializer, which matches the member name `Message` exactly (no `JSONName` trait on it); the case-insensitive `message`/`Message` fallback only covers the generic `ProtocolErrorInfo` path for an *unregistered* code. `ccfake.writeError` sent lowercase `message`, so a registered error's `Message` field decoded empty; fixed to send `Message` | `service/cloudcontrol@v1.38.0/schemas/schemas.go` (`AddMember("Message", _ErrorMessage)`), `smithy-go@v1.28.1/transport/http/protocol/internal/json/shape_deserializer.go` (`memberFromToken`, exact byte match) | ✔ (found by `TestAFailureMessageSaysWhatAndWhereAndKeepsItsCause` in Task 8) |
-| P7 load gate (Task 6): median extra time `infrata validate` took with the full catalog over a no-op plugin was 487–489 ms | `scripts/measure-load`, run under the project's pre-rename name | ✔ — under the 500 ms gate as originally written |
-| The project (module `github.com/infrata/infrata-provider-aws` → `github.com/infrena/infrena-provider-aws`, CLI `infrata` → `infrena`, binary `infrata-plugin-aws` → `infrena-plugin-aws`, env vars `INFRATA_*` → `INFRENA_*`, `plugin.yaml`'s `infrata:` floor → `infrena: ">= 0.4.0"`, CI secret `INFRATA_CHECKOUT_TOKEN` → `INFRENA_CHECKOUT_TOKEN`) was renamed from infrata to infrena, pinned to infrena `v0.4.0` | `go.mod`, `plugin.yaml`, repo-wide rename commits `0c68c9f`, `2825f7f` and others on `generic-cloudcontrol` | ✔ |
+| P7 load gate (Task 6): median extra time `infrena validate` took with the full catalog over a no-op plugin was 487–489 ms | `scripts/measure-load`, run under the project's pre-rename name | ✔ — under the 500 ms gate as originally written |
+| The project (module `github.com/infrena/infrena-provider-aws` → `github.com/infrena/infrena-provider-aws`, CLI `infrena` → `infrena`, binary `infrena-plugin-aws` → `infrena-plugin-aws`, env vars `INFRENA_*` → `INFRENA_*`, `plugin.yaml`'s `infrena:` floor → `infrena: ">= 0.4.0"`, CI secret `INFRENA_CHECKOUT_TOKEN` → `INFRENA_CHECKOUT_TOKEN`) was renamed from infrena to infrena, pinned to infrena `v0.4.0` | `go.mod`, `plugin.yaml`, repo-wide rename commits `0c68c9f`, `2825f7f` and others on `generic-cloudcontrol` | ✔ |
 | Rerun of the P7 load gate after the rename: median extra time was about 437 ms, still comfortably under the gate. James decided ~500 ms extra is fine either way and only wants a flag if the extra goes over about 1 second | `scripts/measure-load`, run post-rename | ✔ — no flag needed; CLAUDE.md's load-cost rule states the 1 s concern threshold instead of a hard 500 ms cutoff |
 | infrena host finding: `Update` receives the last **persisted** state as current, not a state `apply` freshly refreshed, so diffing against it directly misses or fabricates changes | found running the e2e suite (a VPC's tags, drifted outside infrena then corrected in configuration, never got patched); fixed here by having `Update` read fresh before building its patch | ✔ — commit `c7ff98e` in this repo. Reported to the infrena session; they've confirmed it and plan to fix it on the host side after the rename. The extra read here stays until the Verification log records that fix has landed |
 | Task 17 whole-suite verification (2026-09-14, post-rename): `gofmt -l .` clean; `go vet ./...` and `go vet -tags e2e,live ./...` clean; `go test -count=1 ./...` and the pinned `GOWORK=off GOPRIVATE='github.com/infrena/*' go test -count=1 ./...` both pass every package; `go test -tags e2e -count=1 -v ./e2e/` against a read-only snapshot of infrena `v0.4.0` (commit `e2be8bf`, extracted with `git archive`) passes every test (`TestTheWorkflow` and its 9 subtests, plus 4 more top-level tests, 0 failures); `go test -tags live -count=1 ./live/` skips both tests (no `INFRENA_AWS_LIVE_*` set, no AWS credentials touched); `scripts/release-check v0.1.0` passes (tag, manifest and binary agree on version `0.1.0` and protocol `[2]`). `scripts/measure-load` was not rerun in this step (already measured post-rename, row above) | this session's command output | ✔ |
-| The live suite against real AWS has never been run. It needs James's explicit approval each time, and a dedicated AWS profile — the `infrata` profile holds root keys that `live/live_test.go`'s `guard` refuses before any Cloud Control call | `live/README.md`, `live/live_test.go` | ✔ — still true; not run in this session either |
+| The live suite against real AWS has never been run. It needs James's explicit approval each time, and a dedicated AWS profile — the `infrena` profile holds root keys that `live/live_test.go`'s `guard` refuses before any Cloud Control call | `live/README.md`, `live/live_test.go` | ✔ — still true; not run in this session either |
 
 ## File structure
 
 ```text
 gen/overlay.yaml                          curated: global types, aliases, sensitive, requirements, discover_default
-gen/names.lock.json                       committed: CFN type -> infrata type, never shrinks
+gen/names.lock.json                       committed: CFN type -> infrena type, never shrinks
 scripts/fetch-schemas                     downloads the bundle into schemas/ (gitignored) and prints its SHA-256
 internal/cfn/        schema.go bundle.go snake.go          parse CloudFormation resource schemas
-internal/catalog/    catalog.go embed.go catalog.json.gz   catalog types, infrata definitions, embedded data
+internal/catalog/    catalog.go embed.go catalog.json.gz   catalog types, infrena definitions, embedded data
 internal/gen/        lock.go overlay.go build.go shape.go generate.go   generator logic
 cmd/gen-cloudcontrol/main.go              generator command
 internal/ccprov/     ids.go errors.go patience.go clients.go await.go        Task 8: plumbing
@@ -104,14 +104,14 @@ internal/ccfake/     server.go                             Task 7: in-process Cl
 internal/awstest/    awstest.go faketype.go core.go        test helpers: SDK isolation, fake types from the catalog
 internal/awsprov/    plugin.go config.go credentials.go    plugin, instance configuration, credentials
 scripts/measure-load                      Task 6: the P7 load-cost gate
-e2e/ (Task 14), plugin.yaml scripts/release-check scripts/build-release .github/workflows/{ci,release,bump-infrata,bump-schemas}.yml (Task 15), live/ (Task 16)
+e2e/ (Task 14), plugin.yaml scripts/release-check scripts/build-release .github/workflows/{ci,release,bump-infrena,bump-schemas}.yml (Task 15), live/ (Task 16)
 REMOVED: internal/awsprov/{vpc,subnet,tags,ids,attrs,values,definitions,errors,clients,patience,provider}.go and their tests,
          internal/ec2fake/
 ```
 
 Tasks: 1 `internal/cfn` · 2 `internal/catalog` · 3 name lock · 4 overlay and type building · 5 the real catalog ·
 6 the plugin serves it, and the load gate · 7 `ccfake` · 8 ccprov plumbing · 9 create/read/delete/import ·
-10 reconciliation and tags · 11 update · 12 discover · 13 through infrata's host · 14 e2e · 15 release and CI ·
+10 reconciliation and tags · 11 update · 12 discover · 13 through infrena's host · 14 e2e · 15 release and CI ·
 16 live suite · 17 docs and close-out.
 
 ---
@@ -469,7 +469,7 @@ func (s *Schema) TopLevel(pointers []string) map[string]bool {
 	return out
 }
 
-// Nested returns the pointers deeper than /properties/Name, which infrata's per-attribute flags cannot express.
+// Nested returns the pointers deeper than /properties/Name, which infrena's per-attribute flags cannot express.
 func (s *Schema) Nested(pointers []string) []string {
 	var out []string
 	for _, p := range pointers {
@@ -754,7 +754,7 @@ Expected: FAIL — `undefined: Catalog`.
 
 ```go
 // Package catalog holds the generated description of every Cloud Control resource type the plugin serves: the
-// infrata definitions it hands the host, and the runtime metadata the provider needs. It is produced by
+// infrena definitions it hands the host, and the runtime metadata the provider needs. It is produced by
 // cmd/gen-cloudcontrol and embedded; nothing here is written by hand.
 package catalog
 
@@ -766,8 +766,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/infrata/infrata/pkg/schema"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/schema"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // GlobalScope is the provider-ID scope of a type that has no region.
@@ -784,7 +784,7 @@ const (
 // Catalog is every generated type.
 type Catalog struct {
 	Bundle          string   `json:"bundle"` // SHA-256 of the schema bundle it was generated from
-	DiscoverDefault []string `json:"discover_default,omitempty"` // infrata type names discovered when an instance sets no discover_types (P4)
+	DiscoverDefault []string `json:"discover_default,omitempty"` // infrena type names discovered when an instance sets no discover_types (P4)
 	Types           []*Type  `json:"types"`
 
 	index map[string]*Type
@@ -792,7 +792,7 @@ type Catalog struct {
 
 // Type is one Cloud Control resource type.
 type Type struct {
-	Name           string         `json:"name"` // infrata type, e.g. aws.vpc
+	Name           string         `json:"name"` // infrena type, e.g. aws.vpc
 	CFN            string         `json:"cfn"`  // CloudFormation type, e.g. AWS::EC2::VPC
 	Description    string         `json:"description,omitempty"`
 	RegionAttr     string         `json:"region_attr,omitempty"` // "region", "aws_region", or "" for a global type
@@ -810,7 +810,7 @@ type Type struct {
 // Attribute is one top-level property.
 type Attribute struct {
 	Name        string   `json:"name"` // AWS's property name: the canonical, stored name
-	Kind        string   `json:"kind"` // an infrata kind name: string, integer, float, boolean, list, map
+	Kind        string   `json:"kind"` // an infrena kind name: string, integer, float, boolean, list, map
 	Required    bool     `json:"required,omitempty"`
 	Computed    bool     `json:"computed,omitempty"`
 	Optional    bool     `json:"optional,omitempty"`
@@ -832,7 +832,7 @@ type Shape struct {
 // Requirement is a pre-flight hint between types, from the overlay.
 type Requirement struct {
 	Name        string   `json:"name"`
-	Types       []string `json:"types"` // infrata type names
+	Types       []string `json:"types"` // infrena type names
 	Description string   `json:"description"`
 }
 
@@ -868,7 +868,7 @@ func (c *Catalog) Write(w io.Writer) error {
 	return zw.Close()
 }
 
-// Lookup finds a type by its infrata name.
+// Lookup finds a type by its infrena name.
 func (c *Catalog) Lookup(name string) (*Type, bool) {
 	if c.index == nil {
 		c.index = make(map[string]*Type, len(c.Types))
@@ -880,7 +880,7 @@ func (c *Catalog) Lookup(name string) (*Type, bool) {
 	return t, ok
 }
 
-// Definitions converts every type to an infrata definition.
+// Definitions converts every type to an infrena definition.
 func (c *Catalog) Definitions() []*schema.ResourceDefinition {
 	out := make([]*schema.ResourceDefinition, 0, len(c.Types))
 	for _, t := range c.Types {
@@ -902,7 +902,7 @@ func (t *Type) Attribute(name string) (*Attribute, bool) {
 	return nil, false
 }
 
-// Definition is the infrata schema for the type. The region attribute is the plugin's own (spec §3.1).
+// Definition is the infrena schema for the type. The region attribute is the plugin's own (spec §3.1).
 func (t *Type) Definition() *schema.ResourceDefinition {
 	attrs := make(map[string]schema.Attribute, len(t.Attributes)+1)
 	for _, a := range t.Attributes {
@@ -952,7 +952,7 @@ check in `Read` (duplicate test).
 git add internal/catalog/catalog.go internal/catalog/catalog_test.go
 git commit -m "Add the catalog types the generator writes
 
-A catalog type turns into an infrata definition with the right flags,
+A catalog type turns into an infrena definition with the right flags,
 aliases and region attribute. Checked by dropping Optional, adding region to
 global types, ignoring the update handler and allowing duplicate names." -- \
   internal/catalog/catalog.go internal/catalog/catalog_test.go
@@ -967,7 +967,7 @@ global types, ignoring the update handler and allowing duplicate names." -- \
 
 **Interfaces:**
 - Produces:
-  - `type Lock struct { Names map[string]string }` (JSON `names`: CloudFormation type → infrata type)
+  - `type Lock struct { Names map[string]string }` (JSON `names`: CloudFormation type → infrena type)
   - `func LoadLock(path string) (*Lock, error)` (a missing file is an empty lock)
   - `func (l *Lock) Save(path string) error` (sorted, trailing newline)
   - `func (l *Lock) Assign(cfnTypes []string) (map[string]string, error)` (names for the given types; new ones are added to `l.Names`; entries for types AWS removed stay as tombstones)
@@ -1095,7 +1095,7 @@ import (
 	"strings"
 )
 
-// Lock records every infrata type name ever assigned. It only grows: a name, once given, keeps its owner forever
+// Lock records every infrena type name ever assigned. It only grows: a name, once given, keeps its owner forever
 // (J3), including after AWS removes the type.
 type Lock struct {
 	Names map[string]string `json:"names"`
@@ -1139,7 +1139,7 @@ func split(cfn string) (service, segment string, err error) {
 	return strings.ToLower(parts[1]), strings.ToLower(parts[2]), nil
 }
 
-// Assign returns the infrata name for each current type, adding new types to the lock.
+// Assign returns the infrena name for each current type, adding new types to the lock.
 func (l *Lock) Assign(cfnTypes []string) (map[string]string, error) {
 	if l.Names == nil {
 		l.Names = map[string]string{}
@@ -1155,7 +1155,7 @@ func (l *Lock) Assign(cfnTypes []string) (map[string]string, error) {
 		}
 		segmentCount[seg]++
 	}
-	owner := map[string]string{} // infrata name -> CFN type, across the whole lock, tombstones included
+	owner := map[string]string{} // infrena name -> CFN type, across the whole lock, tombstones included
 	for cfn, name := range l.Names {
 		if other, dup := owner[name]; dup {
 			return nil, fmt.Errorf("lock gives %s to both %s and %s", name, other, cfn)
@@ -1212,7 +1212,7 @@ Checked by ignoring the lock, ignoring removed types and allowing a shared name.
 **Files:**
 - Create: `internal/gen/overlay.go`, `internal/gen/build.go`, `internal/gen/shape.go`
 - Test: `internal/gen/build_test.go`, `internal/gen/testdata/overlay.yaml`
-- Modify: `go.mod` (require `gopkg.in/yaml.v3 v3.0.1` directly; it is already in infrata's module graph)
+- Modify: `go.mod` (require `gopkg.in/yaml.v3 v3.0.1` directly; it is already in infrena's module graph)
 
 **Interfaces:**
 - Consumes: `cfn.Schema`, `cfn.SnakeCase`, `(*cfn.Schema).Resolve/TopLevel/Nested/Timeout/HasHandler/ListNeedsModel` (Task 1); `catalog.Type`, `catalog.Attribute`, `catalog.Shape`, `catalog.Requirement`, shape kind constants (Task 2).
@@ -1255,8 +1255,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
 var testNames = map[string]string{
@@ -1314,9 +1314,9 @@ func attr(t *testing.T, typ *catalog.Type, name string) *catalog.Attribute {
 	return a
 }
 
-// TestEveryFixtureBuildsADefinitionInfrataAccepts: schema.Validate checks flag combinations and case-folded name
+// TestEveryFixtureBuildsADefinitionInfrenaAccepts: schema.Validate checks flag combinations and case-folded name
 // collisions, which is exactly where a generator bug would show.
-func TestEveryFixtureBuildsADefinitionInfrataAccepts(t *testing.T) {
+func TestEveryFixtureBuildsADefinitionInfrenaAccepts(t *testing.T) {
 	for cfnType := range fixtureFiles {
 		if err := build(t, cfnType).Definition().Validate(); err != nil {
 			t.Errorf("%s: %v", cfnType, err)
@@ -1356,7 +1356,7 @@ func TestSubnetRequiresAVPCAndLetsAWSPickTheZone(t *testing.T) {
 		t.Errorf("AvailabilityZone = %+v, want Optional+Computed+ForceNew", az)
 	}
 	if len(subnet.Requirements) != 1 || subnet.Requirements[0].Types[0] != "aws.vpc" {
-		t.Errorf("requirements = %+v, want the overlay's, in infrata names", subnet.Requirements)
+		t.Errorf("requirements = %+v, want the overlay's, in infrena names", subnet.Requirements)
 	}
 }
 
@@ -1389,8 +1389,8 @@ func TestGlobalSensitiveCompositeAndListModel(t *testing.T) {
 	}
 }
 
-// TestPropertiesNamedLikeInfrataKeywordsGetUsableNames: J9.
-func TestPropertiesNamedLikeInfrataKeywordsGetUsableNames(t *testing.T) {
+// TestPropertiesNamedLikeInfrenaKeywordsGetUsableNames: J9.
+func TestPropertiesNamedLikeInfrenaKeywordsGetUsableNames(t *testing.T) {
 	ca := build(t, "AWS::ACMPCA::CertificateAuthority")
 	typ := attr(t, ca, "Type")
 	if len(typ.Aliases) == 0 || typ.Aliases[0] != "type_value" || ca.Definition().Display("Type") != "type_value" {
@@ -1398,7 +1398,7 @@ func TestPropertiesNamedLikeInfrataKeywordsGetUsableNames(t *testing.T) {
 	}
 	for _, a := range typ.Aliases {
 		if strings.EqualFold(a, "type") {
-			t.Errorf("alias %q would decode as infrata's resource key", a)
+			t.Errorf("alias %q would decode as infrena's resource key", a)
 		}
 	}
 	if p := attr(t, build(t, "AWS::CodePipeline::CustomActionType"), "Provider"); p.Aliases[0] != "provider_value" {
@@ -1497,8 +1497,8 @@ func (o *Overlay) IsGlobal(cfn string) bool {
 package gen
 
 import (
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
 const maxShapeDepth = 12
@@ -1567,14 +1567,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
-// infrataKeys are the resource keys infrata's configuration decoder claims, matched exactly
+// infrenaKeys are the resource keys infrena's configuration decoder claims, matched exactly
 // (internal/config/decode.go at v0.3.0). A property whose lower-case spelling is one of them needs another name to be
 // shown and written by (J9).
-var infrataKeys = map[string]bool{"type": true, "provider": true, "lifecycle": true, "depends_on": true, "skip": true, "only": true}
+var infrenaKeys = map[string]bool{"type": true, "provider": true, "lifecycle": true, "depends_on": true, "skip": true, "only": true}
 
 var secretName = regexp.MustCompile(`(?i)password|secret|token|privatekey|credential`)
 
@@ -1678,19 +1678,19 @@ func BuildType(s *cfn.Schema, names map[string]string, o *Overlay) (*catalog.Typ
 	}
 
 	if err := t.Definition().Validate(); err != nil {
-		return nil, warnings, fmt.Errorf("%s: generated definition refused by infrata: %w", s.TypeName, err)
+		return nil, warnings, fmt.Errorf("%s: generated definition refused by infrena: %w", s.TypeName, err)
 	}
 	return t, warnings, nil
 }
 
 // aliases orders a property's spellings: curated first (Display shows the first), then a keyword-safe name when the
-// property's own spelling is an infrata key, then snake_case. Duplicates under case folding, and anything that folds to
-// the canonical name, an infrata key or the region attribute, are dropped.
+// property's own spelling is an infrena key, then snake_case. Duplicates under case folding, and anything that folds to
+// the canonical name, an infrena key or the region attribute, are dropped.
 func aliases(prop string, curated []string, regionAttr string) []string {
 	snake := cfn.SnakeCase(prop)
 	var candidates []string
 	candidates = append(candidates, curated...)
-	if infrataKeys[strings.ToLower(prop)] || infrataKeys[snake] {
+	if infrenaKeys[strings.ToLower(prop)] || infrenaKeys[snake] {
 		candidates = append(candidates, snake+"_value")
 	}
 	candidates = append(candidates, snake)
@@ -1698,7 +1698,7 @@ func aliases(prop string, curated []string, regionAttr string) []string {
 	var out []string
 	for _, c := range candidates {
 		f := strings.ToLower(c)
-		if seen[f] || infrataKeys[f] || (regionAttr != "" && f == strings.ToLower(regionAttr)) {
+		if seen[f] || infrenaKeys[f] || (regionAttr != "" && f == strings.ToLower(regionAttr)) {
 			continue
 		}
 		seen[f] = true
@@ -1728,7 +1728,7 @@ func tagsAsMap(s *cfn.Schema) string {
 	return name
 }
 
-// kindOf maps a property's JSON-schema type to an infrata kind name, reporting whether it had to guess.
+// kindOf maps a property's JSON-schema type to an infrena kind name, reporting whether it had to guess.
 func kindOf(s *cfn.Schema, node *cfn.Node) (string, bool) {
 	n := s.Resolve(node)
 	if n == nil {
@@ -1783,7 +1783,7 @@ func (n *Node) DescriptionOr(fallback string) string {
 - [ ] **Step 4: Run the tests**
 
 Run: `go test -count=1 ./internal/gen/ ./internal/cfn/ && go vet ./internal/gen/ ./internal/cfn/`
-Expected: PASS. If `TestEveryFixtureBuildsADefinitionInfrataAccepts` fails on a fold collision, print the
+Expected: PASS. If `TestEveryFixtureBuildsADefinitionInfrenaAccepts` fails on a fold collision, print the
 definition's attribute names and aliases: the aliases rule, not the fixture, is wrong.
 
 - [ ] **Step 5: Sabotage, then commit**
@@ -1799,8 +1799,8 @@ git add go.mod go.sum internal/cfn/schema.go internal/gen/overlay.go internal/ge
   internal/gen/build_test.go internal/gen/testdata/overlay.yaml
 git commit -m "Build catalog types from CloudFormation schemas
 
-Maps schema flags to infrata attributes, orders aliases so the friendly name
-shows, renames properties that clash with infrata keywords or the region
+Maps schema flags to infrena attributes, orders aliases so the friendly name
+shows, renames properties that clash with infrena keywords or the region
 attribute, and records nested shapes. Checked by breaking each rule." -- \
   go.mod go.sum internal/cfn/schema.go internal/gen/overlay.go internal/gen/build.go internal/gen/shape.go \
   internal/gen/build_test.go internal/gen/testdata/overlay.yaml
@@ -1858,7 +1858,7 @@ discover_default:
   - AWS::ECS::Cluster
   - AWS::ECS::Service
 
-# Friendly names, shown in plans (J5, J10). Listed first, so infrata's Display picks them.
+# Friendly names, shown in plans (J5, J10). Listed first, so infrena's Display picks them.
 aliases:
   AWS::EC2::VPC:
     CidrBlock: [cidr]
@@ -1957,7 +1957,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
 func fixtureSchemas(t *testing.T) []*cfn.Schema {
@@ -1990,7 +1990,7 @@ func TestGenerateNamesBuildsAndKeepsTheBundleHash(t *testing.T) {
 		t.Fatalf("aws.vpc = %+v", vpc)
 	}
 	if strings.Join(cat.DiscoverDefault, ",") != "aws.vpc" {
-		t.Errorf("discover default = %v, want the overlay's list in infrata names", cat.DiscoverDefault)
+		t.Errorf("discover default = %v, want the overlay's list in infrena names", cat.DiscoverDefault)
 	}
 }
 
@@ -2080,8 +2080,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
 // Generate builds the catalog from every provisionable AWS schema. The lock gains names for new types; saving it is
@@ -2177,8 +2177,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
-	"github.com/infrata/infrata-provider-aws/internal/gen"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/gen"
 )
 
 func main() {
@@ -2288,8 +2288,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
 )
 
 // TestTheCommittedCatalogMatchesTheBundleItClaims regenerates from the real bundle, when present, with the committed
@@ -2339,7 +2339,7 @@ go vet ./... && gofmt -l .
 ```
 
 Expected: PASS. The embed test logs the definitions' JSON size; record it in this plan's Verification log. If
-generation fails with "generated definition refused by infrata", the error names the type and the rule: fix the rule
+generation fails with "generated definition refused by infrena", the error names the type and the rule: fix the rule
 in `build.go` (or add an overlay entry) and regenerate. Never hand-edit the catalog.
 
 Read `gen/warnings.txt` before committing: guessed kinds and secret-looking properties are listed there. Add any real
@@ -2348,7 +2348,7 @@ secret to the overlay's `sensitive:` and regenerate.
 - [ ] **Step 7: Sabotage, then commit**
 
 Sabotages: drop the `Provisionable()` filter (non-provisionable test); drop `checkOverlay` (unknown-type test); build
-`DiscoverDefault` from CloudFormation names instead of infrata names (the discover-default assertions in both test
+`DiscoverDefault` from CloudFormation names instead of infrena names (the discover-default assertions in both test
 files fail).
 
 ```bash
@@ -2371,7 +2371,7 @@ discover default name mapping." -- \
 - Delete: `internal/awsprov/{vpc,subnet,tags,ids,attrs,values,definitions,errors,clients,patience,provider}.go` and
   `internal/awsprov/{vpc,subnet,tags,ids,definitions,errors,helpers}_test.go`; `internal/ec2fake/` (all three files)
 - Create: `internal/awstest/awstest.go`, `internal/awsprov/unconfigured.go`, `scripts/measure-load`
-- Modify: `go.mod` (infrata v0.3.0), `internal/awsprov/plugin.go`, `internal/awsprov/config.go`,
+- Modify: `go.mod` (infrena v0.3.0), `internal/awsprov/plugin.go`, `internal/awsprov/config.go`,
   `internal/awsprov/config_test.go`, `internal/awsprov/protocol_test.go`
 - Delete: `internal/awsprov/testenv_test.go` (moved to `internal/awstest`)
 
@@ -2383,11 +2383,11 @@ discover default name mapping." -- \
   - `instanceConfig.DiscoverTypes []string`; config key `discover_types`
   - `Plugin.New` validates `discover_types` against the catalog; `unconfigured` is a temporary provider replaced in Task 9
 
-- [ ] **Step 1: Move to infrata v0.3.0 and remove the handwritten resources**
+- [ ] **Step 1: Move to infrena v0.3.0 and remove the handwritten resources**
 
 ```bash
-export GOPRIVATE='github.com/infrata/*'
-GOWORK=off go get github.com/infrata/infrata@v0.3.0
+export GOPRIVATE='github.com/infrena/*'
+GOWORK=off go get github.com/infrena/infrena@v0.3.0
 git rm -q internal/awsprov/vpc.go internal/awsprov/subnet.go internal/awsprov/tags.go internal/awsprov/ids.go \
   internal/awsprov/attrs.go internal/awsprov/values.go internal/awsprov/definitions.go internal/awsprov/errors.go \
   internal/awsprov/clients.go internal/awsprov/patience.go internal/awsprov/provider.go \
@@ -2451,7 +2451,7 @@ func Isolate(t testing.TB, endpoint string) string {
 - [ ] **Step 3: Write the failing tests**
 
 In `internal/awsprov/config_test.go`: replace every `isolateAWS(t, …)` with `awstest.Isolate(t, …)` (import
-`github.com/infrata/infrata-provider-aws/internal/awstest`), delete `TestAssumeRoleSignsEC2CallsWithTheAssumedCredentials`
+`github.com/infrena/infrena-provider-aws/internal/awstest`), delete `TestAssumeRoleSignsEC2CallsWithTheAssumedCredentials`
 (Task 9 restores it against the Cloud Control fake), remove the now-unused `context`, `ec2` and `ec2fake` imports, and add:
 
 ```go
@@ -2462,7 +2462,7 @@ func TestDiscoverTypesAreReadAndChecked(t *testing.T) {
 	}
 	awstest.Isolate(t, "")
 	_, err = NewPlugin().New(provider.Config{Instance: "main", Values: map[string]value.Value{"discover_types": list("aws.vpc", "aws.vpcc")}})
-	if err == nil || !strings.Contains(err.Error(), "aws.vpcc") || !strings.Contains(err.Error(), "infrata explain") {
+	if err == nil || !strings.Contains(err.Error(), "aws.vpcc") || !strings.Contains(err.Error(), "infrena explain") {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -2479,8 +2479,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/plugintest"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/plugintest"
 )
 
 func openHost(t *testing.T) *plugintest.Host {
@@ -2493,7 +2493,7 @@ func openHost(t *testing.T) *plugintest.Host {
 	return host
 }
 
-// TestTheWholeCatalogLoadsThroughTheHost: every generated definition crosses the wire and passes infrata's load checks
+// TestTheWholeCatalogLoadsThroughTheHost: every generated definition crosses the wire and passes infrena's load checks
 // (prefix, reserved names, validation, alias folding) at protocol 2.
 func TestTheWholeCatalogLoadsThroughTheHost(t *testing.T) {
 	cat, err := catalog.Embedded()
@@ -2544,7 +2544,7 @@ const keyDiscoverTypes = "discover_types"
 	if ic.DiscoverRegions, err = stringList(values, keyDiscoverRegions, "a region name such as us-east-1"); err != nil {
 		return ic, err
 	}
-	if ic.DiscoverTypes, err = stringList(values, keyDiscoverTypes, "an infrata type name such as aws.vpc"); err != nil {
+	if ic.DiscoverTypes, err = stringList(values, keyDiscoverTypes, "an infrena type name such as aws.vpc"); err != nil {
 		return ic, err
 	}
 ```
@@ -2584,10 +2584,10 @@ package awsprov
 import (
 	"context"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/schema"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/schema"
 )
 
 // unconfigured stands in for the Cloud Control provider until Task 9 of the plan builds it: a configured instance that
@@ -2648,7 +2648,7 @@ func (pl *Plugin) New(cfg provider.Config) (provider.Provider, error) {
 		}
 	}
 	if len(unknown) > 0 {
-		return nil, fmt.Errorf("`discover_types` names %s, which the aws plugin does not serve; run `infrata explain <type>` to check a name",
+		return nil, fmt.Errorf("`discover_types` names %s, which the aws plugin does not serve; run `infrena explain <type>` to check a name",
 			strings.Join(unknown, ", "))
 	}
 	if _, err := loadAWSConfig(context.Background(), cfg.Instance, ic); err != nil {
@@ -2658,15 +2658,15 @@ func (pl *Plugin) New(cfg provider.Config) (provider.Provider, error) {
 }
 ```
 
-(imports: `context`, `fmt`, `os`, `strconv`, `strings`, `github.com/infrata/infrata-provider-aws/internal/catalog`,
-`github.com/infrata/infrata/pkg/provider`, `github.com/infrata/infrata/pkg/schema`.)
+(imports: `context`, `fmt`, `os`, `strconv`, `strings`, `github.com/infrena/infrena-provider-aws/internal/catalog`,
+`github.com/infrena/infrena/pkg/provider`, `github.com/infrena/infrena/pkg/schema`.)
 
 - [ ] **Step 6: Run the suite**
 
 ```bash
 go mod tidy
 go test -count=1 ./... && go vet ./... && gofmt -l .
-GOWORK=off GOPRIVATE='github.com/infrata/*' go test -count=1 ./...
+GOWORK=off GOPRIVATE='github.com/infrena/*' go test -count=1 ./...
 ```
 
 Expected: PASS in both modes. `TestTheWholeCatalogLoadsThroughTheHost` is the proof that all ~1,584 definitions load.
@@ -2677,7 +2677,7 @@ Expected: PASS in both modes. `TestTheWholeCatalogLoadsThroughTheHost` is the pr
 
 ```bash
 #!/usr/bin/env bash
-# measure-load: how much longer `infrata validate` takes with this plugin's full catalog than with the fake plugin.
+# measure-load: how much longer `infrena validate` takes with this plugin's full catalog than with the fake plugin.
 # Plan decision P7: acceptable up to 500 ms extra (median of 11 runs). Exits non-zero above that.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -2685,11 +2685,11 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/plugins" "$work/aws" "$work/fake"
 
-gh release download v0.3.0 --repo infrata/infrata --pattern 'infrata_0.3.0_linux_amd64.tar.gz' --dir "$work"
-tar -xzf "$work/infrata_0.3.0_linux_amd64.tar.gz" -C "$work"
-infrata="$(find "$work" -type f -name infrata -perm -u+x | head -1)"
-go build -o "$work/plugins/infrata-plugin-aws" ./cmd/infrata-plugin-aws
-go -C ../infrata-provider-fake build -o "$work/plugins/infrata-plugin-fake" ./cmd/infrata-plugin-fake
+gh release download v0.3.0 --repo infrena/infrena --pattern 'infrena_0.3.0_linux_amd64.tar.gz' --dir "$work"
+tar -xzf "$work/infrena_0.3.0_linux_amd64.tar.gz" -C "$work"
+infrena="$(find "$work" -type f -name infrena -perm -u+x | head -1)"
+go build -o "$work/plugins/infrena-plugin-aws" ./cmd/infrena-plugin-aws
+go -C ../infrena-provider-fake build -o "$work/plugins/infrena-plugin-fake" ./cmd/infrena-plugin-fake
 
 cat > "$work/aws/infra.yml" <<'EOF'
 project: measure
@@ -2715,13 +2715,13 @@ resources:
 EOF
 
 export HOME="$work" AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \
-  AWS_ACCESS_KEY_ID=measure AWS_SECRET_ACCESS_KEY=measure AWS_EC2_METADATA_DISABLED=true INFRATA_PLUGIN_PATH=
+  AWS_ACCESS_KEY_ID=measure AWS_SECRET_ACCESS_KEY=measure AWS_EC2_METADATA_DISABLED=true INFRENA_PLUGIN_PATH=
 median() { sort -n | awk '{v[NR]=$1} END {print v[int((NR+1)/2)]}'; }
 timed() {
   local dir="$1"
   for _ in $(seq 11); do
     start=$(date +%s%N)
-    (cd "$dir" && "$infrata" validate dev --plugin-dir "$work/plugins" >/dev/null)
+    (cd "$dir" && "$infrena" validate dev --plugin-dir "$work/plugins" >/dev/null)
     end=$(date +%s%N)
     echo $(( (end - start) / 1000000 ))
   done | median
@@ -2729,7 +2729,7 @@ timed() {
 fake_ms="$(timed "$work/fake")"
 aws_ms="$(timed "$work/aws")"
 extra=$(( aws_ms - fake_ms ))
-echo "infrata validate, median of 11: fake plugin ${fake_ms} ms, aws plugin ${aws_ms} ms, extra ${extra} ms (gate 500 ms)"
+echo "infrena validate, median of 11: fake plugin ${fake_ms} ms, aws plugin ${aws_ms} ms, extra ${extra} ms (gate 500 ms)"
 [ "$extra" -le 500 ]
 ```
 
@@ -2739,11 +2739,11 @@ scripts/measure-load
 ```
 
 Expected: one line with the three numbers, and exit 0. `validate` succeeding with `cidr:` also proves alias
-resolution end to end on a real infrata v0.3.0 binary.
+resolution end to end on a real infrena v0.3.0 binary.
 
 **If the gate fails (exit 1): stop the plan here** and report the numbers to James, with the options from spec §5:
 drop descriptions from the catalog (measured at about half the size), omit nested shapes from the definitions sent to
-infrata (they are provider-side only already; check they are not in `Definition()`), or ask the infrata session about
+infrena (they are provider-side only already; check they are not in `Definition()`), or ask the infrena session about
 lazy schema loading. Record the measured numbers in the Verification log either way.
 
 - [ ] **Step 8: Sabotage, then commit**
@@ -2758,8 +2758,8 @@ git add go.mod go.sum internal/awstest/awstest.go internal/awsprov/unconfigured.
 git commit -m "Serve the generated catalog and measure what it costs to load
 
 The plugin now offers every Cloud Control type from the embedded catalog on
-infrata 0.3.0, and the handwritten vpc and subnet code is gone. Adds
-discover_types and a script that times infrata validate against the fake
+infrena 0.3.0, and the handwritten vpc and subnet code is gone. Adds
+discover_types and a script that times infrena validate against the fake
 plugin." -- \
   go.mod go.sum internal/awstest/awstest.go internal/awsprov/unconfigured.go internal/awsprov/plugin.go \
   internal/awsprov/config.go internal/awsprov/config_test.go internal/awsprov/protocol_test.go scripts/measure-load \
@@ -2790,7 +2790,7 @@ plugin." -- \
   - `func (s *Server) HideFromGet(identifier string, times int)`
   - `func (s *Server) Calls(action string) int`, `func (s *Server) Tokens(action string) []string`, `func (s *Server) AccessKeys() []string`
   - `func (s *Server) Resource(region, typeName, identifier string) (map[string]any, bool)`
-  - `func (s *Server) Put(region, typeName, identifier string, props map[string]any)` (behind infrata's back)
+  - `func (s *Server) Put(region, typeName, identifier string, props map[string]any)` (behind infrena's back)
   - `func (s *Server) Resources(region, typeName string) map[string]map[string]any`
   - `func (s *Server) LastPatch() []map[string]any`
   - Fields: `PollsToComplete int` (default 1), `PageSize int` (0 = one page)
@@ -3044,7 +3044,7 @@ func TestAssumeRoleAnswersAndSignsAreRecorded(t *testing.T) {
 - [ ] **Step 2: Run them to see them fail**
 
 ```bash
-export GOPRIVATE='github.com/infrata/*'
+export GOPRIVATE='github.com/infrena/*'
 go get github.com/aws/aws-sdk-go-v2/service/cloudcontrol@v1.38.0
 go test -count=1 ./internal/ccfake/
 ```
@@ -3509,7 +3509,7 @@ func (s *Server) Resource(region, typeName, identifier string) (map[string]any, 
 	return cloneMap(p), true
 }
 
-// Put stores a resource behind infrata's back: pre-existing infrastructure, or drift.
+// Put stores a resource behind infrena's back: pre-existing infrastructure, or drift.
 func (s *Server) Put(region, typeName, identifier string, props map[string]any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -3608,7 +3608,7 @@ package ccprov
 import (
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
 )
 
 func scalar() *catalog.Shape { return &catalog.Shape{Kind: catalog.ShapeScalar} }
@@ -3733,8 +3733,8 @@ func mustType(t *testing.T, name string) *catalog.Type {
 	return typ
 }
 
-// TestTheTestCatalogIsOneInfrataWouldLoad. A test catalog infrata would refuse would make every test built on it moot.
-func TestTheTestCatalogIsOneInfrataWouldLoad(t *testing.T) {
+// TestTheTestCatalogIsOneInfrenaWouldLoad. A test catalog infrena would refuse would make every test built on it moot.
+func TestTheTestCatalogIsOneInfrenaWouldLoad(t *testing.T) {
 	for _, d := range testCatalog().Definitions() {
 		if err := d.Validate(); err != nil {
 			t.Errorf("%s: %v", d.Type, err)
@@ -3848,8 +3848,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 func create(t *testing.T, endpoint string, attempts int) error {
@@ -3983,7 +3983,7 @@ func TestAFailureMessageSaysWhatAndWhereAndKeepsItsCause(t *testing.T) {
 		}
 	}
 	exists := failure("prod", "create", mustType(t, "aws.role"), "global", &HandlerError{Code: "AlreadyExists", Message: "deploy exists", Token: "req-3"})
-	if !strings.Contains(exists.Error(), "infrata import") {
+	if !strings.Contains(exists.Error(), "infrena import") {
 		t.Errorf("%q does not suggest importing", exists)
 	}
 }
@@ -4004,8 +4004,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol/types"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 // scripted answers GetResourceRequestStatus from a list, repeating the last, and records whether each call's context
@@ -4177,14 +4177,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
 )
 
 // GlobalRegion is where Cloud Control is called for a type that has no region (IAM, Route 53, CloudFront).
 const GlobalRegion = "us-east-1"
 
 // FormatID is the one provider-ID form (P3): `<region>/<identifier>`, or `global/<identifier>`. Create, Discover and
-// Import all use it, because infrata imports by matching `<type>.<provider id>` against what Discover returned.
+// Import all use it, because infrena imports by matching `<type>.<provider id>` against what Discover returned.
 func FormatID(t *catalog.Type, region, identifier string) string {
 	if t.Global() {
 		return catalog.GlobalScope + "/" + identifier
@@ -4235,8 +4235,8 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 // HandlerError is a request Cloud Control accepted whose resource handler ended FAILED, or that was cancelled.
@@ -4267,7 +4267,7 @@ var (
 	}
 )
 
-// classify answers infrata's question, how dangerous is another attempt, from the error alone. It must be a pure
+// classify answers infrena's question, how dangerous is another attempt, from the error alone. It must be a pure
 // function: the plugin SDK may ask any configured instance, not the one that failed.
 //
 // Order matters: a throttle is checked before the HTTP status, and a refused dial before the generic network error
@@ -4364,7 +4364,7 @@ func failure(instance, action string, t *catalog.Type, where string, err error) 
 	case "TypeNotFoundException":
 		msg += "\nCloud Control does not offer " + t.CFN + " in this region"
 	case "AlreadyExists", "AlreadyExistsException":
-		msg += "\nsomething with that name already exists: adopt it with `infrata import`, or choose another name"
+		msg += "\nsomething with that name already exists: adopt it with `infrena import`, or choose another name"
 	}
 	return &apiFailure{msg: msg, err: err}
 }
@@ -4474,7 +4474,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol/types"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
 )
 
 type statusAPI interface {
@@ -4508,7 +4508,7 @@ type waitTimeout struct {
 }
 
 func (e *waitTimeout) Error() string {
-	return fmt.Sprintf("request %s was still %s after %s; it may yet finish, so run `infrata refresh` before trying again",
+	return fmt.Sprintf("request %s was still %s after %s; it may yet finish, so run `infrena refresh` before trying again",
 		e.token, e.status, e.after)
 }
 func (e *waitTimeout) Unwrap() error { return context.DeadlineExceeded }
@@ -4626,8 +4626,8 @@ package awstest
 import (
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
 )
 
 // FakeType describes a catalog type to the Cloud Control fake the way its schema does, so the fake cannot drift from
@@ -4659,11 +4659,11 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/awstest"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
-	"github.com/infrata/infrata/pkg/address"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/awstest"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena/pkg/address"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 var fakePrefixes = map[string]string{
@@ -4712,7 +4712,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 func jsonDatum(t *testing.T, doc string) any {
@@ -4803,9 +4803,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 var ctx = context.Background()
@@ -4943,7 +4943,7 @@ func TestANameThatExistsSuggestsImporting(t *testing.T) {
 	if _, err := p.Create(ctx, desired("aws.role", roleAttrs("deploy"))); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Create(ctx, desired("aws.role", roleAttrs("deploy"))); err == nil || !strings.Contains(err.Error(), "infrata import") {
+	if _, err := p.Create(ctx, desired("aws.role", roleAttrs("deploy"))); err == nil || !strings.Contains(err.Error(), "infrena import") {
 		t.Fatalf("second create: err = %v", err)
 	}
 }
@@ -5114,8 +5114,8 @@ func TestNothingIsWrittenToStdout(t *testing.T) {
 ```
 
 In `internal/awsprov/config_test.go`, add this test and the imports `context`,
-`github.com/infrata/infrata-provider-aws/internal/catalog`, `github.com/infrata/infrata-provider-aws/internal/ccfake`
-and `github.com/infrata/infrata/pkg/resource`:
+`github.com/infrena/infrena-provider-aws/internal/catalog`, `github.com/infrena/infrena-provider-aws/internal/ccfake`
+and `github.com/infrena/infrena/pkg/resource`:
 
 ```go
 // TestAssumeRoleSignsCloudControlCallsWithTheAssumedCredentials. The static key would sign every call if the role were
@@ -5173,11 +5173,11 @@ import (
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/schema"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/schema"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // PluginName is the binary's suffix, what `plugin:` names, and every type's prefix.
@@ -5227,7 +5227,7 @@ func (p *Provider) ClassifyError(err error) provider.Retryability { return class
 func (p *Provider) lookup(name string) (*catalog.Type, error) {
 	t, ok := p.cat.Lookup(name)
 	if !ok {
-		return nil, fmt.Errorf("the aws plugin does not serve %q; run `infrata explain <type>` to check a name", name)
+		return nil, fmt.Errorf("the aws plugin does not serve %q; run `infrena explain <type>` to check a name", name)
 	}
 	return t, nil
 }
@@ -5280,12 +5280,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
-// plain converts an infrata value to a JSON datum.
+// plain converts an infrena value to a JSON datum.
 func plain(v value.Value) any {
 	switch raw := v.Raw.(type) {
 	case []value.Value:
@@ -5416,7 +5416,7 @@ func decodeProperties(doc string) (map[string]any, error) {
 	return props, nil
 }
 
-// stateFrom builds the state infrata records from what AWS returned. reference is configuration's values (Create,
+// stateFrom builds the state infrena records from what AWS returned. reference is configuration's values (Create,
 // Update), the previous state (Read), or nil (Discover, Import).
 func stateFrom(t *catalog.Type, region, identifier string, props map[string]any, reference map[string]value.Value) (*resource.ResourceState, error) {
 	attrs := map[string]value.Value{}
@@ -5473,9 +5473,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol/types"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // Create sends the desired state, waits for the request, and reads the resource back. Once AWS may have created
@@ -5640,8 +5640,8 @@ package ccprov
 import (
 	"context"
 
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
 )
 
 // Update and Discover are not built yet. Each says so rather than guessing.
@@ -5658,7 +5658,7 @@ func (p *Provider) Discover(context.Context, provider.DiscoverRequest) ([]provid
 `internal/awsprov/plugin.go`, whole file:
 
 ```go
-// Package awsprov is infrata's AWS provider plugin: instance configuration and credentials around the generic Cloud
+// Package awsprov is infrena's AWS provider plugin: instance configuration and credentials around the generic Cloud
 // Control provider.
 package awsprov
 
@@ -5669,10 +5669,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/ccprov"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/schema"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/ccprov"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/schema"
 )
 
 // PluginName is the binary's suffix, what `plugin:` names, and every type's prefix.
@@ -5725,7 +5725,7 @@ func (pl *Plugin) New(cfg provider.Config) (provider.Provider, error) {
 		}
 	}
 	if len(unknown) > 0 {
-		return nil, fmt.Errorf("`discover_types` names %s, which the aws plugin does not serve; run `infrata explain <type>` to check a name",
+		return nil, fmt.Errorf("`discover_types` names %s, which the aws plugin does not serve; run `infrena explain <type>` to check a name",
 			strings.Join(unknown, ", "))
 	}
 	awsCfg, err := loadAWSConfig(context.Background(), cfg.Instance, ic)
@@ -5791,7 +5791,7 @@ something already gone." -- \
   - `func tagsFromJSON(t *catalog.Type, a *catalog.Attribute, datum any, ref *value.Value) (value.Value, bool, error)`
   - `encodeAttr` and `decodeAttr` keep their Task 9 signatures
 
-Why this exists (spec §3.4, J8): infrata's `value.Equal` needs nested maps to have exactly the same keys and lists to
+Why this exists (spec §3.4, J8): infrena's `value.Equal` needs nested maps to have exactly the same keys and lists to
 match position by position, and it does not canonicalise inside them. Without this, a user who writes `from_port`,
 an AWS handler that adds `Description: ""`, or a list AWS returns in another order would each plan an update forever.
 Opaque shapes (P5) are copied exactly in both directions.
@@ -5809,9 +5809,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/awstest"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/awstest"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // obj builds a map value from key/value pairs.
@@ -6017,8 +6017,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 func TestTagsAreAMapInConfigurationAndAListInAWS(t *testing.T) {
@@ -6117,9 +6117,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/cfn"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/cfn"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // Nested values are reconciled here (spec §3.4, J8). Outgoing, every key is sent under AWS's name. Incoming, a value is
@@ -6380,8 +6380,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // systemTagPrefix marks tags AWS sets itself. Configuration cannot set them, so they are never reported.
@@ -6513,7 +6513,7 @@ The rules (spec §3.3, and the Update fix recorded in the spec): one operation p
 value differs from current, compared under AWS's names so a change of spelling alone sends nothing; `replace` when
 current holds the property, `add` when it does not; never `remove`, because every settable property is
 Optional+Computed and a property dropped from configuration keeps AWS's value (PLAN §14.1); never a read-only
-property, nor anything `Computed && !Optional`, which Update's desired attributes carry because infrata fills in
+property, nor anything `Computed && !Optional`, which Update's desired attributes carry because infrena fills in
 observed values.
 
 - [ ] **Step 1: Write the failing tests**
@@ -6530,12 +6530,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
-// withChanges is what infrata hands Update: the state's attributes, observed values included, overlaid with configuration.
+// withChanges is what infrena hands Update: the state's attributes, observed values included, overlaid with configuration.
 func withChanges(st *resource.ResourceState, changes map[string]value.Value) *resource.DesiredResource {
 	attrs := map[string]value.Value{}
 	for k, v := range st.Attributes {
@@ -6617,7 +6617,7 @@ func TestASpellingChangeAloneSendsNothingAndConverges(t *testing.T) {
 	}
 }
 
-// TestADroppedPropertyIsNeverRemoved (PLAN §14.1): infrata sends no desired value for it, and AWS's is kept.
+// TestADroppedPropertyIsNeverRemoved (PLAN §14.1): infrena sends no desired value for it, and AWS's is kept.
 func TestADroppedPropertyIsNeverRemoved(t *testing.T) {
 	p, fake, _ := fakeProvider(t)
 	st := createVPC(t, p, map[string]value.Value{"EnableDnsSupport": value.Bool(false, value.SourceExplicit)})
@@ -6730,9 +6730,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // patchOps is the RFC 6902 patch from current to desired, one operation per top-level property whose value differs
@@ -6782,7 +6782,7 @@ func (p *Provider) Update(ctx context.Context, current *resource.ResourceState, 
 		return nil, err
 	}
 	if !t.HasUpdate {
-		return nil, fmt.Errorf("%s (%s) has no update handler, so every change needs a replacement; infrata was sent an update, which is a defect in the catalog's force-new flags",
+		return nil, fmt.Errorf("%s (%s) has no update handler, so every change needs a replacement; infrena was sent an update, which is a defect in the catalog's force-new flags",
 			t.Name, t.CFN)
 	}
 	ops, err := patchOps(t, current.Attributes, desired.Attrs)
@@ -6841,7 +6841,7 @@ package ccprov
 import (
 	"context"
 
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 // Discover is not built yet. It says so rather than guessing.
@@ -6890,7 +6890,7 @@ cancellation." -- internal/ccprov/patch.go internal/ccprov/update_test.go intern
   - `func (p *Provider) Discover(ctx context.Context, req provider.DiscoverRequest) ([]provider.DiscoveredResource, error)`
   - `func (p *Provider) discoverTypes(requested []string) []string`
 
-How infrata calls it (verified in `v0.3.0:internal/discovery/walk.go`): with no types named, `Walk` asks each instance
+How infrena calls it (verified in `v0.3.0:internal/discovery/walk.go`): with no types named, `Walk` asks each instance
 about every type it offers, which for this plugin is the whole catalog; `import` always walks with none. An error from
 `Discover` drops all of that instance's results. So:
 
@@ -6916,8 +6916,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 func everything() provider.DiscoverRequest {
@@ -7105,8 +7105,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 // Discover lists what exists for the requested types in the instance's regions, reading each resource once.
@@ -7193,7 +7193,7 @@ func (p *Provider) discoverIn(ctx context.Context, t *catalog.Type, region strin
 	return out, nil
 }
 
-// discoverTypes is what a request covers (P4). A request for every type the catalog holds is infrata asking about
+// discoverTypes is what a request covers (P4). A request for every type the catalog holds is infrena asking about
 // everything, which here is ~1,584 ListResources calls per region: it means the instance's discover_types, or the
 // catalog's default set. A request naming fewer was narrowed by the user.
 func (p *Provider) discoverTypes(requested []string) []string {
@@ -7239,14 +7239,14 @@ breaking the default set, error handling, what import sees and paging." -- \
 ```
 
 ---
-### Task 13: The real catalog through infrata's host — `pkg/plugintest`
+### Task 13: The real catalog through infrena's host — `pkg/plugintest`
 
 **Files:**
 - Create: `internal/awstest/core.go`
 - Test: `internal/awsprov/host_test.go`
 
 **Interfaces:**
-- Consumes: `plugintest.Open`, `(*Host).Configure`, `Definitions` (infrata v0.3.0); `catalog.Embedded` (Task 5);
+- Consumes: `plugintest.Open`, `(*Host).Configure`, `Definitions` (infrena v0.3.0); `catalog.Embedded` (Task 5);
   `awstest.Isolate` (Task 6); `awstest.FakeType` (Task 9); `ccfake` (Task 7); the whole provider (Tasks 9 to 12).
 - Produces (used by Tasks 14 and 16):
   - `func awstest.TypeFor(t testing.TB, cat *catalog.Catalog, cfn string) *catalog.Type`
@@ -7254,7 +7254,7 @@ breaking the default set, error handling, what import sees and paging." -- \
     IAM Role and RDS DBInstance, with AWS's defaults for the properties the e2e suite leaves unset
 
 Every earlier provider test used the hand-written test catalog and called the provider directly. This task runs the
-generated catalog through the host adapter a real infrata uses, so every rule it enforces applies: undeclared
+generated catalog through the host adapter a real infrena uses, so every rule it enforces applies: undeclared
 attributes refused, sensitivity forced from the schema, provenance overwritten. Type names are looked up by
 CloudFormation name, except the three Task 5 already pins (`aws.vpc`, `aws.subnet`, `aws.securitygroup`).
 
@@ -7268,8 +7268,8 @@ package awstest
 import (
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
 )
 
 // TypeFor finds a catalog type by CloudFormation name, so a test does not depend on the name the generator assigned.
@@ -7316,16 +7316,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/awstest"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
-	"github.com/infrata/infrata/pkg/address"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/awstest"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena/pkg/address"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
-// hosted is the plugin reached through infrata's host, configured against a fresh fake.
+// hosted is the plugin reached through infrena's host, configured against a fresh fake.
 func hosted(t *testing.T, values map[string]value.Value) (provider.Provider, *ccfake.Server, *catalog.Catalog) {
 	t.Helper()
 	fake := ccfake.New()
@@ -7491,33 +7491,33 @@ unknown-key test sends the create).
 
 ```bash
 git add internal/awstest/core.go internal/awsprov/host_test.go
-git commit -m "Test the generated catalog through infrata's own host
+git commit -m "Test the generated catalog through infrena's own host
 
 Create, read, update, delete, discover and import all go through the same
-adapter a real infrata uses, against the fake, so the host's checks on
+adapter a real infrena uses, against the fake, so the host's checks on
 attributes, secrets and provenance apply. Checked by dropping a secret from
 the overlay, leaking a region on a global type and skipping key
 translation." -- internal/awstest/core.go internal/awsprov/host_test.go
 ```
 
 ---
-### Task 14: A real infrata against the real binary and the fake (`-tags e2e`)
+### Task 14: A real infrena against the real binary and the fake (`-tags e2e`)
 
 **Files:**
 - Create: `e2e/e2e_test.go`, `e2e/testdata/basic/infra.yml`
 
 **Interfaces:**
 - Consumes: `ccfake`, `awstest.RegisterCore`, `awstest.TypeFor` (Tasks 7, 13); `catalog.Embedded` (Task 5); the
-  binary `cmd/infrata-plugin-aws`; infrata v0.3.0's CLI (`plan --output`, `apply --auto-approve`, `discover`,
+  binary `cmd/infrena-plugin-aws`; infrena v0.3.0's CLI (`plan --output`, `apply --auto-approve`, `discover`,
   `import <env> <type>.<id> --generate`, `explain`, `destroy`).
 - Produces: `e2e/testdata/basic/infra.yml`, which the README quotes byte for byte (Task 17).
 
-The harness is `infrata-provider-fake/e2e/e2e_test.go`'s: `TestMain` builds `infrata` from `$INFRATA_SRC` (default
-`../../infrata`, skipping loudly with `E2E SKIPPED` when absent) and this plugin into a temporary plugin directory.
+The harness is `infrena-provider-fake/e2e/e2e_test.go`'s: `TestMain` builds `infrena` from `$INFRENA_SRC` (default
+`../../infrena`, skipping loudly with `E2E SKIPPED` when absent) and this plugin into a temporary plugin directory.
 The difference: the cloud is an in-process `ccfake`, so each project owns one, and every command's environment points
-the plugin at it. The plugin inherits infrata's environment.
+the plugin at it. The plugin inherits infrena's environment.
 
-Facts this relies on, checked in infrata v0.3.0: references canonicalise aliases (`${vpc.vpc_id}` becomes
+Facts this relies on, checked in infrena v0.3.0: references canonicalise aliases (`${vpc.vpc_id}` becomes
 `${vpc.VpcId}`, `internal/compiler/bind.go`); import selectors match `<type>.<provider id>` exactly against discovery,
 never split at a dot (`internal/cli/import.go`, `narrowToSelectors`); `import --generate` writes Required and
 Optional+ForceNew attributes only (`internal/generator/generate.go`); `explain` lists every spelling as
@@ -7584,10 +7584,10 @@ work end to end.
 ```go
 //go:build e2e
 
-// Package e2e runs a real infrata binary against a real infrata-plugin-aws binary and an in-process fake Cloud Control.
+// Package e2e runs a real infrena binary against a real infrena-plugin-aws binary and an in-process fake Cloud Control.
 //
-// Not part of `go test ./...`: it builds infrata from source. Run it with `go test -tags e2e -count=1 -v ./e2e/`.
-// INFRATA_SRC points at the checkout; the default is the sibling ../infrata.
+// Not part of `go test ./...`: it builds infrena from source. Run it with `go test -tags e2e -count=1 -v ./e2e/`.
+// INFRENA_SRC points at the checkout; the default is the sibling ../infrena.
 package e2e
 
 import (
@@ -7600,13 +7600,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/awstest"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata-provider-aws/internal/ccfake"
+	"github.com/infrena/infrena-provider-aws/internal/awstest"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena-provider-aws/internal/ccfake"
 )
 
 var (
-	infrataBin string
+	infrenaBin string
 	pluginDir  string
 	skipReason string
 )
@@ -7619,20 +7619,20 @@ func TestMain(m *testing.M) {
 	}
 	code := func() int {
 		defer os.RemoveAll(tmp)
-		src := os.Getenv("INFRATA_SRC")
+		src := os.Getenv("INFRENA_SRC")
 		if src == "" {
-			src = filepath.Join("..", "..", "infrata")
+			src = filepath.Join("..", "..", "infrena")
 		}
-		if _, err := os.Stat(filepath.Join(src, "cmd", "infrata")); err != nil {
-			skipReason = fmt.Sprintf("no infrata checkout at %s (set INFRATA_SRC): %v", src, err)
+		if _, err := os.Stat(filepath.Join(src, "cmd", "infrena")); err != nil {
+			skipReason = fmt.Sprintf("no infrena checkout at %s (set INFRENA_SRC): %v", src, err)
 			fmt.Fprintln(os.Stderr, "E2E SKIPPED: "+skipReason)
 			return m.Run()
 		}
-		infrataBin = filepath.Join(tmp, "infrata")
+		infrenaBin = filepath.Join(tmp, "infrena")
 		pluginDir = filepath.Join(tmp, "plugins")
 		for _, b := range []struct{ dir, out, pkg string }{
-			{src, infrataBin, "./cmd/infrata"},
-			{"..", filepath.Join(pluginDir, "infrata-plugin-aws"), "./cmd/infrata-plugin-aws"},
+			{src, infrenaBin, "./cmd/infrena"},
+			{"..", filepath.Join(pluginDir, "infrena-plugin-aws"), "./cmd/infrena-plugin-aws"},
 		} {
 			cmd := exec.Command("go", "build", "-o", b.out, b.pkg)
 			cmd.Dir = b.dir
@@ -7699,15 +7699,15 @@ func writeFile(t *testing.T, path, body string) {
 	}
 }
 
-// infrata runs the CLI in the project. Nothing from the developer's machine reaches the plugin: no plugins but ours,
+// infrena runs the CLI in the project. Nothing from the developer's machine reaches the plugin: no plugins but ours,
 // no AWS files, static test keys, no instance metadata, and Cloud Control and STS pointed at this project's fake.
-func (e *env) infrata(t *testing.T, args ...string) (string, int) {
+func (e *env) infrena(t *testing.T, args ...string) (string, int) {
 	t.Helper()
 	home := t.TempDir()
-	cmd := exec.Command(infrataBin, append(args, "--plugin-dir", pluginDir)...)
+	cmd := exec.Command(infrenaBin, append(args, "--plugin-dir", pluginDir)...)
 	cmd.Dir = e.dir
 	cmd.Env = append(os.Environ(),
-		"INFRATA_PLUGIN_PATH=", "HOME="+home,
+		"INFRENA_PLUGIN_PATH=", "HOME="+home,
 		"AWS_CONFIG_FILE="+filepath.Join(home, "none"), "AWS_SHARED_CREDENTIALS_FILE="+filepath.Join(home, "none"),
 		"AWS_PROFILE=", "AWS_REGION=", "AWS_DEFAULT_REGION=", "AWS_MAX_ATTEMPTS=", "AWS_SESSION_TOKEN=",
 		"AWS_ACCESS_KEY_ID=AKIDE2E", "AWS_SECRET_ACCESS_KEY=e2e-secret", "AWS_EC2_METADATA_DISABLED=true",
@@ -7718,20 +7718,20 @@ func (e *env) infrata(t *testing.T, args ...string) (string, int) {
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		code = exitErr.ExitCode()
 	} else if err != nil {
-		t.Fatalf("running infrata %v: %v", args, err)
+		t.Fatalf("running infrena %v: %v", args, err)
 	}
 	return string(out), code
 }
 
 func (e *env) expect(t *testing.T, wantCode int, want []string, args ...string) string {
 	t.Helper()
-	out, code := e.infrata(t, args...)
+	out, code := e.infrena(t, args...)
 	if code != wantCode {
-		t.Fatalf("infrata %s: exit %d, want %d\n%s", strings.Join(args, " "), code, wantCode, out)
+		t.Fatalf("infrena %s: exit %d, want %d\n%s", strings.Join(args, " "), code, wantCode, out)
 	}
 	for _, w := range want {
 		if !strings.Contains(out, w) {
-			t.Fatalf("infrata %s: output lacks %q\n%s", strings.Join(args, " "), w, out)
+			t.Fatalf("infrena %s: output lacks %q\n%s", strings.Join(args, " "), w, out)
 		}
 	}
 	return out
@@ -7741,7 +7741,7 @@ func (e *env) expect(t *testing.T, wantCode int, want []string, args ...string) 
 func (e *env) planOps(t *testing.T) map[string]string {
 	t.Helper()
 	outPath := filepath.Join(t.TempDir(), "plan.json")
-	e.infrata(t, "plan", "dev", "--output", outPath)
+	e.infrena(t, "plan", "dev", "--output", outPath)
 	data, err := os.ReadFile(outPath)
 	if err != nil {
 		t.Fatalf("plan wrote no --output file: %v", err)
@@ -7784,7 +7784,7 @@ func (e *env) only(t *testing.T, cfn string) (string, map[string]any) {
 	return "", nil
 }
 
-// drift changes a resource behind infrata's back.
+// drift changes a resource behind infrena's back.
 func (e *env) drift(t *testing.T, cfn, id string, change func(props map[string]any)) {
 	t.Helper()
 	props, ok := e.fake.Resource("us-east-1", cfn, id)
@@ -7835,7 +7835,7 @@ func TestTheWorkflow(t *testing.T) {
 			t.Fatalf("an unset provider-chosen attribute plans %v, want nothing (PLAN §14.1)", ops)
 		}
 	})
-	t.Run("a tag changed outside infrata is an update", func(t *testing.T) {
+	t.Run("a tag changed outside infrena is an update", func(t *testing.T) {
 		e.drift(t, "AWS::EC2::VPC", managed(t), func(p map[string]any) {
 			p["Tags"] = []any{map[string]any{"Key": "team", "Value": "someone-else"}}
 		})
@@ -7860,14 +7860,14 @@ func TestTheWorkflow(t *testing.T) {
 			t.Fatalf("plan after the update proposes %v", ops)
 		}
 	})
-	t.Run("a create-only value changed outside infrata forces a replacement", func(t *testing.T) {
+	t.Run("a create-only value changed outside infrena forces a replacement", func(t *testing.T) {
 		e.drift(t, "AWS::EC2::VPC", managed(t), func(p map[string]any) { p["CidrBlock"] = "10.50.0.0/16" })
 		if kind := e.planOps(t)["vpc"]; kind != "replace" {
 			t.Fatalf("vpc plans as %q, want replace", kind)
 		}
 		e.drift(t, "AWS::EC2::VPC", managed(t), func(p map[string]any) { p["CidrBlock"] = "10.0.0.0/16" })
 	})
-	t.Run("discover and import adopt a VPC infrata did not create", func(t *testing.T) {
+	t.Run("discover and import adopt a VPC infrena did not create", func(t *testing.T) {
 		e.fake.Put("us-east-1", "AWS::EC2::VPC", "vpc-legacy", map[string]any{
 			"VpcId": "vpc-legacy", "CidrBlock": "172.16.0.0/16", "EnableDnsSupport": true, "EnableDnsHostnames": false, "InstanceTenancy": "default",
 		})
@@ -7877,7 +7877,7 @@ func TestTheWorkflow(t *testing.T) {
 			t.Fatalf("plan after import --generate proposes %v", ops)
 		}
 	})
-	t.Run("destroy removes everything infrata manages", func(t *testing.T) {
+	t.Run("destroy removes everything infrena manages", func(t *testing.T) {
 		e.expect(t, 2, []string{"0 failed"}, "destroy", "dev", "--auto-approve")
 		for _, cfn := range []string{"AWS::EC2::VPC", "AWS::EC2::Subnet", "AWS::EC2::SecurityGroup"} {
 			if n := len(e.fake.Resources("us-east-1", cfn)); n != 0 {
@@ -7903,17 +7903,17 @@ func TestAMisspelledKeyIsRefusedAgainstTheProvidersEntry(t *testing.T) {
 
 func TestAnUnknownDiscoverTypeIsRefused(t *testing.T) {
 	e := project(t, strings.Replace(fixture(t, "basic"), "aws.securitygroup]", "aws.securitygroupp]", 1))
-	e.expect(t, 1, []string{"aws.securitygroupp", "infrata explain"}, "plan", "dev")
+	e.expect(t, 1, []string{"aws.securitygroupp", "infrena explain"}, "plan", "dev")
 }
 ```
 
 - [ ] **Step 3: Run**
 
 Run: `go test -tags e2e -count=1 -v ./e2e/`
-Expected: PASS against the `../infrata` checkout (run `git -C ../infrata log -1 --format=%h` and record it). If a
+Expected: PASS against the `../infrena` checkout (run `git -C ../infrena log -1 --format=%h` and record it). If a
 quoted output line differs (an exit code, `1 resource imported`, the `explain` wording), read the actual output and
-assert on it: the wording is infrata's. If a plan is not clean, that is a real finding: read `plan dev` to see which
-attribute differs, and fix the provider or the overlay, never the assertion. If the cause is in infrata, stop and
+assert on it: the wording is infrena's. If a plan is not clean, that is a real finding: read `plan dev` to see which
+attribute differs, and fix the provider or the overlay, never the assertion. If the cause is in infrena, stop and
 report it to James with the evidence.
 
 - [ ] **Step 4: Sabotage, then commit**
@@ -7925,7 +7925,7 @@ post-import plan is not clean).
 
 ```bash
 git add e2e/e2e_test.go e2e/testdata/basic/infra.yml
-git commit -m "Run a real infrata against the plugin and a fake Cloud Control
+git commit -m "Run a real infrena against the plugin and a fake Cloud Control
 
 Plans, applies, re-plans clean, ignores values AWS chose, repairs drift,
 patches in place, replaces on a create-only change, discovers, imports and
@@ -7940,23 +7940,23 @@ breaking tags, list order, discover_types and the import spelling." -- \
 **Files:**
 - Create: `plugin.yaml`, `internal/awsprov/manifest_test.go`, `scripts/release-check`, `scripts/build-release`,
   `scripts/scripts_test.go`
-- Create: `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `.github/workflows/bump-infrata.yml`,
+- Create: `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `.github/workflows/bump-infrena.yml`,
   `.github/workflows/bump-schemas.yml`
 - Modify: `e2e/e2e_test.go` (add the manifest test)
 
 **Interfaces:**
-- Consumes: `awsprov.Version`, `PluginName`; `pkg/pluginmanifest.Parse`, `(*Manifest).SpeaksProtocol/AllowsInfrata`,
-  `pkg/pluginproto.Version` (infrata v0.3.0); `scripts/fetch-schemas`, `cmd/gen-cloudcontrol` (Tasks 1, 5).
-- Produces: the release convention `infrata-plugin-aws_<version>_<goos>_<goarch>.tar.gz` (`.zip` on Windows).
+- Consumes: `awsprov.Version`, `PluginName`; `pkg/pluginmanifest.Parse`, `(*Manifest).SpeaksProtocol/AllowsInfrena`,
+  `pkg/pluginproto.Version` (infrena v0.3.0); `scripts/fetch-schemas`, `cmd/gen-cloudcontrol` (Tasks 1, 5).
+- Produces: the release convention `infrena-plugin-aws_<version>_<goos>_<goarch>.tar.gz` (`.zip` on Windows).
 
-Copied from `infrata-provider-fake` at `584802c` (its release after the protocol-2 amendment), changing only what names
-the plugin and what differs in how infrata is depended on: the fake uses a `replace` and `scripts/ci-use-infrata-tag`;
+Copied from `infrena-provider-fake` at `584802c` (its release after the protocol-2 amendment), changing only what names
+the plugin and what differs in how infrena is depended on: the fake uses a `replace` and `scripts/ci-use-infrena-tag`;
 this repository has no `replace` and builds pinned with `GOWORK=off` (CLAUDE.md), so that script and its three tests
 are not copied.
 
 - [ ] **Step 1: The manifest test first**
 
-`internal/awsprov/manifest_test.go` — `infrata-provider-fake/internal/fake/manifest_test.go` with `package awsprov`
+`internal/awsprov/manifest_test.go` — `infrena-provider-fake/internal/fake/manifest_test.go` with `package awsprov`
 and nothing else changed (it reads `../../plugin.yaml` and compares against `PluginName` and exactly
 `[pluginproto.Version]`).
 
@@ -7966,45 +7966,45 @@ Expected: FAIL — `open ../../plugin.yaml: no such file or directory`.
 - [ ] **Step 2: `plugin.yaml`**
 
 ```yaml
-# plugin.yaml: what this plugin is, and what it works with. infrata PLAN.md §31.2.
+# plugin.yaml: what this plugin is, and what it works with. infrena PLAN.md §31.2.
 # Read at a release TAG, never at the default branch, which describes unreleased code.
 manifest: 1
 name: aws
 version: 0.1.0
-# The protocol THIS RELEASE'S binary speaks: exactly the pluginproto.Version of the infrata go.mod requires. It changes
+# The protocol THIS RELEASE'S binary speaks: exactly the pluginproto.Version of the infrena go.mod requires. It changes
 # in the same commit as that require (internal/awsprov/manifest_test.go and scripts/release-check refuse a mismatch).
 protocol: [2]
 platforms: [linux/amd64, linux/arm64, linux/arm, linux/386, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64]
-description: The AWS provider for infrata, serving every resource type AWS Cloud Control API supports.
-# The oldest infrata release CI verifies this plugin against: go.mod's require. v0.3.0 is the first with
+description: The AWS provider for infrena, serving every resource type AWS Cloud Control API supports.
+# The oldest infrena release CI verifies this plugin against: go.mod's require. v0.3.0 is the first with
 # Optional+Computed attributes and aliases, which every generated type uses.
-infrata: ">= 0.3.0"
-source: https://github.com/infrata/infrata-provider-aws
+infrena: ">= 0.3.0"
+source: https://github.com/infrena/infrena-provider-aws
 ```
 
 Run: `go test -count=1 -run Manifest ./internal/awsprov/`
 Expected: PASS.
 
-Append `TestTheInfrataUnderTestSpeaksTheManifestsProtocol` from `infrata-provider-fake/e2e/e2e_test.go` to
-`e2e/e2e_test.go` unchanged, adding the import `github.com/infrata/infrata/pkg/pluginmanifest`. Run:
+Append `TestTheInfrenaUnderTestSpeaksTheManifestsProtocol` from `infrena-provider-fake/e2e/e2e_test.go` to
+`e2e/e2e_test.go` unchanged, adding the import `github.com/infrena/infrena/pkg/pluginmanifest`. Run:
 `go test -tags e2e -count=1 -run Manifest ./e2e/` — PASS.
 
 - [ ] **Step 3: Scripts**
 
-Copy `infrata-provider-fake/scripts/release-check` and `scripts/build-release` and substitute:
+Copy `infrena-provider-fake/scripts/release-check` and `scripts/build-release` and substitute:
 
 | In the fake's file | Here |
 | --- | --- |
-| `infrata-plugin-fake` | `infrata-plugin-aws` |
-| `./cmd/infrata-plugin-fake` | `./cmd/infrata-plugin-aws` |
-| `github.com/infrata/infrata-provider-fake/internal/fake.Version` | `github.com/infrata/infrata-provider-aws/internal/awsprov.Version` |
+| `infrena-plugin-fake` | `infrena-plugin-aws` |
+| `./cmd/infrena-plugin-fake` | `./cmd/infrena-plugin-aws` |
+| `github.com/infrena/infrena-provider-fake/internal/fake.Version` | `github.com/infrena/infrena-provider-aws/internal/awsprov.Version` |
 | `internal/fake.Version` (in the error message) | `internal/awsprov.Version` |
 | `FAKE_VERSION_SYMBOL` | `PLUGIN_VERSION_SYMBOL` |
 | `FAKE_MANIFEST` | `PLUGIN_MANIFEST` |
 
-Copy `infrata-provider-fake/scripts/scripts_test.go` with the same substitutions, and delete from it
+Copy `infrena-provider-fake/scripts/scripts_test.go` with the same substitutions, and delete from it
 `moduleCopy`, `readRepoFile`, `TestGoSumCarriesWhatABuildWithoutTheReplaceNeeds`, `TestCheckRefusesAGoSumThatTidyStripped`
-and `TestVersionRefusesARequireThatIsNotARelease` (they test `ci-use-infrata-tag`), then remove imports left unused.
+and `TestVersionRefusesARequireThatIsNotARelease` (they test `ci-use-infrena-tag`), then remove imports left unused.
 
 ```bash
 chmod +x scripts/release-check scripts/build-release
@@ -8019,8 +8019,8 @@ builds only two platforms.
 
 - [ ] **Step 4: Workflows**
 
-Every workflow fetches infrata as a private module: `GOPRIVATE` plus a git `insteadOf` carrying
-`INFRATA_CHECKOUT_TOKEN`. The token goes through `env`, never a command line that is echoed.
+Every workflow fetches infrena as a private module: `GOPRIVATE` plus a git `insteadOf` carrying
+`INFRENA_CHECKOUT_TOKEN`. The token goes through `env`, never a command line that is echoed.
 
 `.github/workflows/ci.yml`:
 
@@ -8028,9 +8028,9 @@ Every workflow fetches infrata as a private module: `GOPRIVATE` plus a git `inst
 name: CI
 
 # Two jobs, answering two questions.
-#   pinned  Does this plugin work with the infrata go.mod requires? Builds with GOWORK=off against that release and runs
+#   pinned  Does this plugin work with the infrena go.mod requires? Builds with GOWORK=off against that release and runs
 #           the e2e suite against a host built from the same tag. Blocking, and what a release runs.
-#   main    Has infrata main broken us? Builds through a workspace against infrata's main. Advisory.
+#   main    Has infrena main broken us? Builds through a workspace against infrena's main. Advisory.
 
 on:
   push:
@@ -8044,99 +8044,99 @@ permissions:
 
 env:
   GOTOOLCHAIN: local
-  GOPRIVATE: github.com/infrata/*
+  GOPRIVATE: github.com/infrena/*
 
 jobs:
   pinned:
-    name: against the required infrata release
+    name: against the required infrena release
     runs-on: ubuntu-latest
     env:
       GOWORK: "off"
     steps:
       - uses: actions/checkout@v7
         with:
-          path: infrata-provider-aws
-      - name: Let go fetch the private infrata module
+          path: infrena-provider-aws
+      - name: Let go fetch the private infrena module
         env:
-          INFRATA_TOKEN: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
-        run: git config --global url."https://x-access-token:${INFRATA_TOKEN}@github.com/infrata/".insteadOf "https://github.com/infrata/"
+          INFRENA_TOKEN: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
+        run: git config --global url."https://x-access-token:${INFRENA_TOKEN}@github.com/infrena/".insteadOf "https://github.com/infrena/"
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
-          cache-dependency-path: infrata-provider-aws/go.sum
-      - name: Read the infrata release go.mod requires
-        id: infrata
-        working-directory: infrata-provider-aws
+          cache-dependency-path: infrena-provider-aws/go.sum
+      - name: Read the infrena release go.mod requires
+        id: infrena
+        working-directory: infrena-provider-aws
         run: |
           set -euo pipefail
-          v="$(go mod edit -json | jq -r '.Require[] | select(.Path == "github.com/infrata/infrata") | .Version')"
-          [[ "$v" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::go.mod requires infrata $v, which is not a release tag"; exit 1; }
+          v="$(go mod edit -json | jq -r '.Require[] | select(.Path == "github.com/infrena/infrena") | .Version')"
+          [[ "$v" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::go.mod requires infrena $v, which is not a release tag"; exit 1; }
           echo "version=$v" >> "$GITHUB_OUTPUT"
-      # The e2e host, at ../infrata where the suite looks for it, built from the same tag the plugin compiles against.
+      # The e2e host, at ../infrena where the suite looks for it, built from the same tag the plugin compiles against.
       - uses: actions/checkout@v7
         with:
-          repository: infrata/infrata
-          ref: ${{ steps.infrata.outputs.version }}
-          path: infrata
-          token: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
+          repository: infrena/infrena
+          ref: ${{ steps.infrena.outputs.version }}
+          path: infrena
+          token: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
       - name: gofmt
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         run: test -z "$(gofmt -l .)"
       - name: vet
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         run: go vet ./... && go vet -tags e2e,live ./...
       - name: test
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         run: go test -count=1 ./...
-      - name: e2e against infrata ${{ steps.infrata.outputs.version }}
-        working-directory: infrata-provider-aws
+      - name: e2e against infrena ${{ steps.infrena.outputs.version }}
+        working-directory: infrena-provider-aws
         run: |
           set -euo pipefail
           go test -tags e2e -count=1 -v ./e2e/ 2>&1 | tee "$RUNNER_TEMP/e2e.log"
           if grep -q 'E2E SKIPPED' "$RUNNER_TEMP/e2e.log"; then
-            echo "::error::the e2e suite skipped instead of running against ../infrata"
+            echo "::error::the e2e suite skipped instead of running against ../infrena"
             exit 1
           fi
 
   main:
-    name: against infrata main (advisory)
+    name: against infrena main (advisory)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
         with:
-          path: infrata-provider-aws
+          path: infrena-provider-aws
       - uses: actions/checkout@v7
         with:
-          repository: infrata/infrata
-          path: infrata
-          token: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
+          repository: infrena/infrena
+          path: infrena
+          token: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
-          cache-dependency-path: infrata-provider-aws/go.sum
-      - name: test and e2e against infrata main
-        working-directory: infrata-provider-aws
+          cache-dependency-path: infrena-provider-aws/go.sum
+      - name: test and e2e against infrena main
+        working-directory: infrena-provider-aws
         run: |
           set -euo pipefail
-          go work init . ../infrata
+          go work init . ../infrena
           go test -count=1 ./...
           go test -tags e2e -count=1 -v ./e2e/ 2>&1 | tee "$RUNNER_TEMP/e2e.log"
           if grep -q 'E2E SKIPPED' "$RUNNER_TEMP/e2e.log"; then exit 1; fi
 ```
 
 `.github/workflows/release.yml` — the fake plugin's file with these changes: the job `env` gains `GOPRIVATE:
-github.com/infrata/*` and `GOWORK: "off"`; the `ci-use-infrata-tag use` step is replaced by `ci.yml`'s "Let go fetch
-the private infrata module" step; everything else (the `ci` job with `secrets: inherit`, `release-check`,
+github.com/infrena/*` and `GOWORK: "off"`; the `ci-use-infrena-tag use` step is replaced by `ci.yml`'s "Let go fetch
+the private infrena module" step; everything else (the `ci` job with `secrets: inherit`, `release-check`,
 `build-release`, `SHA256SUMS`, `gh release create --verify-tag`) unchanged.
 
-`.github/workflows/bump-infrata.yml`. It runs the suites against a new infrata tag and opens the PR either way, saying
+`.github/workflows/bump-infrena.yml`. It runs the suites against a new infrena tag and opens the PR either way, saying
 whether they passed; a bump that changes the plugin protocol fails the manifest test, and the PR body says what to do:
 
 ```yaml
-name: Bump infrata
+name: Bump infrena
 
-# infrata tags often until its first official release (James, 2026-09-13). This notices each tag and proposes it,
+# infrena tags often until its first official release (James, 2026-09-13). This notices each tag and proposes it,
 # having already run the suites against it.
 
 on:
@@ -8150,7 +8150,7 @@ permissions:
 
 env:
   GOTOOLCHAIN: local
-  GOPRIVATE: github.com/infrata/*
+  GOPRIVATE: github.com/infrena/*
   GOWORK: "off"
 
 jobs:
@@ -8159,62 +8159,62 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          path: infrata-provider-aws
-      - name: Let go fetch the private infrata module
+          path: infrena-provider-aws
+      - name: Let go fetch the private infrena module
         env:
-          INFRATA_TOKEN: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
-        run: git config --global url."https://x-access-token:${INFRATA_TOKEN}@github.com/infrata/".insteadOf "https://github.com/infrata/"
+          INFRENA_TOKEN: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
+        run: git config --global url."https://x-access-token:${INFRENA_TOKEN}@github.com/infrena/".insteadOf "https://github.com/infrena/"
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
-          cache-dependency-path: infrata-provider-aws/go.sum
-      - name: Upgrade to infrata's newest release
+          cache-dependency-path: infrena-provider-aws/go.sum
+      - name: Upgrade to infrena's newest release
         id: bump
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         run: |
           set -euo pipefail
-          before="$(go list -m -f '{{.Version}}' github.com/infrata/infrata)"
-          go get github.com/infrata/infrata@upgrade
+          before="$(go list -m -f '{{.Version}}' github.com/infrena/infrena)"
+          go get github.com/infrena/infrena@upgrade
           go mod tidy
-          after="$(go list -m -f '{{.Version}}' github.com/infrata/infrata)"
+          after="$(go list -m -f '{{.Version}}' github.com/infrena/infrena)"
           echo "before=$before" >> "$GITHUB_OUTPUT"
           echo "after=$after" >> "$GITHUB_OUTPUT"
           echo "changed=$([[ "$before" != "$after" ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         if: steps.bump.outputs.changed == 'true'
         with:
-          repository: infrata/infrata
-          path: infrata
+          repository: infrena/infrena
+          path: infrena
           ref: ${{ steps.bump.outputs.after }}
-          token: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
+          token: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
       - name: Test against the new version
         id: test
         if: steps.bump.outputs.changed == 'true'
         continue-on-error: true
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         run: |
           set -euo pipefail
           go vet ./... && go test -count=1 ./... && go test -tags e2e -count=1 ./e2e/
       - name: Open the PR
         if: steps.bump.outputs.changed == 'true'
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          branch="bump-infrata-${{ steps.bump.outputs.after }}"
+          branch="bump-infrena-${{ steps.bump.outputs.after }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
           git add go.mod go.sum
-          git commit -m "Move to infrata ${{ steps.bump.outputs.after }}" -- go.mod go.sum
+          git commit -m "Move to infrena ${{ steps.bump.outputs.after }}" -- go.mod go.sum
           git push origin "$branch"
           if [[ "${{ steps.test.outcome }}" == success ]]; then
             body="Upgraded from ${{ steps.bump.outputs.before }}. vet, the unit suite and the e2e suite passed against it."
           else
             body="Upgraded from ${{ steps.bump.outputs.before }}. The suites FAILED against it: see this workflow run. If the manifest test failed, the plugin protocol changed and plugin.yaml's protocol: must change in this PR."
           fi
-          gh pr create --title "infrata ${{ steps.bump.outputs.after }}" --body "$body"
+          gh pr create --title "infrena ${{ steps.bump.outputs.after }}" --body "$body"
 ```
 
 `.github/workflows/bump-schemas.yml`:
@@ -8237,7 +8237,7 @@ permissions:
 
 env:
   GOTOOLCHAIN: local
-  GOPRIVATE: github.com/infrata/*
+  GOPRIVATE: github.com/infrena/*
   GOWORK: "off"
 
 jobs:
@@ -8246,18 +8246,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          path: infrata-provider-aws
-      - name: Let go fetch the private infrata module
+          path: infrena-provider-aws
+      - name: Let go fetch the private infrena module
         env:
-          INFRATA_TOKEN: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
-        run: git config --global url."https://x-access-token:${INFRATA_TOKEN}@github.com/infrata/".insteadOf "https://github.com/infrata/"
+          INFRENA_TOKEN: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
+        run: git config --global url."https://x-access-token:${INFRENA_TOKEN}@github.com/infrena/".insteadOf "https://github.com/infrena/"
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
-          cache-dependency-path: infrata-provider-aws/go.sum
+          cache-dependency-path: infrena-provider-aws/go.sum
       - name: Fetch the bundle and regenerate
         id: gen
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         run: |
           set -euo pipefail
           scripts/fetch-schemas
@@ -8269,11 +8269,11 @@ jobs:
           fi
       - name: Test the new catalog
         if: steps.gen.outputs.changed == 'true'
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         run: go vet ./... && go test -count=1 ./...
       - name: Open the PR
         if: steps.gen.outputs.changed == 'true'
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -8301,16 +8301,16 @@ with tag `v0.1.0` (`release-check` refuses).
 
 ```bash
 git add plugin.yaml internal/awsprov/manifest_test.go scripts/release-check scripts/build-release scripts/scripts_test.go \
-  e2e/e2e_test.go .github/workflows/ci.yml .github/workflows/release.yml .github/workflows/bump-infrata.yml \
+  e2e/e2e_test.go .github/workflows/ci.yml .github/workflows/release.yml .github/workflows/bump-infrena.yml \
   .github/workflows/bump-schemas.yml
 git commit -m "Add the manifest, release gate and CI workflows
 
 Same three way version gate as the fake plugin, CI against the pinned
-infrata release with an advisory run against main, and weekly jobs that
-propose infrata and AWS schema bumps. Checked with a wrong name, a wrong
+infrena release with an advisory run against main, and weekly jobs that
+propose infrena and AWS schema bumps. Checked with a wrong name, a wrong
 protocol, an unstamped binary and a mismatched version." -- \
   plugin.yaml internal/awsprov/manifest_test.go scripts/release-check scripts/build-release scripts/scripts_test.go \
-  e2e/e2e_test.go .github/workflows/ci.yml .github/workflows/release.yml .github/workflows/bump-infrata.yml \
+  e2e/e2e_test.go .github/workflows/ci.yml .github/workflows/release.yml .github/workflows/bump-infrena.yml \
   .github/workflows/bump-schemas.yml
 ```
 
@@ -8326,7 +8326,7 @@ protocol, an unstamped binary and a mismatched version." -- \
 - Produces: nothing other suites use.
 
 Run by hand only, never in CI. It creates a VPC, a subnet and a security group (free) and an IAM role (free), all
-tagged or named with the run. **Running it needs James's approval each time, and the `infrata` profile's root keys
+tagged or named with the run. **Running it needs James's approval each time, and the `infrena` profile's root keys
 replaced by a least-privilege IAM identity first** (see `live/README.md`). Writing and compiling it needs neither.
 
 - [ ] **Step 1: Write the suite**
@@ -8340,7 +8340,7 @@ replaced by a least-privilege IAM identity first** (see `live/README.md`). Writi
 // eventual consistency and IAM, and the only one that costs anything if it leaks, so it refuses to run unless told
 // which account it may use and the credentials really are that account.
 //
-//	INFRATA_AWS_LIVE_PROFILE=infrata-live INFRATA_AWS_LIVE_ACCOUNT=111111111111 go test -tags live -count=1 -v -timeout 30m ./live/
+//	INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 go test -tags live -count=1 -v -timeout 30m ./live/
 package live
 
 import (
@@ -8355,17 +8355,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/infrata/infrata-provider-aws/internal/awsprov"
-	"github.com/infrata/infrata-provider-aws/internal/awstest"
-	"github.com/infrata/infrata-provider-aws/internal/catalog"
-	"github.com/infrata/infrata/pkg/address"
-	"github.com/infrata/infrata/pkg/plugintest"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/awsprov"
+	"github.com/infrena/infrena-provider-aws/internal/awstest"
+	"github.com/infrena/infrena-provider-aws/internal/catalog"
+	"github.com/infrena/infrena/pkg/address"
+	"github.com/infrena/infrena/pkg/plugintest"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
-const runTag = "infrata-live-run"
+const runTag = "infrena-live-run"
 
 func s(v string) value.Value { return value.String(v, value.SourceExplicit) }
 func n(v int64) value.Value  { return value.Int(v, value.SourceExplicit) }
@@ -8381,11 +8381,11 @@ func l(items ...value.Value) value.Value { return value.List(items, value.Source
 // guard skips without the variables, and refuses when the profile is not the named account.
 func guard(t *testing.T) (profile, region string) {
 	t.Helper()
-	profile, account := os.Getenv("INFRATA_AWS_LIVE_PROFILE"), os.Getenv("INFRATA_AWS_LIVE_ACCOUNT")
+	profile, account := os.Getenv("INFRENA_AWS_LIVE_PROFILE"), os.Getenv("INFRENA_AWS_LIVE_ACCOUNT")
 	if profile == "" || account == "" {
-		t.Skip("set INFRATA_AWS_LIVE_PROFILE and INFRATA_AWS_LIVE_ACCOUNT to run against real AWS")
+		t.Skip("set INFRENA_AWS_LIVE_PROFILE and INFRENA_AWS_LIVE_ACCOUNT to run against real AWS")
 	}
-	region = os.Getenv("INFRATA_AWS_LIVE_REGION")
+	region = os.Getenv("INFRENA_AWS_LIVE_REGION")
 	if region == "" {
 		region = "us-east-1"
 	}
@@ -8398,7 +8398,7 @@ func guard(t *testing.T) (profile, region string) {
 		t.Fatal(err)
 	}
 	if got := aws.ToString(id.Account); got != account {
-		t.Fatalf("profile %q is account %s, not INFRATA_AWS_LIVE_ACCOUNT=%s: refusing to create anything", profile, got, account)
+		t.Fatalf("profile %q is account %s, not INFRENA_AWS_LIVE_ACCOUNT=%s: refusing to create anything", profile, got, account)
 	}
 	if strings.HasSuffix(aws.ToString(id.Arn), ":root") {
 		t.Fatalf("profile %q holds root credentials: use a least-privilege IAM identity (live/README.md)", profile)
@@ -8487,10 +8487,10 @@ func TestTheLifecycleAgainstRealAWS(t *testing.T) {
 		"CidrBlock": s("10.99.1.0/24"), "AvailabilityZone": s(region + "a"), "Tags": tags})
 	ingress := l(m("ip_protocol", s("tcp"), "from_port", n(443), "to_port", n(443), "cidr_ip", s("0.0.0.0/0")))
 	sg := create(t, prov, "aws.securitygroup", map[string]value.Value{"region": s(region), "VpcId": vpcID,
-		"GroupDescription": s("infrata live " + run), "SecurityGroupIngress": ingress, "Tags": tags})
+		"GroupDescription": s("infrena live " + run), "SecurityGroupIngress": ingress, "Tags": tags})
 	roleType := awstest.TypeFor(t, cat, "AWS::IAM::Role").Name
 	policy := m("Version", s("2012-10-17"), "Statement", l(m("Effect", s("Allow"), "Principal", m("Service", s("ec2.amazonaws.com")), "Action", s("sts:AssumeRole"))))
-	role := create(t, prov, roleType, map[string]value.Value{"RoleName": s("infrata-live-" + run), "AssumeRolePolicyDocument": policy, "Tags": tags})
+	role := create(t, prov, roleType, map[string]value.Value{"RoleName": s("infrena-live-" + run), "AssumeRolePolicyDocument": policy, "Tags": tags})
 
 	vpc = update(t, prov, vpc, map[string]value.Value{"EnableDnsHostnames": value.Bool(true, value.SourceExplicit)})
 	sg = update(t, prov, sg, map[string]value.Value{"SecurityGroupIngress": l(
@@ -8569,20 +8569,20 @@ func TestSweepLeftovers(t *testing.T) {
   `ec2:CreateTags`, `ec2:DeleteTags`, `iam:CreateRole`, `iam:DeleteRole`, `iam:GetRole`, `iam:UpdateRole`,
   `iam:ListRoles`, `iam:TagRole`, `iam:UntagRole`, `iam:ListRolePolicies`, `iam:ListAttachedRolePolicies`), noting
   that a missing permission shows up as `AccessDenied` with the action named, and to add that action;
-- the variables (`INFRATA_AWS_LIVE_PROFILE`, `INFRATA_AWS_LIVE_ACCOUNT`, optional `INFRATA_AWS_LIVE_REGION`), with no
+- the variables (`INFRENA_AWS_LIVE_PROFILE`, `INFRENA_AWS_LIVE_ACCOUNT`, optional `INFRENA_AWS_LIVE_REGION`), with no
   real account ID in the file;
-- what it creates (VPC `10.99.0.0/16`, a subnet, a security group, a role named `infrata-live-<unix time>`, tagged
-  `infrata-live-run`), that it takes minutes, that it refuses a mismatched account or root credentials, how to run
+- what it creates (VPC `10.99.0.0/16`, a subnet, a security group, a role named `infrena-live-<unix time>`, tagged
+  `infrena-live-run`), that it takes minutes, that it refuses a mismatched account or root credentials, how to run
   `-run TestSweepLeftovers`, and that it never runs in CI.
 
 - [ ] **Step 2: Check it compiles and skips**
 
 Run: `go vet -tags live ./live/ && go test -tags live -count=1 -v ./live/`
-Expected: both tests SKIP with "set INFRATA_AWS_LIVE_PROFILE…".
+Expected: both tests SKIP with "set INFRENA_AWS_LIVE_PROFILE…".
 
 - [ ] **Step 3: The guard's sabotage, then commit**
 
-Sabotage without touching AWS: set `INFRATA_AWS_LIVE_PROFILE=infrata INFRATA_AWS_LIVE_ACCOUNT=000000000000` and run
+Sabotage without touching AWS: set `INFRENA_AWS_LIVE_PROFILE=infrena INFRENA_AWS_LIVE_ACCOUNT=000000000000` and run
 `-run TestSweepLeftovers`. `GetCallerIdentity` is read-only; the test must fail with "refusing to create anything"
 before any Cloud Control call. With the current root keys it would instead hit the root refusal if the account
 matched, which is also correct. Record which message appeared.
@@ -8639,7 +8639,7 @@ func TestReadmeQuotesTheTestedExample(t *testing.T) {
 		t.Error("README.md does not quote e2e/testdata/basic/infra.yml verbatim")
 	}
 	for _, want := range []string{
-		"Cloud Control", "infrata explain", "discover_regions", "discover_types", "assume_role_arn", "profile", "--provider",
+		"Cloud Control", "infrena explain", "discover_regions", "discover_types", "assume_role_arn", "profile", "--provider",
 		"defaults:", "${aws_region}", "us-east-1/vpc-", "global/", "aws_region", "type_value", "cidr_block", "tags:",
 		"gen/overlay.yaml", "gen/names.lock.json", "scripts/fetch-schemas", "go run ./cmd/gen-cloudcontrol",
 		"-tags e2e", "-tags live", "go work init", "GOWORK=off", "plugin.yaml", "scripts/release-check", "0.0.0-dev",
@@ -8657,8 +8657,8 @@ Run: `go test -count=1 -run Readme ./internal/awsprov/` — FAIL (`open ../../RE
 
 It must cover, with real commands and output copied from the e2e run:
 - what the plugin is in two sentences: every resource type AWS Cloud Control API supports, generated from AWS's
-  published schemas; `infrata explain <type>` is the reference for any one of them;
-- how to build it and where infrata finds it (`--plugin-dir`, `.infra/plugins/`, `~/.local/share/infrata/plugins/`,
+  published schemas; `infrena explain <type>` is the reference for any one of them;
+- how to build it and where infrena finds it (`--plugin-dir`, `.infra/plugins/`, `~/.local/share/infrena/plugins/`,
   `$PATH`);
 - type names: `aws.<resource>`, `aws.<service>.<resource>` when the short name is taken (J2), and that a name never
   changes once released (J3);
@@ -8681,7 +8681,7 @@ It must cover, with real commands and output copied from the e2e run:
   create that left a resource is recorded, not orphaned; a read may take up to ~4 seconds to report a resource gone;
 - regenerating the catalog: `scripts/fetch-schemas`, `go run ./cmd/gen-cloudcontrol`, what `gen/overlay.yaml` and
   `gen/names.lock.json` are, and that the weekly workflow does this;
-- building: `go work init . ../infrata` for local work, `GOWORK=off` plus credentials for the pinned build; the three
+- building: `go work init . ../infrena` for local work, `GOWORK=off` plus credentials for the pinned build; the three
   suites (`go test ./...`, `-tags e2e`, `-tags live`); releases (`plugin.yaml`, `scripts/release-check`, versions are
   `0.0.0-dev` unless stamped); a pointer to the fake plugin's `AGENT.md` for plugin authors.
 
@@ -8691,7 +8691,7 @@ fixture; the test fails; restore.
 - [ ] **Step 3: `CLAUDE.md`**
 
 Rewrite the sections that describe the handwritten slice; keep the rest (the contract table, the dependency model,
-the test rules, "Changing infrata", commit discipline). Specifically:
+the test rules, "Changing infrena", commit discipline). Specifically:
 - **Current state**: branch `generic-cloudcontrol`; built per `docs/plans/2026-09-14-generic-cloudcontrol-provider.md`
   from `docs/specs/2026-09-14-generic-cloudcontrol-provider.md`; the generator, catalog, provider, fake, e2e, release
   plumbing and live suite exist; the live suite has not run against real AWS until the Verification log says it has.
@@ -8720,17 +8720,17 @@ the test rules, "Changing infrata", commit discipline). Specifically:
 - [ ] **Step 4: Whole-suite verification**
 
 ```bash
-git -C ../infrata status --short && git -C ../infrata log -1 --format=%h
+git -C ../infrena status --short && git -C ../infrena log -1 --format=%h
 gofmt -l . ; go vet ./... ; go vet -tags e2e,live ./...
 go test -count=1 ./...
-GOWORK=off GOPRIVATE='github.com/infrata/*' go test -count=1 ./...
+GOWORK=off GOPRIVATE='github.com/infrena/*' go test -count=1 ./...
 go test -tags e2e -count=1 -v ./e2e/
 go test -tags live -count=1 ./live/      # skips without the live variables
 scripts/measure-load                     # the P7 gate again, with the finished provider
 scripts/release-check v0.1.0
 ```
 
-All green; keep the output for the close-out note and record the infrata commit the e2e suite ran against.
+All green; keep the output for the close-out note and record the infrena commit the e2e suite ran against.
 
 - [ ] **Step 5: Documentation**
 
@@ -8739,7 +8739,7 @@ All green; keep the output for the close-out note and record the infrata commit 
 - This plan: every Verification log row still unconfirmed is confirmed or left marked with a reason; add the
   `measure-load` numbers from Task 6 and Step 4.
 - Vault `projects/labs/infra-tool.md`: the AWS provider section's status, decisions made during execution, and
-  follow-ups as tagged checkboxes (`- [ ] … #follow-up`): the first live run; replacing the root keys; any infrata
+  follow-ups as tagged checkboxes (`- [ ] … #follow-up`): the first live run; replacing the root keys; any infrena
   finding. Today's `projects/labs/daily/<date>.md` gets one bullet linking the note.
 
 - [ ] **Step 6: Commit, then ask**

@@ -1,32 +1,32 @@
-# infrata-plugin-aws, first vertical slice: `aws.vpc` + `aws.subnet` — Implementation Plan
+# infrena-plugin-aws, first vertical slice: `aws.vpc` + `aws.subnet` — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build `infrata-plugin-aws` serving `aws.vpc` and `aws.subnet` end to end — credentials, per-region
+**Goal:** Build `infrena-plugin-aws` serving `aws.vpc` and `aws.subnet` end to end — credentials, per-region
 clients, CRUD, paginated discovery, import, error classification, eventual consistency — tested without an AWS
 account, released through the same version gate as the fake plugin, with an opt-in suite against real AWS.
 
-**Architecture:** One Go module. `cmd/infrata-plugin-aws` is a one-line `pluginsdk.Main`. `internal/awsprov`
+**Architecture:** One Go module. `cmd/infrena-plugin-aws` is a one-line `pluginsdk.Main`. `internal/awsprov`
 holds the plugin: instance configuration, one EC2 client per region, one file per resource type, error
 classification and provider-ID handling. `internal/ec2fake` is an `httptest` server speaking EC2's query protocol
 (and STS `AssumeRole`), so every test drives the real SDK. Three suites: the plain suite (unit, fake-EC2 and
-`pkg/plugintest` protocol tests), `-tags e2e` (a real infrata binary against this binary and the fake), and
+`pkg/plugintest` protocol tests), `-tags e2e` (a real infrena binary against this binary and the fake), and
 `-tags live` (real AWS, opt-in, never in CI).
 
-**Tech Stack:** Go 1.27.0; `github.com/infrata/infrata` required by version (local `go.work` over `../infrata`); AWS SDK for Go v2 —
+**Tech Stack:** Go 1.27.0; `github.com/infrena/infrena` required by version (local `go.work` over `../infrena`); AWS SDK for Go v2 —
 `aws-sdk-go-v2 v1.47.0`, `config v1.33.4`, `credentials v1.20.4`, `service/ec2 v1.332.0`, `service/sts v1.50.0`,
 `smithy-go v1.28.1` (the versions current on 2026-09-13, the ones every SDK claim below was checked against).
 
 **Spec:** this document. The design is recorded here (Decisions, Verification log) rather than in a separate
-spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.md`. Contract: infrata `PLAN.md`
-§31.1, §31.2, §12.1 (as amended by `5895f8a`); `infrata-provider-fake/AGENT.md` and
+spec, following `infrena-provider-fake/docs/plans/2026-09-13-port-fake-provider.md`. Contract: infrena `PLAN.md`
+§31.1, §31.2, §12.1 (as amended by `5895f8a`); `infrena-provider-fake/AGENT.md` and
 `docs/writing-a-provider.md` §14 as the starting position, corrected by the Findings below.
 
 ## Global Constraints
 
-- Module `github.com/infrata/infrata-provider-aws`. Never under `github.com/infrata/infrata/`.
-- `go 1.27.0`; `require github.com/infrata/infrata <real version>` and **no `replace`**; a gitignored `go.work` (`use . ../infrata`) for local work (D19).
-- Plugin name `aws`; binary `infrata-plugin-aws`; every type prefixed `aws.`.
+- Module `github.com/infrena/infrena-provider-aws`. Never under `github.com/infrena/infrena/`.
+- `go 1.27.0`; `require github.com/infrena/infrena <real version>` and **no `replace`**; a gitignored `go.work` (`use . ../infrena`) for local work (D19).
+- Plugin name `aws`; binary `infrena-plugin-aws`; every type prefixed `aws.`.
 - `Version` defaults to `"0.0.0-dev"`, stamped only by `-ldflags -X` at release.
 - Nothing writes to stdout. No credential, signed request or sensitive value is ever logged.
 - `Create`/`Update` never return `(nil, nil)`; `Create` never returns an error once AWS created something.
@@ -36,8 +36,8 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
 - No test reaches real AWS outside `-tags live`.
 - Every test command uses `-count=1`. Every test is sabotage-verified; the sabotage goes in the commit message.
 - Stage explicit paths only. Never `git add -A` / `git add .` / `git commit -am`. Ask James before any push or tag.
-- **Prerequisite for Task 1:** git credentials that can fetch `github.com/infrata/infrata` (`gh auth setup-git`): `go get` and `go mod tidy` ignore `go.work`. Set up on James's machine 2026-09-13.
-- Do not modify `../infrata`. infrata defects go to Findings and the vault note's follow-ups.
+- **Prerequisite for Task 1:** git credentials that can fetch `github.com/infrena/infrena` (`gh auth setup-git`): `go get` and `go mod tidy` ignore `go.work`. Set up on James's machine 2026-09-13.
+- Do not modify `../infrena`. infrena defects go to Findings and the vault note's follow-ups.
 
 ---
 
@@ -45,68 +45,68 @@ spec, following `infrata-provider-fake/docs/plans/2026-09-13-port-fake-provider.
 
 | # | Decision | Why | Cost |
 | --- | --- | --- | --- |
-| D1 | **First slice is `aws.vpc` + `aws.subnet`** (James's suggestion, kept) | Covers every mechanism the plugin needs once: a requirement edge and a real reference (`vpc_id: ${vpc.id}`), a computed ID feeding another resource, ForceNew attributes, an in-place update that is not only tags (`map_public_ip_on_launch`), paginated discovery, regional IDs, and cross-resource eventual consistency (`CreateSubnet` right after `CreateVpc`). Both are free in AWS, so the live suite costs nothing. | Two types rather than one. Rejected: **`aws.s3_bucket`** — user-chosen name so no computed ID, a different protocol (REST-XML) with a region model of its own (`GetBucketLocation`), no requirement edge; worth its own slice later. **`aws.security_group`** — rules are nested lists whose diffing is the hard part; better as slice two, on top of a working VPC. **VPC alone** — loses the edge and the cross-resource consistency case, which are the parts most likely to find infrata problems. |
+| D1 | **First slice is `aws.vpc` + `aws.subnet`** (James's suggestion, kept) | Covers every mechanism the plugin needs once: a requirement edge and a real reference (`vpc_id: ${vpc.id}`), a computed ID feeding another resource, ForceNew attributes, an in-place update that is not only tags (`map_public_ip_on_launch`), paginated discovery, regional IDs, and cross-resource eventual consistency (`CreateSubnet` right after `CreateVpc`). Both are free in AWS, so the live suite costs nothing. | Two types rather than one. Rejected: **`aws.s3_bucket`** — user-chosen name so no computed ID, a different protocol (REST-XML) with a region model of its own (`GetBucketLocation`), no requirement edge; worth its own slice later. **`aws.security_group`** — rules are nested lists whose diffing is the hard part; better as slice two, on top of a working VPC. **VPC alone** — loses the edge and the cross-resource consistency case, which are the parts most likely to find infrena problems. |
 | D2 | **Credentials: `config.LoadDefaultConfig` once per instance in `New`, overrides as named keys** `profile` (→ `config.WithSharedConfigProfile`) and `assume_role_arn` (→ `aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(sts client, arn))`). Accepted keys: `profile`, `assume_role_arn`, `discover_regions`. Anything else is refused, naming what is accepted. | The standard chain means a user who can run the AWS CLI configures nothing twice. A misspelled key silently ignored would fall back to default credentials — another account. | No `external_id`, `role_session_name`, or static keys in config yet (YAGNI; static keys in YAML would be a secret in a file). Added when a user needs them. |
 | D3 | **Credentials are resolved lazily**, not with `Retrieve` in `New`. `New` still fails fast on a named profile that does not exist (`config.SharedConfigProfileNotExistError`, a file read with no network). | Every compiling command, `validate` included, constructs instances; an SSO or assume-role `Retrieve` would make `validate` hit the network. | A missing credential surfaces at the first API call, not as a configuration error. The error names the instance and profile. |
 | D4 | **STS client region falls back to `us-east-1`** when the loaded config has no region | Regions come from resources (`defaults: {region}`), so a user may have no default region at all, and an STS client with an empty region cannot resolve an endpoint. | Assume-role always goes to one region's STS. Acceptable for a slice; revisit if a partition other than `aws` is needed. |
 | D5 | **One EC2 client per region**, built lazily from the instance's `aws.Config` and cached | The SDK documents per-call option overrides as concurrency-safe, but a client per region caches endpoint resolution and makes "which region" visible at one call site. | A mutex-guarded map. |
-| D6 | **The SDK does not retry creates** (`CreateVpc`, `CreateSubnet` are called with `func(o *ec2.Options){ o.RetryMaxAttempts = 1 }`); reads, deletes, tag changes and `ModifySubnetAttribute` keep the SDK's standard retryer | Neither create takes a client token (checked: no `ClientToken` field on either input), and the SDK's standard retryer resends on connection errors and 5xx. A resent create after AWS acted makes a second, untracked VPC. Reads are never retried by infrata, so the SDK is the only retrier there. Deletes and tag/attribute changes are idempotent here (`NotFound` on delete is success). | infrata's executor sees a throttled create once per attempt rather than after SDK backoff. That is the point: one retry loop decides, with the classification. |
+| D6 | **The SDK does not retry creates** (`CreateVpc`, `CreateSubnet` are called with `func(o *ec2.Options){ o.RetryMaxAttempts = 1 }`); reads, deletes, tag changes and `ModifySubnetAttribute` keep the SDK's standard retryer | Neither create takes a client token (checked: no `ClientToken` field on either input), and the SDK's standard retryer resends on connection errors and 5xx. A resent create after AWS acted makes a second, untracked VPC. Reads are never retried by infrena, so the SDK is the only retrier there. Deletes and tag/attribute changes are idempotent here (`NotFound` on delete is success). | infrena's executor sees a throttled create once per attempt rather than after SDK backoff. That is the point: one retry loop decides, with the classification. |
 | D7 | **Classification** (`ClassifyError`, pure function): throttle code in `retry.DefaultThrottleErrorCodes` → `SafeToRetry`; a **dial** failure (`*net.OpError` with `Op == "dial"`, request never sent) → `SafeToRetry`; HTTP status ≥ 500 via `*smithyhttp.ResponseError` → `ConditionallyRetryable`; `context.DeadlineExceeded`, any other `net.Error`, `io.ErrUnexpectedEOF` → `ConditionallyRetryable`; `context.Canceled` and everything else → `NotSafeToRetry`. Checked in that order. | A throttle can carry a 5xx status (the SDK's own retryer lists 503 as retryable), so the throttle-code check must precede the 5xx check, or a throttled create would be classified as possibly-acted. EC2 errors carry no smithy fault (see Findings F3), so status code is the only server-fault signal. `*url.Error` implements `net.Error`, so the dial check must precede the generic one. | A dial-level failure after a DNS answer is still pre-send; that reasoning is Go's `net` semantics, not an SDK guarantee, and is pinned by a test against a closed listener. |
 | D8 | **Error messages** carry the instance, operation, region/ID, AWS code and message, and request ID (`*awshttp.ResponseError.ServiceRequestID()`), and wrap the original error (`Unwrap`) so classification still sees it | A user reads it in a failed apply summary in CI with nothing else. | One small wrapper type. |
 | D9 | **Eventual consistency.** `Create` builds its result from the create response (tags go in `TagSpecifications`, so no follow-up call). `Read` retries `InvalidVpcID.NotFound`/`InvalidSubnetID.NotFound` or an empty result with backoff (5 attempts, 250ms doubling, capped at 2s: ≤ 3.75s) before returning `(nil, nil)`. `CreateSubnet` retries `InvalidVpcID.NotFound` with the same patience (the API rejected the call, so nothing was created). `Import` reads once. | AWS documents that a just-created resource's ID "might not have propagated" and that a `NotFound` "does not mean the instance does not exist". A `Read` reporting gone plans a duplicate. The plugin is never sent `CreatedAt`, so it cannot tell a fresh resource from an old one; the bounded retry applies to every read. | A really-deleted resource takes up to 3.75s longer to be reported gone. The backoff is a field on `Provider` so tests use a zero-sleep schedule. |
-| D10 | **A mutation that follows a create never turns the create into an error.** If `ModifySubnetAttribute` fails after `CreateSubnet` succeeded, `Create` returns the subnet's truthful state (`map_public_ip_on_launch: false`) and logs one line to stderr; the next plan proposes the update | infrata's adapter returns `nil` for an errored create, so the created subnet would be untracked. Truthful state converges; an orphan does not. | An apply can report success with one attribute not yet applied. Visible in the next plan. |
+| D10 | **A mutation that follows a create never turns the create into an error.** If `ModifySubnetAttribute` fails after `CreateSubnet` succeeded, `Create` returns the subnet's truthful state (`map_public_ip_on_launch: false`) and logs one line to stderr; the next plan proposes the update | infrena's adapter returns `nil` for an errored create, so the created subnet would be untracked. Truthful state converges; an orphan does not. | An apply can report success with one attribute not yet applied. Visible in the next plan. |
 | D11 | **Once a mutating request is sent, cancellation does not abandon it**: `ctx.Err()` is checked before; the call itself runs on `context.WithoutCancel(ctx)` | §6 of the authoring guide: the host waits for the real answer; a cancelled HTTP request mid-create loses the answer, not the VPC. | A cancelled apply waits for up to one in-flight call. |
-| D12 | **Schemas** (see Task 1): `aws.vpc` — `region`, `cidr` (Required, ForceNew), `tags` (map), computed `id`, `owner_id`, `is_default`. `aws.subnet` — `region`, `vpc_id`, `cidr`, `availability_zone` (all Required, ForceNew), `map_public_ip_on_launch` (bool, `Default: false`), `tags`, computed `id`, `arn`, `owner_id`. Subnet requires `aws.vpc`. | infrata's planner reports an attribute present on the resource but absent from configuration as "removed from configuration", so anything AWS always returns must be Required, Computed or defaulted: an optional `availability_zone` would plan a replacement forever. No `arn` on VPC: `types.Vpc` has no ARN field (Finding F4). `vpc_id` is the real dependency; the requirement is only a pre-flight hint (per-instance, not per-region, not from state — infrata `6e968a8`). | `availability_zone` can't be left to AWS; the user names it. VPC DNS attributes (`DescribeVpcAttribute` per attribute) are out of the slice. |
+| D12 | **Schemas** (see Task 1): `aws.vpc` — `region`, `cidr` (Required, ForceNew), `tags` (map), computed `id`, `owner_id`, `is_default`. `aws.subnet` — `region`, `vpc_id`, `cidr`, `availability_zone` (all Required, ForceNew), `map_public_ip_on_launch` (bool, `Default: false`), `tags`, computed `id`, `arn`, `owner_id`. Subnet requires `aws.vpc`. | infrena's planner reports an attribute present on the resource but absent from configuration as "removed from configuration", so anything AWS always returns must be Required, Computed or defaulted: an optional `availability_zone` would plan a replacement forever. No `arn` on VPC: `types.Vpc` has no ARN field (Finding F4). `vpc_id` is the real dependency; the requirement is only a pre-flight hint (per-instance, not per-region, not from state — infrena `6e968a8`). | `availability_zone` can't be left to AWS; the user names it. VPC DNS attributes (`DescribeVpcAttribute` per attribute) are out of the slice. |
 | D13 | **Tags**: `aws:`-prefixed keys are never reported and refused if configured; `tags` is omitted when a resource has no user tags; `Update` sends `CreateTags` for new/changed keys and `DeleteTags` for removed keys | AWS reserves `aws:` ("you can't edit or delete"), so reporting them makes every plan propose removing them. An empty map versus an absent attribute would plan "removed from configuration". Merging instead of removing is the fake plugin's old `Update` bug. | — |
-| D14 | **Discover** scans `discover_regions` × requested types with the SDK paginators, checking `ctx` between pages; includes default VPCs and everything infrata did not create. No `discover_regions` → an error naming the key | `DiscoverRequest.Region` is always `""`. A silent empty survey is invisible; infrata's `Walk` reports a per-instance error and continues with other instances. | A resource in an unscanned region cannot be imported (infrata's import selects from discovery). Documented in README. |
+| D14 | **Discover** scans `discover_regions` × requested types with the SDK paginators, checking `ctx` between pages; includes default VPCs and everything infrena did not create. No `discover_regions` → an error naming the key | `DiscoverRequest.Region` is always `""`. A silent empty survey is invisible; infrena's `Walk` reports a per-instance error and continues with other instances. | A resource in an unscanned region cannot be imported (infrena's import selects from discovery). Documented in README. |
 | D15 | **Testing without AWS: one fake, at the HTTP level** — `internal/ec2fake`, an `httptest.Server` implementing the nine EC2 actions and STS `AssumeRole` this slice calls, partitioned by the SigV4 credential-scope region, with fault injection (status/code on the Nth call, drop the connection after applying), hide-for-N-describes, call counts, and the access key IDs it saw. Clients reach it through `AWS_ENDPOINT_URL_EC2`/`AWS_ENDPOINT_URL_STS`. | The same mechanism works in unit tests and for the e2e binary (the plugin inherits the env), so there is one fake, not an interface double plus a server. Going through the real SDK proves serialisation, error decoding, retry settings and the endpoint override. The SDK's own deserialiser is the oracle for the fake's XML. | Hand-written XML for nine actions. Rejected: a narrow client interface with an in-memory double (cannot serve the e2e binary; proves nothing about the SDK); LocalStack/moto (Docker or Python in the default suite, and a second implementation whose EC2 fidelity is not ours to fix). |
-| D16 | **Real-AWS suite: yes, behind `//go:build live`, in `live/`, run by hand only.** Requires `INFRATA_AWS_LIVE_PROFILE` and `INFRATA_AWS_LIVE_ACCOUNT`; refuses to run unless STS `GetCallerIdentity` returns that account. Everything it creates is tagged `infrata-live-run=<run id>` and deleted in `t.Cleanup`; `TestSweepLeftovers` deletes tagged resources older than an hour. Not in CI. | The only suite that can catch real eventual-consistency and IAM behaviour. The account guard stops a contributor's default profile from being used by accident. VPCs and subnets cost nothing. | Needs a dedicated account (Q2: created, profile `infrata`). Run it with a least-privilege identity, not root keys — the policy the suite needs:<br>`ec2:CreateVpc`, `ec2:DeleteVpc`, `ec2:DescribeVpcs`, `ec2:CreateSubnet`, `ec2:DeleteSubnet`, `ec2:DescribeSubnets`, `ec2:ModifySubnetAttribute`, `ec2:CreateTags`, `ec2:DeleteTags`, `sts:GetCallerIdentity`. A missing permission surfaces as `UnauthorizedOperation` and is itself worth recording. |
-| D17 | **CI**: `.github/workflows/ci.yml` on push and pull request (gofmt, vet including `-tags e2e,live`, the plain suite, the e2e suite), plus `release.yml` copied from the fake plugin with the same three-way version gate | The fake plugin only tests at release; this plugin changes more often and a tag should not be the first time e2e runs in CI. Vetting the tagged files keeps `live/` compiling though it never runs. | One more workflow using `INFRATA_CHECKOUT_TOKEN`. |
-| D18 | **Package name `internal/awsprov`** | `internal/aws` would shadow the SDK's `aws` package at every import site; `internal/provider` would shadow infrata's `pkg/provider`. | — |
-| D19 | **infrata is required by version, not replaced** (James, 2026-09-13, answering Q3). `go.mod` requires the newest infrata tag that contains what this plugin relies on, or a pseudo-version of a commit until such a tag exists; no `replace`. Locally a gitignored `go.work` uses `../infrata`. CI: a **blocking `pinned` job** (`GOWORK=off`, `GOPRIVATE=github.com/infrata/*`, git credentials from `INFRATA_CHECKOUT_TOKEN`; e2e builds the infrata CLI from a checkout at the same version) and a **non-blocking `infrata-main` job** (workspace over infrata `main`). Releases build pinned. **`bump-infrata.yml`** runs daily: `go get github.com/infrata/infrata@upgrade`, tests, and opens a PR. | A `replace` makes every build compile infrata's working tree, so a green suite proves nothing about a released infrata, and the release ships an SDK nobody can name. `go.work` keeps the fast local loop without committing it. `@upgrade` never moves from a newer pseudo-version back to an older tag. infrata versions will move often until its first official release, and James wants to keep up, so the bump is automated rather than remembered. | Contributors need credentials for the private module even to `go mod tidy`. Task 1 requires `v0.2.0`, the first tag containing every infrata change this plugin relies on (F10). A bump PR opened with `GITHUB_TOKEN` gets CI runs in an approval-required state, so the bump workflow runs the suite itself before opening it. Releases are no longer tested against infrata `main` (a change from the fake plugin): the non-blocking job covers that signal. |
-| D20 | **Examples use `defaults: {region: ${aws_region}}`, with `aws_region` declared with a `default:`** and overridden per environment; `discover_regions` stays literal (James, 2026-09-13: "probably", answering Q1) | infrata resolves `providers:` variables for every command given an environment (`5895f8a`, `76c3f28`). `discover` takes none and refuses any value still unknown, `defaults:` included, though discovery never applies defaults (F9). A variable with a `default:` resolves without an environment, so `discover` keeps working. | A region set only per environment breaks `discover` until F9 is answered. The README's example and the e2e `basic` fixture change together (Task 9, Task 12). |
+| D16 | **Real-AWS suite: yes, behind `//go:build live`, in `live/`, run by hand only.** Requires `INFRENA_AWS_LIVE_PROFILE` and `INFRENA_AWS_LIVE_ACCOUNT`; refuses to run unless STS `GetCallerIdentity` returns that account. Everything it creates is tagged `infrena-live-run=<run id>` and deleted in `t.Cleanup`; `TestSweepLeftovers` deletes tagged resources older than an hour. Not in CI. | The only suite that can catch real eventual-consistency and IAM behaviour. The account guard stops a contributor's default profile from being used by accident. VPCs and subnets cost nothing. | Needs a dedicated account (Q2: created, profile `infrena`). Run it with a least-privilege identity, not root keys — the policy the suite needs:<br>`ec2:CreateVpc`, `ec2:DeleteVpc`, `ec2:DescribeVpcs`, `ec2:CreateSubnet`, `ec2:DeleteSubnet`, `ec2:DescribeSubnets`, `ec2:ModifySubnetAttribute`, `ec2:CreateTags`, `ec2:DeleteTags`, `sts:GetCallerIdentity`. A missing permission surfaces as `UnauthorizedOperation` and is itself worth recording. |
+| D17 | **CI**: `.github/workflows/ci.yml` on push and pull request (gofmt, vet including `-tags e2e,live`, the plain suite, the e2e suite), plus `release.yml` copied from the fake plugin with the same three-way version gate | The fake plugin only tests at release; this plugin changes more often and a tag should not be the first time e2e runs in CI. Vetting the tagged files keeps `live/` compiling though it never runs. | One more workflow using `INFRENA_CHECKOUT_TOKEN`. |
+| D18 | **Package name `internal/awsprov`** | `internal/aws` would shadow the SDK's `aws` package at every import site; `internal/provider` would shadow infrena's `pkg/provider`. | — |
+| D19 | **infrena is required by version, not replaced** (James, 2026-09-13, answering Q3). `go.mod` requires the newest infrena tag that contains what this plugin relies on, or a pseudo-version of a commit until such a tag exists; no `replace`. Locally a gitignored `go.work` uses `../infrena`. CI: a **blocking `pinned` job** (`GOWORK=off`, `GOPRIVATE=github.com/infrena/*`, git credentials from `INFRENA_CHECKOUT_TOKEN`; e2e builds the infrena CLI from a checkout at the same version) and a **non-blocking `infrena-main` job** (workspace over infrena `main`). Releases build pinned. **`bump-infrena.yml`** runs daily: `go get github.com/infrena/infrena@upgrade`, tests, and opens a PR. | A `replace` makes every build compile infrena's working tree, so a green suite proves nothing about a released infrena, and the release ships an SDK nobody can name. `go.work` keeps the fast local loop without committing it. `@upgrade` never moves from a newer pseudo-version back to an older tag. infrena versions will move often until its first official release, and James wants to keep up, so the bump is automated rather than remembered. | Contributors need credentials for the private module even to `go mod tidy`. Task 1 requires `v0.2.0`, the first tag containing every infrena change this plugin relies on (F10). A bump PR opened with `GITHUB_TOKEN` gets CI runs in an approval-required state, so the bump workflow runs the suite itself before opening it. Releases are no longer tested against infrena `main` (a change from the fake plugin): the non-blocking job covers that signal. |
+| D20 | **Examples use `defaults: {region: ${aws_region}}`, with `aws_region` declared with a `default:`** and overridden per environment; `discover_regions` stays literal (James, 2026-09-13: "probably", answering Q1) | infrena resolves `providers:` variables for every command given an environment (`5895f8a`, `76c3f28`). `discover` takes none and refuses any value still unknown, `defaults:` included, though discovery never applies defaults (F9). A variable with a `default:` resolves without an environment, so `discover` keeps working. | A region set only per environment breaks `discover` until F9 is answered. The README's example and the e2e `basic` fixture change together (Task 9, Task 12). |
 
 ## James's answers (2026-09-13)
 
 - **Q1 — `providers:` variables in examples: "Probably."** Adopted as D20. Task 9's `basic` fixture and the README use
   `defaults: {region: ${aws_region}}` with a `default:`; `TestProviderVariablesReachEnvironmentCommands` pins the
   environment-only case, including `discover`'s refusal (F9).
-- **Q2 — live account: "Not yet", then created the same evening.** A dedicated test account behind the `infrata`
+- **Q2 — live account: "Not yet", then created the same evening.** A dedicated test account behind the `infrena`
   profile. Its account ID lives in the vault note, not in this repository: the suite takes it from
-  `INFRATA_AWS_LIVE_ACCOUNT` at run time. Read-only checks on 2026-09-13: `sts get-caller-identity` succeeds, no region
+  `INFRENA_AWS_LIVE_ACCOUNT` at run time. Read-only checks on 2026-09-13: `sts get-caller-identity` succeeds, no region
   is configured for the profile (the suite passes one), and us-east-1 holds only the default VPC. **The profile holds
   ROOT user access keys**, which AWS "strongly recommend[s] that you do not create … because the root user has full
   access to all AWS services and resources in the account, including billing information" (IAM User Guide, "Root user
   best practices"). Before the first live run, replace them with an IAM identity limited to the policy below (D16).
   The suite never runs in CI either way.
-- **Q3 — require an infrata version in CI: "Yes, although the version will likely increase frequently and we need
-  to keep up until we make our first official release."** Adopted as D19, with `bump-infrata.yml` for keeping up.
-  F10 is resolved: infrata released `v0.2.0` the same evening, and Task 1 requires it.
+- **Q3 — require an infrena version in CI: "Yes, although the version will likely increase frequently and we need
+  to keep up until we make our first official release."** Adopted as D19, with `bump-infrena.yml` for keeping up.
+  F10 is resolved: infrena released `v0.2.0` the same evening, and Task 1 requires it.
 
 ## Findings (to report, not to fix here)
 
 | # | Where | Finding | Evidence |
 | --- | --- | --- | --- |
-| F1 | infrata (resolved) | The "providers: literal" limit was lifted for every command with an environment; `discover` keeps it for per-environment values. The authoring docs still describe the old rule. | infrata `5895f8a`, `76c3f28`; `internal/cli/context.go` `registerStateInstances` → `compiler.VariableScope`, `refuseUnresolvedInstances`; PLAN §12.1 "AMENDED 2026-09-13". The fake-provider session is updating its docs. |
-| F2 | fake repo docs (**fixed** in `b221ac8`, `b6b3dc5`) | `AGENT.md` §10 and `writing-a-provider.md` §8/§14 said state-only commands take literals only, requirements ignore instance, and an import selector silently picks one account. All three changed today; the fake-provider session updated the docs. F3–F6 were sent to that session, which is checking and fixing them. | infrata `5895f8a`, `76c3f28`, `6e968a8` (`internal/compiler/validate.go` `checkRequirements` keys by `held{instance, type}`), `a1efc85` (`import --provider`, ambiguous selectors refused, `internal/cli/import.go:311`). |
+| F1 | infrena (resolved) | The "providers: literal" limit was lifted for every command with an environment; `discover` keeps it for per-environment values. The authoring docs still describe the old rule. | infrena `5895f8a`, `76c3f28`; `internal/cli/context.go` `registerStateInstances` → `compiler.VariableScope`, `refuseUnresolvedInstances`; PLAN §12.1 "AMENDED 2026-09-13". The fake-provider session is updating its docs. |
+| F2 | fake repo docs (**fixed** in `b221ac8`, `b6b3dc5`) | `AGENT.md` §10 and `writing-a-provider.md` §8/§14 said state-only commands take literals only, requirements ignore instance, and an import selector silently picks one account. All three changed today; the fake-provider session updated the docs. F3–F6 were sent to that session, which is checking and fixing them. | infrena `5895f8a`, `76c3f28`, `6e968a8` (`internal/compiler/validate.go` `checkRequirements` keys by `held{instance, type}`), `a1efc85` (`import --provider`, ambiguous selectors refused, `internal/cli/import.go:311`). |
 | F3 | fake repo docs, §14 error table (**fixed** upstream in `e62d157`) | "A server fault … `apiErr.ErrorFault() == smithy.FaultServer`" never matches EC2. EC2's query-protocol deserialiser returns `&smithy.GenericAPIError{Code, Message}` with `Fault` unset. Use `*smithyhttp.ResponseError.HTTPStatusCode() >= 500`. | `service/ec2@v1.332.0/deserializers.go` `awsEc2query_deserializeOpErrorCreateVpc`; `smithy-go@v1.28.1/errors.go` `GenericAPIError`; `transport/http/response.go:22` `HTTPStatusCode`. |
 | F4 | fake repo docs, §14 VPC sketch (**fixed** upstream in `e62d157`) | The sketch declares a computed `arn` on `aws.vpc`; `types.Vpc` has no ARN field (`types.Subnet` has `SubnetArn`). It would have to be synthesised. | `service/ec2@v1.332.0/types/types.go`, `type Vpc struct`. |
-| F5 | fake repo docs (**fixed** upstream in `e62d157`) | The guide documents "configuration sets it, state lacks it → change" but not the converse, which is what forces AWS-reported optional attributes to be Required, Computed or defaulted. | infrata `internal/planner/diff.go` `diffAttributes`, the `!inConfig` branch: "removed from configuration". |
+| F5 | fake repo docs (**fixed** upstream in `e62d157`) | The guide documents "configuration sets it, state lacks it → change" but not the converse, which is what forces AWS-reported optional attributes to be Required, Computed or defaulted. | infrena `internal/planner/diff.go` `diffAttributes`, the `!inConfig` branch: "removed from configuration". |
 | F6 | fake repo docs, §14 retries (**fixed** upstream in `e62d157`) | `o.RetryMaxAttempts = 1` per call is correct but has a subtlety worth one sentence: the SDK ignores a per-call value equal to the client's (`finalizeOperationRetryMaxAttempts`), which is harmless only because equal means already 1. | `service/ec2@v1.332.0/api_client.go:602-608`. |
-| F7 | infrata, minor | `selectForImport`'s doc comment says a selector "splits at the LAST dot"; the code looks the whole selector up in a map. | `internal/cli/import.go`, `selectForImport`. |
-| F9 | infrata, for the infrata session | `discover` refuses an unresolved value in an instance's `defaults:`, though discovery never applies defaults. `defaults: {region: ${aws_region}}` with a per-environment-only value therefore breaks `discover` for no benefit. Either intended (say so in §12.1) or refuse configuration only. | `internal/cli/context.go` `refuseUnresolvedInstances` loops `inst.Config` and `inst.Defaults`; `discover` reaches it through `discoveryRegistry(opts, "")` → `registerStateInstances`. |
-| F10 | infrata, for James (**resolved**: `v0.2.0` on `959817b` contains all four, and `2c1bbb6`, `ca9db09`) | The only infrata tag at planning time, `v0.1.0` (`cfe996f`), contains none of `5895f8a`, `76c3f28`, `6e968a8`, `a1efc85`. A plugin pinned to it would lose per-environment `providers:` variables on refresh/destroy/import, per-instance requirements and `import --provider`. D19 needs a newer tag. | `git merge-base --is-ancestor <commit> v0.1.0` false for all four; `git ls-remote --tags origin` lists only `v0.1.0`. |
-| F8 | infrata (**resolved** on `main` in `5bc47a3`, unreleased: both fields removed, and `region`/`account` are now ordinary variable names) | `DiscoverRequest.Region` / `pluginproto` `region` still exist and are never set. Already a follow-up; this plugin's model needs neither (evidence for removal). | `pkg/provider/provider.go:64-67`; `internal/discovery/walk.go` builds `{Types: ask}`. |
+| F7 | infrena, minor | `selectForImport`'s doc comment says a selector "splits at the LAST dot"; the code looks the whole selector up in a map. | `internal/cli/import.go`, `selectForImport`. |
+| F9 | infrena, for the infrena session | `discover` refuses an unresolved value in an instance's `defaults:`, though discovery never applies defaults. `defaults: {region: ${aws_region}}` with a per-environment-only value therefore breaks `discover` for no benefit. Either intended (say so in §12.1) or refuse configuration only. | `internal/cli/context.go` `refuseUnresolvedInstances` loops `inst.Config` and `inst.Defaults`; `discover` reaches it through `discoveryRegistry(opts, "")` → `registerStateInstances`. |
+| F10 | infrena, for James (**resolved**: `v0.2.0` on `959817b` contains all four, and `2c1bbb6`, `ca9db09`) | The only infrena tag at planning time, `v0.1.0` (`cfe996f`), contains none of `5895f8a`, `76c3f28`, `6e968a8`, `a1efc85`. A plugin pinned to it would lose per-environment `providers:` variables on refresh/destroy/import, per-instance requirements and `import --provider`. D19 needs a newer tag. | `git merge-base --is-ancestor <commit> v0.1.0` false for all four; `git ls-remote --tags origin` lists only `v0.1.0`. |
+| F8 | infrena (**resolved** on `main` in `5bc47a3`, unreleased: both fields removed, and `region`/`account` are now ordinary variable names) | `DiscoverRequest.Region` / `pluginproto` `region` still exist and are never set. Already a follow-up; this plugin's model needs neither (evidence for removal). | `pkg/provider/provider.go:64-67`; `internal/discovery/walk.go` builds `{Types: ask}`. |
 
 ## Verification log
 
-Every claim the design rests on, what it was checked against on 2026-09-13, and the result. infrata was at
+Every claim the design rests on, what it was checked against on 2026-09-13, and the result. infrena was at
 `a1efc85` with a clean working tree at the last check. SDK source is the module cache for the versions in Tech Stack.
 
 | Claim | Checked against | Result |
 | --- | --- | --- |
-| Plugin interfaces: `Plugin{Name, Definitions, New(Config)}`, `Provider{Read, Create, Update, Delete, Discover, Import, ClassifyError}`; `Config{Instance, Values, ProjectDir}` | infrata `pkg/provider/provider.go` | ✔ |
-| `plugintest.Open(ctx, p, dir)`, `Host.Configure/Definitions/Version/Close` | infrata `pkg/plugintest/plugintest.go` | ✔ |
+| Plugin interfaces: `Plugin{Name, Definitions, New(Config)}`, `Provider{Read, Create, Update, Delete, Discover, Import, ClassifyError}`; `Config{Instance, Values, ProjectDir}` | infrena `pkg/provider/provider.go` | ✔ |
+| `plugintest.Open(ctx, p, dir)`, `Host.Configure/Definitions/Version/Close` | infrena `pkg/plugintest/plugintest.go` | ✔ |
 | `pluginsdk.Main(p provider.Plugin)`; `pluginproto.Version = 1` | `pkg/pluginsdk/serve.go:33`, `pkg/pluginproto/proto.go:29` | ✔ |
 | Schema kinds: string/int/float/bool/list/map; `Validate` refuses Required+Computed, Computed+Default, Required+Default | `pkg/value/kind.go`, `pkg/schema/definition.go` | ✔ |
 | A `providers:` entry's keys other than `plugin`/`name`/`default`/`defaults` reach `New` as `Config.Values` (there is no literal `config:` key) | `internal/config/providers.go`, `default:` branch | ✔ — the prompt's "`config: discover_regions`" means a top-level key in the entry |
@@ -145,26 +145,26 @@ Every claim the design rests on, what it was checked against on 2026-09-13, and 
 | EC2 API is eventually consistent; `NotFound` shortly after create "does not mean the instance does not exist"; retry describe with exponential backoff | docs.aws.amazon.com/ec2/latest/devguide/eventual-consistency.html | ✔ |
 | `aws:` tag prefix reserved, can't be edited or deleted; 50 tags, key 128 / value 256 chars | docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html | ✔ |
 | SDK modules' `go` directives (1.24) are below this module's 1.27.0 | module `go.mod`s | ✔ |
-| A `go.work` using `../infrata` substitutes for a required infrata version with no network and no `go.sum` | scratch module requiring `v0.1.0`, `GOPROXY=off go build` in workspace mode | ✔ (and `-mod=mod` is refused in workspace mode) |
+| A `go.work` using `../infrena` substitutes for a required infrena version with no network and no `go.sum` | scratch module requiring `v0.1.0`, `GOPROXY=off go build` in workspace mode | ✔ (and `-mod=mod` is refused in workspace mode) |
 | `go mod tidy` honours `go.work` | same scratch module, `GOPROXY=off go mod tidy` | ✘ **it ignores the workspace and fetches** — needs credentials |
-| The `infrata` profile authenticates to a dedicated test account; no region configured; us-east-1 holds only the default VPC | `aws sts get-caller-identity --profile infrata`, `aws configure get region`, `aws ec2 describe-vpcs --region us-east-1` (read-only) | ✔ — but the ARN is `:root`: root user access keys |
+| The `infrena` profile authenticates to a dedicated test account; no region configured; us-east-1 holds only the default VPC | `aws sts get-caller-identity --profile infrena`, `aws configure get region`, `aws ec2 describe-vpcs --region us-east-1` (read-only) | ✔ — but the ARN is `:root`: root user access keys |
 | AWS recommends against root user access keys | IAM User Guide, "Root user best practices", "Don't create access keys for the root user" | ✔ |
-| This machine can fetch the private module by version | `GOPRIVATE=github.com/infrata/* go list -m -versions` | ✘ at first (`could not read Username for 'https://github.com'`); ✔ after James ran `gh auth setup-git`: `v0.1.0` listed, and `@a1efc85` resolves to `v0.1.1-0.20260914001411-a1efc85211fc` |
+| This machine can fetch the private module by version | `GOPRIVATE=github.com/infrena/* go list -m -versions` | ✘ at first (`could not read Username for 'https://github.com'`); ✔ after James ran `gh auth setup-git`: `v0.1.0` listed, and `@a1efc85` resolves to `v0.1.1-0.20260914001411-a1efc85211fc` |
 | `@upgrade` never moves from a newer pseudo-version to an older tag | Go toolchain source `cmd/go/internal/modload/query.go:45,66,315` (1.24.13 checkout; 1.27 not re-read) | ✔ |
 | A PR opened with `GITHUB_TOKEN` does not trigger CI | docs.github.com, "GITHUB_TOKEN" concept page | ✘ **partly**: `opened`/`synchronize`/`reopened` create runs in an approval-required state |
 | `discover` refuses an unresolved `defaults:` value | `internal/cli/context.go` `refuseUnresolvedInstances`, `discoveryRegistry` | ✔ (F9) |
-| A declared variable takes `type:` and `default:` | infrata `examples/shop/modules/app-stack/module.yml`; PLAN §12.1 "a declared `default:`" | ✔ for module inputs; confirmed for top-level `variables:` by Task 9 |
-| infrata tags and what they contain | `git tag`, `git merge-base --is-ancestor`, `git ls-remote --tags origin` | only `v0.1.0`, lacking all four needed commits (F10) |
+| A declared variable takes `type:` and `default:` | infrena `examples/shop/modules/app-stack/module.yml`; PLAN §12.1 "a declared `default:`" | ✔ for module inputs; confirmed for top-level `variables:` by Task 9 |
+| infrena tags and what they contain | `git tag`, `git merge-base --is-ancestor`, `git ls-remote --tags origin` | only `v0.1.0`, lacking all four needed commits (F10) |
 | `v0.2.0` contains `5895f8a`, `76c3f28`, `6e968a8`, `a1efc85`, `2c1bbb6`, `ca9db09`; `go 1.27.0`; fetchable | `git merge-base --is-ancestor` each; `git show v0.2.0:go.mod`; `GOPRIVATE=… go list -m -versions` → `v0.1.0 v0.2.0` | ✔ |
 | F9 (discover refuses unresolved `defaults:`) is still present in `v0.2.0` | `git show v0.2.0:internal/cli/context.go`, `refuseUnresolvedInstances` loops `inst.Defaults` (line 260) | ✔ — D20's `default:` stays necessary |
-| `v0.2.0` is breaking: a requirement in one instance is no longer satisfied by another instance's resource | infrata session's release note; `6e968a8` in the tag | ✔ no fixture here spans instances |
+| `v0.2.0` is breaking: a requirement in one instance is no longer satisfied by another instance's resource | infrena session's release note; `6e968a8` in the tag | ✔ no fixture here spans instances |
 
 ## File structure
 
 ```text
-go.mod, go.sum                        module, infrata required by version (no replace), SDK requires
-.gitignore                            /infrata-plugin-aws, /bin/, /dist/, /go.work, /go.work.sum
-cmd/infrata-plugin-aws/main.go        pluginsdk.Main(awsprov.NewPlugin())
+go.mod, go.sum                        module, infrena required by version (no replace), SDK requires
+.gitignore                            /infrena-plugin-aws, /bin/, /dist/, /go.work, /go.work.sum
+cmd/infrena-plugin-aws/main.go        pluginsdk.Main(awsprov.NewPlugin())
 internal/awsprov/
   plugin.go        Plugin: Name, Version, Definitions, New (config → aws.Config → Provider)
   config.go        instanceConfig, parseConfig: accepted keys, refusal of unknown keys
@@ -188,17 +188,17 @@ e2e/e2e_test.go, e2e/testdata/{basic,variables}/infra.yml   -tags e2e
 live/live_test.go, live/README.md                           -tags live
 plugin.yaml, scripts/release-check, scripts/build-release, scripts/scripts_test.go
 internal/awsprov/manifest_test.go, internal/awsprov/readme_test.go
-.github/workflows/ci.yml, .github/workflows/release.yml, .github/workflows/bump-infrata.yml
+.github/workflows/ci.yml, .github/workflows/release.yml, .github/workflows/bump-infrena.yml
 README.md
 ```
 
 ---
 ### Task 1: Module, schemas, and a binary the host accepts
 
-> **Done 2026-09-13, `4fe0ba5` on `first-slice`.** Pinned at infrata `v0.2.0`; suite green in workspace and `GOWORK=off` modes; all four sabotages compiled and failed. Deviation: `go mod tidy` removed the SDK requires, since nothing imports the SDK yet — Task 2's imports bring them back (run `go mod tidy` there).
+> **Done 2026-09-13, `4fe0ba5` on `first-slice`.** Pinned at infrena `v0.2.0`; suite green in workspace and `GOWORK=off` modes; all four sabotages compiled and failed. Deviation: `go mod tidy` removed the SDK requires, since nothing imports the SDK yet — Task 2's imports bring them back (run `go mod tidy` there).
 
 **Files:**
-- Create: `go.mod`, `go.sum`, `.gitignore`, `cmd/infrata-plugin-aws/main.go`
+- Create: `go.mod`, `go.sum`, `.gitignore`, `cmd/infrena-plugin-aws/main.go`
 - Create: `internal/awsprov/plugin.go`, `internal/awsprov/definitions.go`, `internal/awsprov/values.go`
 - Test: `internal/awsprov/definitions_test.go`, `internal/awsprov/protocol_test.go`
 
@@ -210,34 +210,34 @@ README.md
 
 - [x] **Step 1: Create the module**
 
-Prerequisite: git credentials for `github.com/infrata/infrata` (`gh auth setup-git`, or an SSH `insteadOf`).
-Check with `GOWORK=off GOPRIVATE='github.com/infrata/*' go list -m -versions github.com/infrata/infrata`.
+Prerequisite: git credentials for `github.com/infrena/infrena` (`gh auth setup-git`, or an SSH `insteadOf`).
+Check with `GOWORK=off GOPRIVATE='github.com/infrena/*' go list -m -versions github.com/infrena/infrena`.
 
 ```bash
-cd /home/james/projects/infrata-provider-aws
-export GOPRIVATE='github.com/infrata/*'
-go mod init github.com/infrata/infrata-provider-aws
+cd /home/james/projects/infrena-provider-aws
+export GOPRIVATE='github.com/infrena/*'
+go mod init github.com/infrena/infrena-provider-aws
 go mod edit -go=1.27.0
 # v0.2.0 (959817b) is the first tag with everything this plugin relies on (F10, resolved 2026-09-13).
-GOWORK=off go get github.com/infrata/infrata@v0.2.0
+GOWORK=off go get github.com/infrena/infrena@v0.2.0
 go get github.com/aws/aws-sdk-go-v2@v1.47.0 github.com/aws/aws-sdk-go-v2/config@v1.33.4 \
   github.com/aws/aws-sdk-go-v2/credentials@v1.20.4 github.com/aws/aws-sdk-go-v2/service/ec2@v1.332.0 \
   github.com/aws/aws-sdk-go-v2/service/sts@v1.50.0 github.com/aws/smithy-go@v1.28.1
-go work init . ../infrata                 # local builds use the sibling checkout; go.work is never committed
-git -C ../infrata status --short          # must be empty, or record what the build is compiling against
+go work init . ../infrena                 # local builds use the sibling checkout; go.work is never committed
+git -C ../infrena status --short          # must be empty, or record what the build is compiling against
 ```
 
-`go.mod` gets no `replace`. Inside the `require` block, directly above the infrata line (a comment above a single-line `require` is dropped by `go mod tidy`), add:
+`go.mod` gets no `replace`. Inside the `require` block, directly above the infrena line (a comment above a single-line `require` is dropped by `go mod tidy`), add:
 
 ```
-// infrata is private: fetch it with GOPRIVATE=github.com/infrata/* and git credentials. Local work
-// builds against ../infrata through a gitignored go.work; CI builds this exact version (GOWORK=off).
+// infrena is private: fetch it with GOPRIVATE=github.com/infrena/* and git credentials. Local work
+// builds against ../infrena through a gitignored go.work; CI builds this exact version (GOWORK=off).
 ```
 
 `.gitignore`:
 
 ```
-/infrata-plugin-aws
+/infrena-plugin-aws
 /bin/
 /dist/
 /go.work
@@ -274,7 +274,7 @@ func TestEveryTypeIsValidAndPrefixed(t *testing.T) {
 }
 
 // TestRegionalAttributesAreRequiredAndForceNew. A resource cannot move between regions or VPCs, and
-// every attribute AWS always reports must be Required, Computed or defaulted, or infrata plans
+// every attribute AWS always reports must be Required, Computed or defaulted, or infrena plans
 // "removed from configuration" forever (internal/planner/diff.go, diffAttributes).
 func TestRegionalAttributesAreRequiredAndForceNew(t *testing.T) {
 	want := map[string][]string{
@@ -323,7 +323,7 @@ Expected: FAIL — `undefined: definitions`.
 ```go
 package awsprov
 
-import "github.com/infrata/infrata/pkg/value"
+import "github.com/infrena/infrena/pkg/value"
 
 // str and boolean build values as a provider reports them. Sensitivity and provenance are NOT set
 // here beyond the source: the host forces both from the schema, and a plugin that also did it would
@@ -338,8 +338,8 @@ func boolean(b bool) value.Value  { return value.Bool(b, value.SourceProvider) }
 package awsprov
 
 import (
-	"github.com/infrata/infrata/pkg/schema"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/schema"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 const (
@@ -349,7 +349,7 @@ const (
 
 // regionAttr is declared by every regional type. ForceNew because an AWS resource cannot move
 // between regions; the default comes from the instance's `defaults: {region: …}`, applied by
-// infrata at compile time and never sent to this plugin.
+// infrena at compile time and never sent to this plugin.
 var regionAttr = schema.Attribute{Kind: value.KindString, Required: true, ForceNew: true,
 	Description: "AWS region, e.g. us-east-1. Usually set once with the provider's defaults: {region: …}"}
 
@@ -408,14 +408,14 @@ func definitions() []*schema.ResourceDefinition {
 `internal/awsprov/plugin.go`:
 
 ```go
-// Package awsprov is infrata's AWS provider plugin.
+// Package awsprov is infrena's AWS provider plugin.
 package awsprov
 
 import (
 	"errors"
 
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/schema"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/schema"
 )
 
 // PluginName is the binary's suffix, what `plugin:` names, and every type's prefix.
@@ -448,15 +448,15 @@ func (pl *Plugin) New(cfg provider.Config) (provider.Provider, error) {
 }
 ```
 
-`cmd/infrata-plugin-aws/main.go`:
+`cmd/infrena-plugin-aws/main.go`:
 
 ```go
-// Command infrata-plugin-aws is infrata's AWS provider. Infrata runs it; you do not.
+// Command infrena-plugin-aws is infrena's AWS provider. Infrena runs it; you do not.
 package main
 
 import (
-	"github.com/infrata/infrata-provider-aws/internal/awsprov"
-	"github.com/infrata/infrata/pkg/pluginsdk"
+	"github.com/infrena/infrena-provider-aws/internal/awsprov"
+	"github.com/infrena/infrena/pkg/pluginsdk"
 )
 
 func main() { pluginsdk.Main(awsprov.NewPlugin()) }
@@ -473,10 +473,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/infrata/infrata/pkg/plugintest"
+	"github.com/infrena/infrena/pkg/plugintest"
 )
 
-// openHost connects this plugin to infrata's own host over an in-memory pipe: schema validation,
+// openHost connects this plugin to infrena's own host over an in-memory pipe: schema validation,
 // the prefix rule and reserved names all apply, exactly as for a subprocess.
 func openHost(t *testing.T) *plugintest.Host {
 	t.Helper()
@@ -516,9 +516,9 @@ func TestSchemasLoadThroughTheHost(t *testing.T) {
 
 ```bash
 go test -count=1 ./...
-go build -o bin/infrata-plugin-aws ./cmd/infrata-plugin-aws
-./bin/infrata-plugin-aws; echo "exit $?"                       # expect the "run by infrata" message, exit 2
-INFRATA_PLUGIN_COOKIE=x ./bin/infrata-plugin-aws </dev/null     # expect {"protocol":1,"name":"aws","version":"0.0.0-dev"}
+go build -o bin/infrena-plugin-aws ./cmd/infrena-plugin-aws
+./bin/infrena-plugin-aws; echo "exit $?"                       # expect the "run by infrena" message, exit 2
+INFRENA_PLUGIN_COOKIE=x ./bin/infrena-plugin-aws </dev/null     # expect {"protocol":1,"name":"aws","version":"0.0.0-dev"}
 go vet ./... && gofmt -l .
 ```
 
@@ -533,7 +533,7 @@ rename the type to `awsx.vpc` (both tests).
 
 ```bash
 GOWORK=off go test -count=1 ./...   # the pinned build passes too, not only the workspace one
-git add go.mod go.sum .gitignore cmd/infrata-plugin-aws/main.go internal/awsprov/plugin.go \
+git add go.mod go.sum .gitignore cmd/infrena-plugin-aws/main.go internal/awsprov/plugin.go \
   internal/awsprov/definitions.go internal/awsprov/values.go internal/awsprov/definitions_test.go \
   internal/awsprov/protocol_test.go
 git commit -m "aws: schemas the host accepts, and a binary that says what it is" -- <same paths>
@@ -543,7 +543,7 @@ git commit -m "aws: schemas the host accepts, and a binary that says what it is"
 
 ### Task 2: Instance configuration and credentials
 
-> **Done 2026-09-13, `3c10cc1` on `first-slice`.** Suite green in workspace and `GOWORK=off` modes; all four sabotages compiled and failed. `go mod tidy` restored the SDK requires. **Found:** tidy silently drops a comment written above a single-line `require`, so the infrata comment from Task 1 was lost; it now sits inside the `require` block, directly above the infrata line, where tidy keeps it. The assume-role test is Task 3 Step 5, as planned.
+> **Done 2026-09-13, `3c10cc1` on `first-slice`.** Suite green in workspace and `GOWORK=off` modes; all four sabotages compiled and failed. `go mod tidy` restored the SDK requires. **Found:** tidy silently drops a comment written above a single-line `require`, so the infrena comment from Task 1 was lost; it now sits inside the `require` block, directly above the infrena line, where tidy keeps it. The assume-role test is Task 3 Step 5, as planned.
 
 **Files:**
 - Create: `internal/awsprov/config.go`, `internal/awsprov/credentials.go`, `internal/awsprov/testenv_test.go`
@@ -625,8 +625,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 func s(v string) value.Value { return value.String(v, value.SourceExplicit) }
@@ -728,7 +728,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 const (
@@ -896,7 +896,7 @@ func (c *clients) ec2(region string) *ec2.Client {
 }
 
 // createOnce stops the SDK resending a create. CreateVpc and CreateSubnet take no client token, so
-// a resend after AWS acted makes a second resource nothing records; infrata's executor decides
+// a resend after AWS acted makes a second resource nothing records; infrena's executor decides
 // instead, from ClassifyError. The SDK ignores a per-call value equal to the client's own, which is
 // harmless: equal means the client already makes one attempt.
 func createOnce(o *ec2.Options) { o.RetryMaxAttempts = 1 }
@@ -912,9 +912,9 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/schema"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/schema"
 )
 
 // Provider is one configured instance: one AWS account's credentials, any number of regions.
@@ -1787,7 +1787,7 @@ func TestAssumeRoleSignsEC2CallsWithTheAssumedCredentials(t *testing.T) {
 }
 ```
 
-(imports: `context`, `github.com/aws/aws-sdk-go-v2/service/ec2`, `github.com/infrata/infrata-provider-aws/internal/ec2fake`.)
+(imports: `context`, `github.com/aws/aws-sdk-go-v2/service/ec2`, `github.com/infrena/infrena-provider-aws/internal/ec2fake`.)
 
 Run: `go test -count=1 ./...` — Expected: PASS.
 
@@ -1876,8 +1876,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/infrata/infrata-provider-aws/internal/ec2fake"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena-provider-aws/internal/ec2fake"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
 func sdkClient(endpoint string, attempts int) *ec2.Client {
@@ -1996,7 +1996,7 @@ import (
 	"strings"
 )
 
-// formatID is the one provider-ID form used everywhere — Create, Discover, Import — because infrata
+// formatID is the one provider-ID form used everywhere — Create, Discover, Import — because infrena
 // imports by matching `<type>.<provider id>` against what Discover returned, and Import is given no
 // region of its own.
 func formatID(region, awsID string) string { return region + "/" + awsID }
@@ -2034,10 +2034,10 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	"github.com/infrata/infrata/pkg/provider"
+	"github.com/infrena/infrena/pkg/provider"
 )
 
-// classify answers infrata's question — how dangerous is another attempt — from the error alone. It
+// classify answers infrena's question — how dangerous is another attempt — from the error alone. It
 // must be a pure function: the plugin SDK asks any one configured instance, not the one that failed.
 //
 // Order matters. A throttle may carry a 5xx status, so the throttle code is checked before the status. A
@@ -2114,7 +2114,7 @@ func (p *Provider) failed(op, region, awsID string, err error) error {
 	case hasCode(err, "UnauthorizedOperation", "AuthFailure"):
 		msg += fmt.Sprintf("\ncheck the IAM permissions of the credentials instance %q uses", p.instance)
 	case hasCode(err, "DependencyViolation"):
-		msg += "\nsomething infrata does not manage still depends on it (subnets, network interfaces, gateways): remove that first"
+		msg += "\nsomething infrena does not manage still depends on it (subnets, network interfaces, gateways): remove that first"
 	}
 	return &apiFailure{msg: msg, err: err}
 }
@@ -2149,7 +2149,7 @@ git commit -m "aws: classify SDK errors by what AWS may have done, and say where
 ---
 ### Task 5: `aws.vpc` — create, read, update, delete
 
-> **Done 2026-09-13, `0b0baa2` on `first-slice`.** Everything passed on the first run. **The strongest evidence in the slice so far:** with `createOnce` sabotaged away and `AWS_MAX_ATTEMPTS=5`, the SDK resent a `CreateVpc` whose connection had dropped after the fake acted, and the resend succeeded. The duplicate-VPC hazard behind D6 is real, and the one-attempt option is what prevents it. Workspace builds ran against infrata `main` at `5bc47a3` (region plumbing removed), pinned builds against `v0.2.0`; both green.
+> **Done 2026-09-13, `0b0baa2` on `first-slice`.** Everything passed on the first run. **The strongest evidence in the slice so far:** with `createOnce` sabotaged away and `AWS_MAX_ATTEMPTS=5`, the SDK resent a `CreateVpc` whose connection had dropped after the fake acted, and the resend succeeded. The duplicate-VPC hazard behind D6 is real, and the one-attempt option is what prevents it. Workspace builds ran against infrena `main` at `5bc47a3` (region plumbing removed), pinned builds against `v0.2.0`; both green.
 
 **Files:**
 - Create: `internal/awsprov/vpc.go`, `internal/awsprov/tags.go`, `internal/awsprov/attrs.go`
@@ -2181,11 +2181,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/infrata/infrata-provider-aws/internal/ec2fake"
-	"github.com/infrata/infrata/pkg/address"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/ec2fake"
+	"github.com/infrena/infrena/pkg/address"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // fakeProvider configures a real instance — LoadDefaultConfig and all — against a fresh fake, with
@@ -2245,10 +2245,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/ec2fake"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/ec2fake"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 func TestAVPCIsCreatedWithItsTagsAndReadBack(t *testing.T) {
@@ -2312,7 +2312,7 @@ func TestACreateIsSentOnceEvenWhenTheAnswerIsLost(t *testing.T) {
 				t.Errorf("CreateVpc sent %d times; a resent create makes an untracked VPC", n)
 			}
 			if got := prov.ClassifyError(err); got != provider.ConditionallyRetryable {
-				t.Errorf("classification = %v, want ConditionallyRetryable so infrata does not retry the create", got)
+				t.Errorf("classification = %v, want ConditionallyRetryable so infrena does not retry the create", got)
 			}
 		})
 	}
@@ -2453,7 +2453,7 @@ package awsprov
 import (
 	"testing"
 
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 func TestTagsMustBeAMapOfStrings(t *testing.T) {
@@ -2484,10 +2484,10 @@ package awsprov
 import (
 	"fmt"
 
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/value"
 )
 
-// stringAttr reads a required string. infrata has already checked Required and Kind at compile time;
+// stringAttr reads a required string. infrena has already checked Required and Kind at compile time;
 // this is the plugin refusing to guess if a caller skipped that.
 func stringAttr(attrs map[string]value.Value, name string) (string, error) {
 	v, ok := attrs[name]
@@ -2529,7 +2529,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // reservedPrefix is AWS's own: tags under it cannot be edited or deleted, so they are neither
@@ -2682,8 +2682,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 func vpcState(region string, v types.Vpc) *resource.ResourceState {
@@ -2725,7 +2725,7 @@ func (p *Provider) createVPC(ctx context.Context, attrs map[string]value.Value) 
 		return nil, p.failed("CreateVpc", region, "", err)
 	}
 	if out.Vpc == nil || aws.ToString(out.Vpc.VpcId) == "" {
-		return nil, fmt.Errorf("aws instance %q: CreateVpc in %s succeeded but returned no VPC ID, so infrata cannot record it: "+
+		return nil, fmt.Errorf("aws instance %q: CreateVpc in %s succeeded but returned no VPC ID, so infrena cannot record it: "+
 			"look for a VPC with CIDR %s in %s and import it", p.instance, region, cidr, region)
 	}
 	vpc := *out.Vpc
@@ -2886,9 +2886,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata-provider-aws/internal/ec2fake"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/ec2fake"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 func subnetAttrs(vpcID string, extra map[string]value.Value) map[string]value.Value {
@@ -2983,7 +2983,7 @@ func TestMapPublicIPIsSetOnCreateAndChangedInPlace(t *testing.T) {
 	}
 }
 
-// TestAFailedAttributeAfterCreateStillReportsTheSubnet. infrata drops the result of an errored
+// TestAFailedAttributeAfterCreateStillReportsTheSubnet. infrena drops the result of an errored
 // create, so an error here would leave a real subnet untracked.
 func TestAFailedAttributeAfterCreateStillReportsTheSubnet(t *testing.T) {
 	p, fake := fakeProvider(t, nil)
@@ -3015,8 +3015,8 @@ func TestDeletingASubnetThatIsAlreadyGoneSucceeds(t *testing.T) {
 	}
 }
 
-// TestAVPCWithASubnetRefusesDeletionWithAHint. infrata orders destroys by reference, so this only
-// happens when something outside infrata sits in the VPC.
+// TestAVPCWithASubnetRefusesDeletionWithAHint. infrena orders destroys by reference, so this only
+// happens when something outside infrena sits in the VPC.
 func TestAVPCWithASubnetRefusesDeletionWithAHint(t *testing.T) {
 	p, fake := fakeProvider(t, nil)
 	ctx := context.Background()
@@ -3059,8 +3059,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 func subnetState(region string, sub types.Subnet) *resource.ResourceState {
@@ -3125,7 +3125,7 @@ func (p *Provider) createSubnet(ctx context.Context, attrs map[string]value.Valu
 		return nil, p.failed("CreateSubnet", in.region, "", fmt.Errorf("VPC %s does not exist in %s: %w", in.vpcID, in.region, lastErr))
 	}
 	if out.Subnet == nil || aws.ToString(out.Subnet.SubnetId) == "" {
-		return nil, fmt.Errorf("aws instance %q: CreateSubnet in %s succeeded but returned no subnet ID, so infrata cannot record it: "+
+		return nil, fmt.Errorf("aws instance %q: CreateSubnet in %s succeeded but returned no subnet ID, so infrena cannot record it: "+
 			"look for subnet %s in VPC %s and import it", p.instance, in.region, in.cidr, in.vpcID)
 	}
 	sub := *out.Subnet
@@ -3289,8 +3289,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // TestDiscoverFindsEveryRequestedTypeInEveryScannedRegionAcrossPages. The fixture is built so each
@@ -3379,13 +3379,13 @@ import (
 	"sort"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
 )
 
 // Discover lists every requested type in every region the instance scans, including everything
-// infrata did not create — which is what discovery is for. The regions come from `discover_regions`:
-// infrata never sends one (DiscoverRequest.Region is always empty) and never sends `defaults:`.
+// infrena did not create — which is what discovery is for. The regions come from `discover_regions`:
+// infrena never sends one (DiscoverRequest.Region is always empty) and never sends `defaults:`.
 func (p *Provider) Discover(ctx context.Context, req provider.DiscoverRequest) ([]provider.DiscoveredResource, error) {
 	if len(p.config.DiscoverRegions) == 0 {
 		return nil, fmt.Errorf("aws instance %q has no discover_regions, so there is nowhere to look: "+
@@ -3495,7 +3495,7 @@ git commit -m "aws: discover pages through every scanned region, and import refu
 
 ---
 
-### Task 8: Through infrata's host — `pkg/plugintest`
+### Task 8: Through infrena's host — `pkg/plugintest`
 
 **Files:**
 - Modify: `internal/awsprov/protocol_test.go`
@@ -3587,8 +3587,8 @@ func TestImportingAMissingIDIsReportedByTheHost(t *testing.T) {
 }
 ```
 
-(imports to add: `strings`, `github.com/infrata/infrata-provider-aws/internal/ec2fake`,
-`github.com/infrata/infrata/pkg/provider`, `github.com/infrata/infrata/pkg/value`.)
+(imports to add: `strings`, `github.com/infrena/infrena-provider-aws/internal/ec2fake`,
+`github.com/infrena/infrena/pkg/provider`, `github.com/infrena/infrena/pkg/value`.)
 
 Note: `hostProvider` does not zero the patience backoff — the plugin runs behind the pipe. No test here makes a
 read miss, so no test waits.
@@ -3596,7 +3596,7 @@ read miss, so no test waits.
 - [ ] **Step 2: Run**
 
 Run: `go test -count=1 -run 'ThroughTheHost|Discovered|AcrossThePipe|ReportedByTheHost' -v ./internal/awsprov/`
-Expected: PASS. If `TestImportingAMissingID…` fails on wording, read infrata's `internal/pluginhost/adapter.go`
+Expected: PASS. If `TestImportingAMissingID…` fails on wording, read infrena's `internal/pluginhost/adapter.go`
 `Import` for the current text and assert on that; the test's point is that `(nil, nil)` reaches the user as a
 sentence, not the exact words.
 
@@ -3608,11 +3608,11 @@ error instead of `(nil, nil)` when not found (`TestImportingAMissingID…`).
 
 ```bash
 git add internal/awsprov/protocol_test.go
-git commit -m "aws: what the plugin returns survives infrata's own host" -- internal/awsprov/protocol_test.go
+git commit -m "aws: what the plugin returns survives infrena's own host" -- internal/awsprov/protocol_test.go
 ```
 
 ---
-### Task 9: A real infrata against the real binary and the fake endpoint (`-tags e2e`)
+### Task 9: A real infrena against the real binary and the fake endpoint (`-tags e2e`)
 
 **Files:**
 - Create: `e2e/e2e_test.go`, `e2e/testdata/basic/infra.yml`
@@ -3622,13 +3622,13 @@ git commit -m "aws: what the plugin returns survives infrata's own host" -- inte
 - Consumes: `ec2fake.New`, `AddVPC`, `SetTag`, `SetCIDR`, `Remove`, `VPCs`, `Subnets`; the binary from Task 1.
 - Produces: `e2e/testdata/basic/infra.yml`, which the README quotes byte for byte (Task 12).
 
-The harness is `infrata-provider-fake/e2e/e2e_test.go`'s: `TestMain` builds `infrata` from `$INFRATA_SRC`
-(default `../../infrata`, skipping loudly if absent) and this plugin into a temp plugin dir; `infrata(...)` runs the
+The harness is `infrena-provider-fake/e2e/e2e_test.go`'s: `TestMain` builds `infrena` from `$INFRENA_SRC`
+(default `../../infrena`, skipping loudly if absent) and this plugin into a temp plugin dir; `infrena(...)` runs the
 CLI with `--plugin-dir`; `expect(...)` checks exit code and substrings; `planOps(...)` reads `plan dev --output`.
 Copy those four helpers unchanged except as below. The one structural change: the "cloud" is a fake server, so each
-project owns one, and every command's environment points the plugin at it. The plugin inherits infrata's environment.
+project owns one, and every command's environment points the plugin at it. The plugin inherits infrena's environment.
 
-Do not copy `TestTheInfrataUnderTestSpeaksTheManifestsProtocol` here; it reads `plugin.yaml`, which Task 10 creates,
+Do not copy `TestTheInfrenaUnderTestSpeaksTheManifestsProtocol` here; it reads `plugin.yaml`, which Task 10 creates,
 and Task 10 adds it.
 
 - [ ] **Step 1: The fixture**
@@ -3671,8 +3671,8 @@ The region reaches both resources through `defaults:`, from a variable with a `d
 - [ ] **Step 2: Write the suite**
 
 `e2e/e2e_test.go` — the fake plugin's `TestMain` with the plugin build line changed to
-`{"..", filepath.Join(pluginDir, "infrata-plugin-aws"), "./cmd/infrata-plugin-aws"}`, its `writeFile`
-unchanged, and these replacing `project`, `infrata`, `expect` and `planOps` (now methods on a per-project `env`):
+`{"..", filepath.Join(pluginDir, "infrena-plugin-aws"), "./cmd/infrena-plugin-aws"}`, its `writeFile`
+unchanged, and these replacing `project`, `infrena`, `expect` and `planOps` (now methods on a per-project `env`):
 
 ```go
 //go:build e2e
@@ -3680,7 +3680,7 @@ unchanged, and these replacing `project`, `infrata`, `expect` and `planOps` (now
 package e2e
 
 // (imports: encoding/json, fmt, os, os/exec, path/filepath, strings, testing,
-//  github.com/infrata/infrata-provider-aws/internal/ec2fake)
+//  github.com/infrena/infrena-provider-aws/internal/ec2fake)
 
 // env is one project and the AWS account it talks to.
 type env struct {
@@ -3708,16 +3708,16 @@ func fixture(t *testing.T, name string) string {
 	return string(data)
 }
 
-// infrata runs the CLI in the project. Nothing from the developer's machine reaches the plugin: no
+// infrena runs the CLI in the project. Nothing from the developer's machine reaches the plugin: no
 // plugins but ours, no AWS config or credentials but static test keys, no instance metadata, and
 // EC2/STS pointed at this project's fake.
-func (e *env) infrata(t *testing.T, args ...string) (string, int) {
+func (e *env) infrena(t *testing.T, args ...string) (string, int) {
 	t.Helper()
 	home := t.TempDir()
-	cmd := exec.Command(infrataBin, append(args, "--plugin-dir", pluginDir)...)
+	cmd := exec.Command(infrenaBin, append(args, "--plugin-dir", pluginDir)...)
 	cmd.Dir = e.dir
 	cmd.Env = append(os.Environ(),
-		"INFRATA_PLUGIN_PATH=", "HOME="+home,
+		"INFRENA_PLUGIN_PATH=", "HOME="+home,
 		"AWS_CONFIG_FILE="+filepath.Join(home, "none"), "AWS_SHARED_CREDENTIALS_FILE="+filepath.Join(home, "none"),
 		"AWS_PROFILE=", "AWS_REGION=", "AWS_DEFAULT_REGION=", "AWS_MAX_ATTEMPTS=", "AWS_SESSION_TOKEN=",
 		"AWS_ACCESS_KEY_ID=AKIDE2E", "AWS_SECRET_ACCESS_KEY=e2e-secret", "AWS_EC2_METADATA_DISABLED=true",
@@ -3728,20 +3728,20 @@ func (e *env) infrata(t *testing.T, args ...string) (string, int) {
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		code = exitErr.ExitCode()
 	} else if err != nil {
-		t.Fatalf("running infrata %v: %v", args, err)
+		t.Fatalf("running infrena %v: %v", args, err)
 	}
 	return string(out), code
 }
 
 func (e *env) expect(t *testing.T, wantCode int, want []string, args ...string) string {
 	t.Helper()
-	out, code := e.infrata(t, args...)
+	out, code := e.infrena(t, args...)
 	if code != wantCode {
-		t.Fatalf("infrata %s: exit %d, want %d\n%s", strings.Join(args, " "), code, wantCode, out)
+		t.Fatalf("infrena %s: exit %d, want %d\n%s", strings.Join(args, " "), code, wantCode, out)
 	}
 	for _, w := range want {
 		if !strings.Contains(out, w) {
-			t.Fatalf("infrata %s: output lacks %q\n%s", strings.Join(args, " "), w, out)
+			t.Fatalf("infrena %s: output lacks %q\n%s", strings.Join(args, " "), w, out)
 		}
 	}
 	return out
@@ -3751,7 +3751,7 @@ func (e *env) expect(t *testing.T, wantCode int, want []string, args ...string) 
 func (e *env) planOps(t *testing.T) map[string]string {
 	t.Helper()
 	outPath := filepath.Join(t.TempDir(), "plan.json")
-	e.infrata(t, "plan", "dev", "--output", outPath)
+	e.infrena(t, "plan", "dev", "--output", outPath)
 	data, err := os.ReadFile(outPath)
 	if err != nil {
 		t.Fatalf("plan wrote no --output file: %v", err)
@@ -3809,7 +3809,7 @@ func TestTheWorkflow(t *testing.T) {
 			t.Fatalf("re-plan after apply proposes %v, want nothing — an attribute read back differs from what was created", ops)
 		}
 	})
-	t.Run("a tag changed outside infrata is an update", func(t *testing.T) {
+	t.Run("a tag changed outside infrena is an update", func(t *testing.T) {
 		e.fake.SetTag(vpcID(), "team", "someone-else")
 		if kind := e.planOps(t)["vpc"]; kind != "update" {
 			t.Fatalf("vpc plans as %q, want update", kind)
@@ -3839,13 +3839,13 @@ func TestTheWorkflow(t *testing.T) {
 			t.Fatalf("plan after removing tags proposes %v — tags were merged, not replaced, or {} was reported", ops)
 		}
 	})
-	t.Run("a CIDR changed outside infrata forces a replacement", func(t *testing.T) {
+	t.Run("a CIDR changed outside infrena forces a replacement", func(t *testing.T) {
 		e.fake.SetCIDR(vpcID(), "10.50.0.0/16")
 		if kind := e.planOps(t)["vpc"]; kind != "replace" {
 			t.Fatalf("vpc plans as %q, want replace", kind)
 		}
 	})
-	t.Run("a subnet deleted outside infrata is recreated", func(t *testing.T) {
+	t.Run("a subnet deleted outside infrena is recreated", func(t *testing.T) {
 		// Restore the CIDR first so this subtest is about one thing.
 		e.fake.SetCIDR(vpcID(), "10.0.0.0/16")
 		e.fake.Remove(e.fake.Subnets()[0].ID)
@@ -3854,7 +3854,7 @@ func TestTheWorkflow(t *testing.T) {
 		}
 		e.expect(t, 2, []string{"0 failed"}, "apply", "dev", "--auto-approve")
 	})
-	t.Run("discover and import adopt a VPC infrata did not create", func(t *testing.T) {
+	t.Run("discover and import adopt a VPC infrena did not create", func(t *testing.T) {
 		other := e.fake.AddVPC("us-east-1", "172.16.0.0/16", map[string]string{"owner": "legacy"})
 		e.expect(t, 0, []string{"aws.vpc", "us-east-1/" + other}, "discover")
 		e.expect(t, 0, []string{"1 resource imported"}, "import", "dev", "aws.vpc.us-east-1/"+other, "--generate")
@@ -3862,7 +3862,7 @@ func TestTheWorkflow(t *testing.T) {
 			t.Fatalf("plan after import --generate proposes %v", ops)
 		}
 	})
-	t.Run("destroy removes everything infrata manages", func(t *testing.T) {
+	t.Run("destroy removes everything infrena manages", func(t *testing.T) {
 		e.expect(t, 2, []string{"0 failed"}, "destroy", "dev", "--auto-approve")
 		if len(e.fake.VPCs()) != 0 || len(e.fake.Subnets()) != 0 {
 			t.Fatalf("after destroy the fake holds %+v / %+v", e.fake.VPCs(), e.fake.Subnets())
@@ -3899,7 +3899,7 @@ func TestAMisspelledKeyIsRefusedAgainstTheProvidersEntry(t *testing.T) {
 	e.expect(t, 1, []string{`provider instance "aws" could not be configured`, `unknown configuration "discover_region"`}, "plan", "dev")
 }
 
-// TestProviderVariablesReachEnvironmentCommands pins infrata 5895f8a/76c3f28 for this plugin's model
+// TestProviderVariablesReachEnvironmentCommands pins infrena 5895f8a/76c3f28 for this plugin's model
 // (D20). The region is set ONLY in environments/dev.yml: a `default:` would resolve without an
 // environment and let a regression pass. It also pins F9: discover refuses the environment-only
 // default even though it never uses it, and --var gets past that.
@@ -3929,11 +3929,11 @@ resources:
 		}
 	}
 	unresolved(t, e.expect(t, 2, []string{"Apply complete: 1 applied"}, "apply", "dev", "--auto-approve"))
-	out, _ := e.infrata(t, "refresh", "dev")
+	out, _ := e.infrena(t, "refresh", "dev")
 	unresolved(t, out)
 	other := e.fake.AddVPC("us-east-1", "172.16.0.0/16", nil)
 	unresolved(t, e.expect(t, 0, []string{"1 resource imported"}, "import", "dev", "aws.vpc.us-east-1/"+other))
-	e.expect(t, 1, []string{"could not be resolved", "--var"}, "discover") // F9; exit code as infrata reports a refused instance
+	e.expect(t, 1, []string{"could not be resolved", "--var"}, "discover") // F9; exit code as infrena reports a refused instance
 	e.expect(t, 0, []string{"us-east-1/" + other}, "discover", "--var", "aws_region=us-east-1")
 	unresolved(t, e.expect(t, 2, []string{"0 failed"}, "destroy", "dev", "--auto-approve"))
 	if len(e.fake.VPCs()) != 0 {
@@ -3947,7 +3947,7 @@ resources:
 Run: `go test -tags e2e -count=1 -v ./e2e/`
 Expected: PASS (the recreate subtest takes about 4s: the patience before reporting gone). If a quoted output
 line differs (for example `1 resource imported`, or the exit code of a refused `discover`), read the actual output
-and assert on it — the wording is infrata's — and note it here. If infrata has since changed F9 so `discover`
+and assert on it — the wording is infrena's — and note it here. If infrena has since changed F9 so `discover`
 succeeds without `--var`, flip that assertion and mark F9 answered.
 
 - [ ] **Step 4: Sabotage, then commit**
@@ -3960,7 +3960,7 @@ the attribute's kind, and apply fails).
 
 ```bash
 git add e2e/e2e_test.go e2e/testdata/basic/infra.yml
-git commit -m "e2e: infrata plans, applies, repairs drift, imports and destroys against the fake EC2" -- <same paths>
+git commit -m "e2e: infrena plans, applies, repairs drift, imports and destroys against the fake EC2" -- <same paths>
 ```
 
 ---
@@ -3970,11 +3970,11 @@ git commit -m "e2e: infrata plans, applies, repairs drift, imports and destroys 
 **Files:**
 - Create: `plugin.yaml`, `scripts/release-check`, `scripts/build-release`, `scripts/scripts_test.go`
 - Create: `internal/awsprov/manifest_test.go`
-- Create: `.github/workflows/release.yml`, `.github/workflows/ci.yml`, `.github/workflows/bump-infrata.yml`
+- Create: `.github/workflows/release.yml`, `.github/workflows/ci.yml`, `.github/workflows/bump-infrena.yml`
 
 **Interfaces:**
-- Consumes: `awsprov.Version`, `PluginName`; infrata `pkg/pluginmanifest.Parse`, `pkg/pluginproto.Version`.
-- Produces: the release convention `infrata-plugin-aws_<version>_<goos>_<goarch>.tar.gz` (`.zip` on Windows).
+- Consumes: `awsprov.Version`, `PluginName`; infrena `pkg/pluginmanifest.Parse`, `pkg/pluginproto.Version`.
+- Produces: the release convention `infrena-plugin-aws_<version>_<goos>_<goarch>.tar.gz` (`.zip` on Windows).
 
 Copy the fake plugin's files and change only what names the plugin. Each copy is listed with its exact
 substitutions so nothing else drifts.
@@ -3982,45 +3982,45 @@ substitutions so nothing else drifts.
 - [ ] **Step 1: `plugin.yaml`**
 
 ```yaml
-# plugin.yaml: what this plugin is, and what it works with. infrata PLAN.md §31.2.
+# plugin.yaml: what this plugin is, and what it works with. infrena PLAN.md §31.2.
 # Read at a release TAG, never at the default branch, which describes unreleased code.
 manifest: 1
 name: aws
 version: 0.1.0
 protocol: [1]
 platforms: [linux/amd64, linux/arm64, linux/arm, linux/386, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64]
-description: The AWS provider for infrata.
-infrata: ">= 0.2.0"
-source: https://github.com/infrata/infrata-provider-aws
+description: The AWS provider for infrena.
+infrena: ">= 0.2.0"
+source: https://github.com/infrena/infrena-provider-aws
 ```
 
-`infrata: ">= 0.2.0"` because a release IS known not to work: on `v0.1.0`, `refresh`/`destroy`/`import` cannot
+`infrena: ">= 0.2.0"` because a release IS known not to work: on `v0.1.0`, `refresh`/`destroy`/`import` cannot
 resolve `defaults: {region: ${aws_region}}`, requirements span accounts, and `import --provider` does not exist — all
 of which this plugin's README and e2e suite rely on. Validate it with `pkg/semver.ParseConstraint` through the
-manifest test; a development build of infrata is exempt from the floor, so the e2e manifest test still passes
+manifest test; a development build of infrena is exempt from the floor, so the e2e manifest test still passes
 against a checkout build.
 
 - [ ] **Step 2: The manifest test (failing first — run it before creating `plugin.yaml` to see it fail)**
 
-`internal/awsprov/manifest_test.go` — `infrata-provider-fake/internal/fake/manifest_test.go` with `package awsprov`
+`internal/awsprov/manifest_test.go` — `infrena-provider-fake/internal/fake/manifest_test.go` with `package awsprov`
 and nothing else changed (it already reads `../../plugin.yaml` and compares against `PluginName` and
 `pluginproto.Version`).
 
 Run: `go test -count=1 -run Manifest ./internal/awsprov/` — FAIL before Step 1's file exists, PASS after.
 
-Also copy `TestTheInfrataUnderTestSpeaksTheManifestsProtocol` from `infrata-provider-fake/e2e/e2e_test.go` into
+Also copy `TestTheInfrenaUnderTestSpeaksTheManifestsProtocol` from `infrena-provider-fake/e2e/e2e_test.go` into
 `e2e/e2e_test.go` unchanged (it reads `../plugin.yaml`), and add `e2e/e2e_test.go` to this task's commit. Run:
 `go test -tags e2e -count=1 -run Manifest ./e2e/`.
 
 - [ ] **Step 3: Scripts**
 
-Copy `infrata-provider-fake/scripts/{release-check,build-release,scripts_test.go}` and substitute:
+Copy `infrena-provider-fake/scripts/{release-check,build-release,scripts_test.go}` and substitute:
 
 | In the fake's file | Here |
 | --- | --- |
-| `infrata-plugin-fake` | `infrata-plugin-aws` |
-| `./cmd/infrata-plugin-fake` | `./cmd/infrata-plugin-aws` |
-| `github.com/infrata/infrata-provider-fake/internal/fake.Version` | `github.com/infrata/infrata-provider-aws/internal/awsprov.Version` |
+| `infrena-plugin-fake` | `infrena-plugin-aws` |
+| `./cmd/infrena-plugin-fake` | `./cmd/infrena-plugin-aws` |
+| `github.com/infrena/infrena-provider-fake/internal/fake.Version` | `github.com/infrena/infrena-provider-aws/internal/awsprov.Version` |
 | `FAKE_VERSION_SYMBOL` | `PLUGIN_VERSION_SYMBOL` |
 | `FAKE_MANIFEST` | `PLUGIN_MANIFEST` |
 | `internal/fake.Version` (in the error message) | `internal/awsprov.Version` |
@@ -4034,7 +4034,7 @@ Expected: PASS, including the test that points `-X` at a nonexistent symbol and 
 
 - [ ] **Step 4: Workflows (D19)**
 
-Every workflow fetches infrata as a module, so each starts with the same two steps: tell Go the module is private,
+Every workflow fetches infrena as a module, so each starts with the same two steps: tell Go the module is private,
 and give git the token. A pinned build must never see a `go.work` (none is committed; `GOWORK: off` makes that
 explicit).
 
@@ -4054,10 +4054,10 @@ permissions:
 
 env:
   GOTOOLCHAIN: local
-  GOPRIVATE: github.com/infrata/*
+  GOPRIVATE: github.com/infrena/*
 
 jobs:
-  # BLOCKING. The infrata version go.mod requires — what a release ships against.
+  # BLOCKING. The infrena version go.mod requires — what a release ships against.
   pinned:
     runs-on: ubuntu-latest
     env:
@@ -4065,31 +4065,31 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          path: infrata-provider-aws
-      - name: Let go fetch the private infrata module
-        run: git config --global url."https://x-access-token:${{ secrets.INFRATA_CHECKOUT_TOKEN }}@github.com/infrata/".insteadOf "https://github.com/infrata/"
+          path: infrena-provider-aws
+      - name: Let go fetch the private infrena module
+        run: git config --global url."https://x-access-token:${{ secrets.INFRENA_CHECKOUT_TOKEN }}@github.com/infrena/".insteadOf "https://github.com/infrena/"
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
-          cache-dependency-path: infrata-provider-aws/go.sum
-      - name: The infrata revision go.mod requires
-        id: infrata
-        working-directory: infrata-provider-aws
+          cache-dependency-path: infrena-provider-aws/go.sum
+      - name: The infrena revision go.mod requires
+        id: infrena
+        working-directory: infrena-provider-aws
         run: |
-          v="$(go list -m -f '{{.Version}}' github.com/infrata/infrata)"
+          v="$(go list -m -f '{{.Version}}' github.com/infrena/infrena)"
           # A pseudo-version ends in a 12-character commit hash; a tag is used as is.
           if [[ "$v" =~ -([0-9a-f]{12})$ ]]; then v="${BASH_REMATCH[1]}"; fi
           echo "ref=$v" >> "$GITHUB_OUTPUT"
-      # The e2e suite builds the infrata CLI from ../infrata: the same revision the plugin compiles against.
+      # The e2e suite builds the infrena CLI from ../infrena: the same revision the plugin compiles against.
       - uses: actions/checkout@v7
         with:
-          repository: infrata/infrata
-          path: infrata
+          repository: infrena/infrena
+          path: infrena
           fetch-depth: 0
-          token: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
-      - run: git -C infrata checkout --detach "${{ steps.infrata.outputs.ref }}"
+          token: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
+      - run: git -C infrena checkout --detach "${{ steps.infrena.outputs.ref }}"
       - name: Format, vet, test
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         run: |
           set -euo pipefail
           test -z "$(gofmt -l .)"
@@ -4098,46 +4098,46 @@ jobs:
           go test -count=1 ./...
           go test -tags e2e -count=1 ./e2e/
 
-  # NON-BLOCKING early warning: infrata's main, through a workspace. Red here means the next bump needs work.
-  infrata-main:
+  # NON-BLOCKING early warning: infrena's main, through a workspace. Red here means the next bump needs work.
+  infrena-main:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
         with:
-          path: infrata-provider-aws
-      - name: Let go fetch the private infrata module
-        run: git config --global url."https://x-access-token:${{ secrets.INFRATA_CHECKOUT_TOKEN }}@github.com/infrata/".insteadOf "https://github.com/infrata/"
+          path: infrena-provider-aws
+      - name: Let go fetch the private infrena module
+        run: git config --global url."https://x-access-token:${{ secrets.INFRENA_CHECKOUT_TOKEN }}@github.com/infrena/".insteadOf "https://github.com/infrena/"
       - uses: actions/checkout@v7
         with:
-          repository: infrata/infrata
-          path: infrata
-          token: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
+          repository: infrena/infrena
+          path: infrena
+          token: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
-          cache-dependency-path: infrata-provider-aws/go.sum
-      - name: Test against infrata main
-        working-directory: infrata-provider-aws
+          cache-dependency-path: infrena-provider-aws/go.sum
+      - name: Test against infrena main
+        working-directory: infrena-provider-aws
         run: |
           set -euo pipefail
-          go work init . ../infrata
+          go work init . ../infrena
           go test -count=1 ./...
           go test -tags e2e -count=1 ./e2e/
 ```
 
-`.github/workflows/release.yml` — the fake plugin's file changed in four ways: `infrata-provider-fake` →
-`infrata-provider-aws` in the checkout `path`, every `working-directory` and `cache-dependency-path`; top-level
-`env` gains `GOPRIVATE: github.com/infrata/*` and `GOWORK: "off"`; the git `insteadOf` step is added before
-`setup-go`; and the infrata checkout is replaced by `ci.yml`'s "revision go.mod requires" step, the `fetch-depth: 0`
-checkout and the `git checkout --detach` (so a release is tested against the infrata it ships with, not `main`).
+`.github/workflows/release.yml` — the fake plugin's file changed in four ways: `infrena-provider-fake` →
+`infrena-provider-aws` in the checkout `path`, every `working-directory` and `cache-dependency-path`; top-level
+`env` gains `GOPRIVATE: github.com/infrena/*` and `GOWORK: "off"`; the git `insteadOf` step is added before
+`setup-go`; and the infrena checkout is replaced by `ci.yml`'s "revision go.mod requires" step, the `fetch-depth: 0`
+checkout and the `git checkout --detach` (so a release is tested against the infrena it ships with, not `main`).
 
-`.github/workflows/bump-infrata.yml`:
+`.github/workflows/bump-infrena.yml`:
 
 ```yaml
-name: Bump infrata
+name: Bump infrena
 
-# infrata tags often until its first official release (James, 2026-09-13). This notices each tag and
+# infrena tags often until its first official release (James, 2026-09-13). This notices each tag and
 # proposes it, having already run the suite: a PR opened with GITHUB_TOKEN gets CI runs that wait for
 # approval, so the evidence is attached here instead.
 
@@ -4152,7 +4152,7 @@ permissions:
 
 env:
   GOTOOLCHAIN: local
-  GOPRIVATE: github.com/infrata/*
+  GOPRIVATE: github.com/infrena/*
   GOWORK: "off"
 
 jobs:
@@ -4161,54 +4161,54 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          path: infrata-provider-aws
-      - name: Let go fetch the private infrata module
-        run: git config --global url."https://x-access-token:${{ secrets.INFRATA_CHECKOUT_TOKEN }}@github.com/infrata/".insteadOf "https://github.com/infrata/"
+          path: infrena-provider-aws
+      - name: Let go fetch the private infrena module
+        run: git config --global url."https://x-access-token:${{ secrets.INFRENA_CHECKOUT_TOKEN }}@github.com/infrena/".insteadOf "https://github.com/infrena/"
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27"
-          cache-dependency-path: infrata-provider-aws/go.sum
-      - name: Upgrade to infrata's newest release
+          cache-dependency-path: infrena-provider-aws/go.sum
+      - name: Upgrade to infrena's newest release
         id: bump
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         run: |
           set -euo pipefail
-          before="$(go list -m -f '{{.Version}}' github.com/infrata/infrata)"
+          before="$(go list -m -f '{{.Version}}' github.com/infrena/infrena)"
           # @upgrade never moves from a newer pseudo-version back to an older tag.
-          go get github.com/infrata/infrata@upgrade
+          go get github.com/infrena/infrena@upgrade
           go mod tidy
-          after="$(go list -m -f '{{.Version}}' github.com/infrata/infrata)"
+          after="$(go list -m -f '{{.Version}}' github.com/infrena/infrena)"
           echo "before=$before" >> "$GITHUB_OUTPUT"
           echo "after=$after" >> "$GITHUB_OUTPUT"
           if [[ "$before" == "$after" ]]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
       - uses: actions/checkout@v7
         if: steps.bump.outputs.changed == 'true'
         with:
-          repository: infrata/infrata
-          path: infrata
+          repository: infrena/infrena
+          path: infrena
           ref: ${{ steps.bump.outputs.after }}
-          token: ${{ secrets.INFRATA_CHECKOUT_TOKEN }}
+          token: ${{ secrets.INFRENA_CHECKOUT_TOKEN }}
       - name: Test against the new version
         if: steps.bump.outputs.changed == 'true'
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         run: |
           set -euo pipefail
           go vet ./... && go test -count=1 ./... && go test -tags e2e -count=1 ./e2e/
       - name: Open the PR
         if: steps.bump.outputs.changed == 'true'
-        working-directory: infrata-provider-aws
+        working-directory: infrena-provider-aws
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          branch="bump-infrata-${{ steps.bump.outputs.after }}"
+          branch="bump-infrena-${{ steps.bump.outputs.after }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
           git add go.mod go.sum
-          git commit -m "deps: infrata ${{ steps.bump.outputs.before }} -> ${{ steps.bump.outputs.after }}" -- go.mod go.sum
+          git commit -m "deps: infrena ${{ steps.bump.outputs.before }} -> ${{ steps.bump.outputs.after }}" -- go.mod go.sum
           git push origin "$branch"
-          gh pr create --title "infrata ${{ steps.bump.outputs.after }}" \
+          gh pr create --title "infrena ${{ steps.bump.outputs.after }}" \
             --body "Upgraded from ${{ steps.bump.outputs.before }}. vet, the plain suite and the e2e suite passed against it in this run."
 ```
 
@@ -4218,7 +4218,7 @@ pull requests" must be on, which is James's to change.
 
 Check locally what can be checked: `go vet -tags e2e,live ./...` (after Tasks 9 and 11 exist),
 `scripts/release-check v0.1.0` (expects "tag, plugin.yaml and binary all say 0.1.0"), and each workflow's shell
-logic by hand — `go list -m -f '{{.Version}}' github.com/infrata/infrata` and the pseudo-version regex on its
+logic by hand — `go list -m -f '{{.Version}}' github.com/infrena/infrena` and the pseudo-version regex on its
 output. The workflows themselves are proven only by the first push, which is James's call.
 
 - [ ] **Step 5: Sabotage, then commit**
@@ -4229,7 +4229,7 @@ Sabotages: `name: aws2` in `plugin.yaml` (manifest test); the ldflags symbol poi
 ```bash
 git add plugin.yaml scripts/release-check scripts/build-release scripts/scripts_test.go \
   internal/awsprov/manifest_test.go e2e/e2e_test.go .github/workflows/release.yml .github/workflows/ci.yml \
-  .github/workflows/bump-infrata.yml
+  .github/workflows/bump-infrena.yml
 git commit -m "release: the same three-way version gate as the fake plugin, and CI on every push" -- <same paths>
 ```
 
@@ -4257,7 +4257,7 @@ Run by hand only. Never in CI (Q2). Everything it creates is free (VPCs, subnets
 // eventual consistency and IAM behaviour, and the only one that costs anything if it leaks, so it
 // refuses to run unless it is told which account it may use and the credentials really are that account.
 //
-//	INFRATA_AWS_LIVE_PROFILE=sandbox INFRATA_AWS_LIVE_ACCOUNT=111111111111 go test -tags live -count=1 -v ./live/
+//	INFRENA_AWS_LIVE_PROFILE=sandbox INFRENA_AWS_LIVE_ACCOUNT=111111111111 go test -tags live -count=1 -v ./live/
 package live
 
 import (
@@ -4273,23 +4273,23 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/infrata/infrata-provider-aws/internal/awsprov"
-	"github.com/infrata/infrata/pkg/address"
-	"github.com/infrata/infrata/pkg/plugintest"
-	"github.com/infrata/infrata/pkg/provider"
-	"github.com/infrata/infrata/pkg/resource"
-	"github.com/infrata/infrata/pkg/value"
+	"github.com/infrena/infrena-provider-aws/internal/awsprov"
+	"github.com/infrena/infrena/pkg/address"
+	"github.com/infrena/infrena/pkg/plugintest"
+	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/resource"
+	"github.com/infrena/infrena/pkg/value"
 )
 
-const runTag = "infrata-live-run"
+const runTag = "infrena-live-run"
 
 func env(t *testing.T) (profile, account, region string) {
 	t.Helper()
-	profile, account = os.Getenv("INFRATA_AWS_LIVE_PROFILE"), os.Getenv("INFRATA_AWS_LIVE_ACCOUNT")
+	profile, account = os.Getenv("INFRENA_AWS_LIVE_PROFILE"), os.Getenv("INFRENA_AWS_LIVE_ACCOUNT")
 	if profile == "" || account == "" {
-		t.Skip("set INFRATA_AWS_LIVE_PROFILE and INFRATA_AWS_LIVE_ACCOUNT to run against real AWS")
+		t.Skip("set INFRENA_AWS_LIVE_PROFILE and INFRENA_AWS_LIVE_ACCOUNT to run against real AWS")
 	}
-	region = os.Getenv("INFRATA_AWS_LIVE_REGION")
+	region = os.Getenv("INFRENA_AWS_LIVE_REGION")
 	if region == "" {
 		region = "us-east-1"
 	}
@@ -4302,7 +4302,7 @@ func env(t *testing.T) (profile, account, region string) {
 		t.Fatal(err)
 	}
 	if got := aws.ToString(id.Account); got != account {
-		t.Fatalf("profile %q is account %s, not INFRATA_AWS_LIVE_ACCOUNT=%s: refusing to create anything", profile, got, account)
+		t.Fatalf("profile %q is account %s, not INFRENA_AWS_LIVE_ACCOUNT=%s: refusing to create anything", profile, got, account)
 	}
 	return profile, account, region
 }
@@ -4426,14 +4426,14 @@ func TestSweepLeftovers(t *testing.T) {
 ```
 
 `live/README.md`: what the suite needs (a dedicated account, a profile for it with the least-privilege policy from D16
-— never root keys — and the two variables, e.g. `INFRATA_AWS_LIVE_PROFILE=infrata`; no account ID in the file), what it creates
-(one VPC `10.99.0.0/16` and one subnet, tagged `infrata-live-run`), that it refuses to run on the wrong account,
+— never root keys — and the two variables, e.g. `INFRENA_AWS_LIVE_PROFILE=infrena`; no account ID in the file), what it creates
+(one VPC `10.99.0.0/16` and one subnet, tagged `infrena-live-run`), that it refuses to run on the wrong account,
 how to run the sweeper, and that it is never run in CI.
 
 - [ ] **Step 2: Check it compiles and skips**
 
 Run: `go vet -tags live ./live/ && go test -tags live -count=1 -v ./live/`
-Expected: both tests SKIP with the "set INFRATA_AWS_LIVE_PROFILE…" message. Running it for real needs the `infrata`
+Expected: both tests SKIP with the "set INFRENA_AWS_LIVE_PROFILE…" message. Running it for real needs the `infrena`
 profile's root keys replaced by the D16 identity first, and James's go-ahead: it creates real resources.
 
 - [ ] **Step 3: Record what a real run found**
@@ -4444,7 +4444,7 @@ came back different. Until then those rows stay marked unconfirmed.
 
 - [ ] **Step 4: Commit**
 
-The sabotage for a suite nobody runs yet is the account guard: set `INFRATA_AWS_LIVE_ACCOUNT` to a wrong account
+The sabotage for a suite nobody runs yet is the account guard: set `INFRENA_AWS_LIVE_ACCOUNT` to a wrong account
 with a real profile and confirm it refuses before creating anything. Record whether that was done.
 
 ```bash
@@ -4465,13 +4465,13 @@ git commit -m "live: an opt-in suite against real AWS that refuses any account i
 
 `README.md` must cover, with real commands and output from the e2e run:
 - what the plugin is, in two sentences
-- how to build it and where infrata finds it (`--plugin-dir`, `.infra/plugins/`, `~/.local/share/infrata/plugins/`, `$PATH`)
+- how to build it and where infrena finds it (`--plugin-dir`, `.infra/plugins/`, `~/.local/share/infrena/plugins/`, `$PATH`)
 - credentials: the default chain, `profile`, `assume_role_arn`; one instance per account; `import --provider <instance>`
   to adopt from one account when two are configured
 - regions: `defaults: {region: ${aws_region}}` with a `default:` and per-environment override, per-resource override,
   the warning that changing the default region replaces every resource that inherits it, and `discover_regions`
   (literal — `discover` has no environment, and refuses an environment-only value even in `defaults:`)
-- building: `go work init . ../infrata` for local work, `GOWORK=off` plus credentials for the pinned build
+- building: `go work init . ../infrena` for local work, `GOWORK=off` plus credentials for the pinned build
 - the `e2e/testdata/basic/infra.yml` project quoted byte for byte
 - every type, its attributes, and which are computed, force-new or defaulted; the `<region>/<id>` import form
 - what the plugin does about eventual consistency and retries, in user terms (a read may take up to ~4s to report
@@ -4488,14 +4488,14 @@ one character in the README's quoted fixture.
 - [ ] **Step 2: Whole-suite verification**
 
 ```bash
-git -C ../infrata status --short && git -C ../infrata log -1 --format=%h
+git -C ../infrena status --short && git -C ../infrena log -1 --format=%h
 gofmt -l . ; go vet ./... ; go vet -tags e2e,live ./...
 go test -count=1 ./...
 go test -tags e2e -count=1 -v ./e2e/
 go test -tags live -count=1 ./live/      # skips without the live variables
 ```
 
-All green, output kept for the close-out note, and the infrata commit it ran against recorded.
+All green, output kept for the close-out note, and the infrena commit it ran against recorded.
 
 - [ ] **Step 3: Documentation**
 

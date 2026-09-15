@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-13. **Branch:** `spike-generic-aws` (off `first-slice`). **Proofs of concept:** `spikes/generic-aws/`,
 all throwaway. **Pinned versions:** aws-sdk-go-v2 v1.47.0, service/ec2 v1.332.0, service/cloudcontrol v1.38.0,
-service/cloudformation v1.81.0, smithy-go v1.28.1, infrata v0.2.0 (host tests) / `main` at `5bc47a3`.
+service/cloudformation v1.81.0, smithy-go v1.28.1, infrena v0.2.0 (host tests) / `main` at `5bc47a3`.
 
 Every claim below was checked against source, the account, or AWS documentation. The verification log is at the end.
 Claims that came back different from what was assumed are marked ✘ there.
@@ -17,18 +17,18 @@ not the one the question assumed, though.
 - **Smithy models describe OPERATIONS, not RESOURCES.** smithy-go can invoke any AWS operation generically at runtime:
   the published model, turned into smithy-go's own runtime schemas, drives smithy-go's own protocol codecs. That was
   proven against real EC2. But the models almost never say which operations create, read, update and delete a given
-  resource, which is the thing infrata needs. Of the models checked, only Lambda declares any `resource` shapes (11).
+  resource, which is the thing infrena needs. Of the models checked, only Lambda declares any `resource` shapes (11).
   EC2, S3, IAM, DynamoDB and Cloud Control declare none. An operation-level generic layer alone would still need a
   handwritten mapping for every resource. **That is the premise that is wrong.**
 - **AWS already publishes the resource layer: CloudFormation resource type schemas, served through the AWS Cloud
   Control API.** Cloud Control is one generic create/read/update/delete/list API over 1,426 fully mutable `AWS::`
   resource types, plus 159 immutable (create/delete only) types. Each type's JSON schema declares its read-only,
   create-only and write-only properties, its required properties and its primary identifier, which map almost directly
-  onto infrata's `Computed`, `ForceNew` and `Required` flags. **Proven live:** one `AWS::EC2::VPC` was created, patched,
+  onto infrena's `Computed`, `ForceNew` and `Required` flags. **Proven live:** one `AWS::EC2::VPC` was created, patched,
   read and deleted from a type-name string and a JSON document, with no VPC code. The real VPC and subnet schemas
-  mechanically produced the same flags Task 1 hand-wrote, and infrata's own plugin host accepted the generated
+  mechanically produced the same flags Task 1 hand-wrote, and infrena's own plugin host accepted the generated
   definitions. This is how HashiCorp's `terraform-provider-awscc` and Pulumi's `aws-native` providers are built.
-- **The main obstacle found is on infrata's side, not AWS's:** infrata has no *optional + computed* attribute (§5, §8).
+- **The main obstacle found is on infrena's side, not AWS's:** infrena has no *optional + computed* attribute (§5, §8).
 
 ## 2. Resource vs operation — where the distinction matters
 
@@ -39,8 +39,8 @@ not the one the question assumed, though.
 | What it knows | Input/output shapes, protocol traits, errors, paginators, waiters (EC2: 802 operations, 170 paginated, 26 waitable) | Properties, which are read-only / create-only / write-only, identifier, required, handlers and their IAM permissions |
 | What it does NOT know | Which operations make up one resource's create, read, update and delete. Which fields force replacement. Which fields AWS fills in. How to read back what a create made. | Wire formats (it rides on Cloud Control), operations that are not resources (e.g. `RebootInstances`) |
 
-Why it matters to infrata: infrata's `Provider` interface is resource-shaped (`Create/Read/Update/Delete/Discover/Import`,
-per type). One infrata resource is usually **several** AWS operations. Creating a VPC with DNS hostnames on is
+Why it matters to infrena: infrena's `Provider` interface is resource-shaped (`Create/Read/Update/Delete/Discover/Import`,
+per type). One infrena resource is usually **several** AWS operations. Creating a VPC with DNS hostnames on is
 `CreateVpc` then `ModifyVpcAttribute`, and reading it back is `DescribeVpcs` plus `DescribeVpcAttribute` per attribute.
 Cloud Control's real VPC schema lists exactly that, in its handler permissions:
 `create: ec2:CreateVpc, ec2:ModifyVpcAttribute, ec2:DescribeVpcAttribute, …`. An operation invoker removes the
@@ -128,9 +128,9 @@ implement create, read, update and delete, which fields force replacement, how t
   ClientToken)`, `GetResource(TypeName, Identifier)`, `UpdateResource(TypeName, Identifier, PatchDocument = RFC 6902
   JSON Patch, ClientToken)`, `DeleteResource`, `ListResources(TypeName, ResourceModel?)`, and
   `GetResourceRequestStatus` / `CancelResourceRequest` / `ListResourceRequests` for the asynchronous requests.
-- **Schema → infrata definition:**
+- **Schema → infrena definition:**
 
-  | CloudFormation schema | infrata |
+  | CloudFormation schema | infrena |
   | --- | --- |
   | `readOnlyProperties` | `Computed` |
   | `createOnlyProperties`, or no `update` handler | `ForceNew` |
@@ -138,7 +138,7 @@ implement create, read, update and delete, which fields force replacement, how t
   | `writeOnlyProperties` | carry forward from state on read (the planner needs it; secrets are typical) |
   | `primaryIdentifier` | provider ID |
 
-**Live result (account `infrata`, us-east-1).**
+**Live result (account `infrena`, us-east-1).**
 
 | Step | What happened | Time |
 | --- | --- | --- |
@@ -191,12 +191,12 @@ The account was checked afterwards: only its default VPC remains.
 
 ## 5. What cannot be derived from AWS's models
 
-| Needed by infrata | Smithy model | CloudFormation schema | So it comes from |
+| Needed by infrena | Smithy model | CloudFormation schema | So it comes from |
 | --- | --- | --- | --- |
 | Which operations are a resource's create, read, update and delete | ✘ (Lambda only, partially) | ✔ (handlers) | Cloud Control |
-| ForceNew | ✘ | ✔ top-level `createOnlyProperties`. ✘ nested pointers (37 on VPC). ✘ `conditionalCreateOnly` (e.g. VPC `InstanceTenancy`, RDS `Engine`) | Schema, plus an infrata decision on nested and conditional flags |
+| ForceNew | ✘ | ✔ top-level `createOnlyProperties`. ✘ nested pointers (37 on VPC). ✘ `conditionalCreateOnly` (e.g. VPC `InstanceTenancy`, RDS `Engine`) | Schema, plus an infrena decision on nested and conditional flags |
 | Computed | ✘ | ✔ `readOnlyProperties` | Schema |
-| **Optional but AWS-defaulted** (e.g. VPC `EnableDnsSupport`, `InstanceTenancy`, returned by `GetResource` though never configured) | ✘ | ✘ | **infrata needs optional + computed**, or the plugin prunes |
+| **Optional but AWS-defaulted** (e.g. VPC `EnableDnsSupport`, `InstanceTenancy`, returned by `GetResource` though never configured) | ✘ | ✘ | **infrena needs optional + computed**, or the plugin prunes |
 | Sensitive | Smithy `@sensitive` trait on some shapes | ✘. `writeOnly` ≠ secret: VPC's write-only properties are `Ipv4IpamPoolId`, `Ipv4NetmaskLength`; RDS's include `MasterUserPassword` | Overlay list |
 | Regional vs global type | ✘ | ✘ | Overlay: namespaces `IAM`, `Route53`, `CloudFront`, … |
 | Requirements (subnet needs a VPC) | ✘ | ✘ (no cross-type references) | Overlay or none; `vpc_id` references still order things |
@@ -206,10 +206,10 @@ The account was checked afterwards: only its default VPC remains.
 
 ## 6. What must be generated or pinned at build time
 
-- **The CloudFormation schema bundle**, pinned per plugin release and turned into embedded infrata definitions.
-  infrata requires `Definitions()` to be static and offline (every command, `validate` included, loads them), so schemas
+- **The CloudFormation schema bundle**, pinned per plugin release and turned into embedded infrena definitions.
+  infrena requires `Definitions()` to be static and offline (every command, `validate` included, loads them), so schemas
   cannot be fetched from `DescribeType` at runtime. The bundle is a 2.9 MB zip per region (checked: us-east-1, 200 OK).
-  Weekly regeneration, as `awscc` does, fits the `bump-infrata.yml` pattern already planned.
+  Weekly regeneration, as `awscc` does, fits the `bump-infrena.yml` pattern already planned.
 - **An overlay file** for what §5 says cannot be derived: global types, sensitive properties, optional + computed
   properties, and any requirement hints.
 - **Nothing per operation.** For approach A, embed or ship only the model files for the services the escape hatch
@@ -244,8 +244,8 @@ handwriting resources.**
      only `VpcId`). `ResourceModel` covers types that need a parent.
    - **Import:** `GetResource`.
    - **ClassifyError:** map Cloud Control's `HandlerErrorCode`s (`Throttling`, `NotStabilized`,
-     `ServiceInternalError`, …) and exceptions to infrata's three classes, generically.
-3. **infrata change needed first — take to the infrata session:** an *optional + computed* attribute. Configuration may
+     `ServiceInternalError`, …) and exceptions to infrena's three classes, generically.
+3. **infrena change needed first — take to the infrena session:** an *optional + computed* attribute. Configuration may
    set it; if it doesn't, the provider's value is recorded and not diffed. Today the compiler refuses to set a computed
    attribute (`internal/compiler/schema.go:82`, "is computed and cannot be set"), and the planner diffs every returned
    non-computed attribute as "removed from configuration". Without it, every Cloud Control resource plans a change
@@ -270,8 +270,8 @@ handwriting resources.**
 - **Schema quality varies by type:** `awscc` notes "some services use an older CloudFormation schema". Expect a
   per-type test matrix, not per-type code.
 - **Property shapes follow CloudFormation, not EC2:** tags are a list of `{Key, Value}`, not a map, and nested objects are
-  lists and maps in infrata values. The README and `explain` must show them as they are.
-- **Identity:** Cloud Control identifiers can be composite (`a|b`). infrata import selectors must match them exactly.
+  lists and maps in infrena values. The README and `explain` must show them as they are.
+- **Identity:** Cloud Control identifiers can be composite (`a|b`). infrena import selectors must match them exactly.
 - **Permissions:** the user needs Cloud Control permissions **and** each handler's underlying permissions (listed per
   type in the schema).
 - **smithy-go schema-serde is new** (v1.27.0, about June 2026), and the escape hatch depends on it.
@@ -293,8 +293,8 @@ handwriting resources.**
 | Cloud Control `CreateResource`/`UpdateResource`/`DeleteResource` take an idempotency token | cloudcontrol model; API reference "valid for 36 hours once used" | ✔ |
 | Resource type schemas define read-only / create-only / write-only / identifier / handlers | CloudFormation CLI "Resource type schema" page; real `AWS::EC2::VPC` via `DescribeType` | ✔ |
 | Schema flags match hand-derived ones for VPC/Subnet | `cfnschema` tests against fetched schemas | ✔ (Subnet's `AvailabilityZone` is optional in the schema; AWS picks one, which is the optional + computed case) |
-| Generated definitions pass infrata's host | `plugintest.Open` in `cfnschema` tests, infrata v0.2.0 | ✔ |
-| Cloud Control can create/update/read/delete a VPC generically | live run on account `infrata`, us-east-1 | ✔; `ListResourceRequests` shows CREATE/UPDATE/DELETE SUCCESS; only the default VPC remains |
+| Generated definitions pass infrena's host | `plugintest.Open` in `cfnschema` tests, infrena v0.2.0 | ✔ |
+| Cloud Control can create/update/read/delete a VPC generically | live run on account `infrena`, us-east-1 | ✔; `ListResourceRequests` shows CREATE/UPDATE/DELETE SUCCESS; only the default VPC remains |
 | Coverage counts | `cloudformation list-types --visibility PUBLIC --type RESOURCE --provisioning-type …`, filtered to `AWS::` | 1,426 fully mutable / 159 immutable / 288 non-provisionable |
 | Key types are supported | `describe-type` provisioning type for 10 types | ✔ all FULLY_MUTABLE |
 | `ListResources` returns full properties | live `list-resources AWS::EC2::VPC` | ✘ identifier only for VPC; `GetResource` per item needed. `ResourceModel` input exists (model) |
@@ -302,4 +302,4 @@ handwriting resources.**
 | Cloud Control is free for AWS types | aws.amazon.com/cloudcontrolapi/pricing | ✔ |
 | `awscc` and `aws-native` are built on Cloud Control schemas | their GitHub READMEs | ✔ |
 | Public schema bundle exists | `HEAD https://schema.cloudformation.us-east-1.amazonaws.com/CloudformationSchema.zip` | ✔ 200, 2.9 MB |
-| infrata lacks optional + computed | `internal/compiler/schema.go:82`; `pkg/schema/attribute.go`; `internal/planner/diff.go` `!inConfig` branch | ✔ gap confirmed |
+| infrena lacks optional + computed | `internal/compiler/schema.go:82`; `pkg/schema/attribute.go`; `internal/planner/diff.go` `!inConfig` branch | ✔ gap confirmed |
