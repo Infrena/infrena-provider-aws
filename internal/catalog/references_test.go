@@ -7,7 +7,7 @@ import (
 
 // TestEveryEmbeddedReferenceNamesADeclaredTypeAndCanonicalAttribute: infrena refuses at load a reference whose type
 // the plugin does not declare or whose attribute that type lacks, and it wants the canonical name, never an alias.
-// Checking the committed catalog now means wiring References into Definition later cannot fail at load.
+// internal/awsprov's TestTheWholeCatalogPassesValidateAll runs infrena's own check on the definitions as well.
 func TestEveryEmbeddedReferenceNamesADeclaredTypeAndCanonicalAttribute(t *testing.T) {
 	c, err := Embedded()
 	if err != nil {

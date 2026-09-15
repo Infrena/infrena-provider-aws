@@ -120,14 +120,14 @@ resources:
 
   private_a:
     type: aws.subnet
-    vpc_id: ${vpc.vpc_id}
+    VpcId: ${vpc}
     cidr: 10.0.1.0/24
     az: us-east-1a
 
   web:
     type: aws.securitygroup
     description: web servers
-    vpc_id: ${vpc.vpc_id}
+    VpcId: ${vpc}
     ingress:
       - ip_protocol: tcp
         from_port: 443
@@ -138,6 +138,19 @@ resources:
         to_port: 80
         cidr_ip: 0.0.0.0/0
 ```
+
+### Passing a whole resource
+
+`VpcId: ${vpc}` passes the VPC whole. The plugin declares that a subnet's `VpcId` holds a VPC's `VpcId`, so
+infrena reads that attribute for you, and a VPC's id cannot be confused with its arn. Writing the attribute out,
+`${vpc.vpc_id}`, still works, and either spelling is refused at compile time if `vpc` is not an `aws.vpc`. Where
+the plugin declares no reference, `${vpc}` is a compile error telling you to name the attribute you mean. The
+declarations are derived from AWS's property names and reviewed; `infrena explain <type>` shows each one as
+"refers to". A list of ids takes whole resources too (`SubnetIds: [...]` with `- ${private_a}` items).
+
+With infrena 0.6.0, write the attribute receiving `${vpc}` with AWS's own name (`VpcId`, any case). infrena
+looks up the receiving attribute's declaration before it folds aliases, so `vpc_id: ${vpc}` or `vpc: ${vpc}`
+reports that the attribute declares no reference.
 
 ## Behaviour worth knowing
 

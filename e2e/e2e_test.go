@@ -237,7 +237,7 @@ func TestTheWorkflow(t *testing.T) {
 		e.expect(t, 2, []string{"Apply complete: 3 applied, 0 failed"}, "apply", "dev", "--auto-approve")
 		vpcID, _ = e.only(t, "AWS::EC2::VPC")
 		if _, subnet := e.only(t, "AWS::EC2::Subnet"); subnet["VpcId"] != vpcID {
-			t.Fatalf("the subnet's VpcId = %v, want %s: ${vpc.vpc_id} did not resolve", subnet["VpcId"], vpcID)
+			t.Fatalf("the subnet's VpcId = %v, want %s: ${vpc} did not project to the VPC's VpcId", subnet["VpcId"], vpcID)
 		}
 		if _, sg := e.only(t, "AWS::EC2::SecurityGroup"); sg["SecurityGroupIngress"].([]any)[0].(map[string]any)["FromPort"] == nil {
 			t.Fatalf("ingress reached AWS as %v, want AWS's names", sg["SecurityGroupIngress"])
@@ -310,6 +310,38 @@ func TestAnUnknownNestedKeyFailsTheApplyNamingIt(t *testing.T) {
 	e.expect(t, 1, []string{`"port"`, "from_port"}, "apply", "dev", "--auto-approve")
 	if n := len(e.fake.Resources("us-east-1", "AWS::EC2::SecurityGroup")); n != 0 {
 		t.Errorf("the fake holds %d security groups: the create was sent", n)
+	}
+}
+
+// TestAWholeResourceIntoAnUndeclaredAttributeNamesTheFix: CidrBlock declares no reference, so ${vpc} there is a
+// compile error telling the user to name the attribute, and nothing is created.
+func TestAWholeResourceIntoAnUndeclaredAttributeNamesTheFix(t *testing.T) {
+	e := project(t, strings.Replace(fixture(t, "basic"), "    cidr: 10.0.1.0/24\n", "    CidrBlock: ${vpc}\n", 1))
+	e.expect(t, 1, []string{"declares no reference", "Name the attribute you mean"}, "apply", "dev", "--auto-approve")
+	if n := len(e.fake.Resources("us-east-1", "AWS::EC2::VPC")); n != 0 {
+		t.Errorf("the fake holds %d VPCs: a configuration that does not compile was applied", n)
+	}
+}
+
+// TestAListOfWholeResourcesProjectsEachItem: DBSubnetGroup.SubnetIds declares aws.subnet's SubnetId, and infrena
+// projects each ${subnet} in the list.
+func TestAListOfWholeResourcesProjectsEachItem(t *testing.T) {
+	e := project(t, fixture(t, "basic")+`
+  db_subnets:
+    type: aws.rds.dbsubnetgroup
+    description: databases
+    SubnetIds:
+      - ${private_a}
+`)
+	cat, err := catalog.Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.fake.Register(awstest.FakeType(awstest.TypeFor(t, cat, "AWS::RDS::DBSubnetGroup"), "dbsubnet-", nil))
+	e.expect(t, 2, []string{"0 failed"}, "apply", "dev", "--auto-approve")
+	subnetID, _ := e.only(t, "AWS::EC2::Subnet")
+	if _, group := e.only(t, "AWS::RDS::DBSubnetGroup"); fmt.Sprint(group["SubnetIds"]) != fmt.Sprint([]any{subnetID}) {
+		t.Fatalf("SubnetIds = %v, want [%s]: ${private_a} in a list did not project", group["SubnetIds"], subnetID)
 	}
 }
 

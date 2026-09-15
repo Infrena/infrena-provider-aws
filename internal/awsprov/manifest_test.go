@@ -50,13 +50,14 @@ func TestTheManifestDescribesThisPlugin(t *testing.T) {
 // TestTheManifestFloorIsAtLeastTheRequiredRelease. go.mod's require is the oldest infrena release CI
 // verifies this plugin against, so the manifest's floor must admit at least that release, and never
 // admit a release published under the product's old name (which cannot pair with this plugin's
-// module path, CLI, or plugin binary name).
+// module path, CLI, or plugin binary name). The floor is 0.6.0: the release that added References,
+// which this catalog declares and a 0.5.x host would silently drop, and protocol 3, which this binary speaks.
 func TestTheManifestFloorIsAtLeastTheRequiredRelease(t *testing.T) {
 	m := readManifest(t)
 	if m.Infrena.IsZero() {
 		t.Fatal("plugin.yaml has no infrena: floor, so it claims to work with releases under the old name too")
 	}
-	for version, want := range map[string]bool{"0.3.0": false, "0.3.9": false, "0.4.0": false, "0.4.9": false, "0.5.0": true} {
+	for version, want := range map[string]bool{"0.3.9": false, "0.4.9": false, "0.5.0": false, "0.5.9": false, "0.6.0": true, "0.6.1": true} {
 		if got := m.AllowsInfrena(version); got != want {
 			t.Errorf("plugin.yaml's infrena: %q allows %s = %v, want %v", m.Infrena, version, got, want)
 		}

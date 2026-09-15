@@ -6,6 +6,7 @@ import (
 
 	"github.com/infrena/infrena-provider-aws/internal/catalog"
 	"github.com/infrena/infrena/pkg/plugintest"
+	"github.com/infrena/infrena/pkg/schema"
 )
 
 func openHost(t *testing.T) *plugintest.Host {
@@ -43,4 +44,51 @@ func TestTheWholeCatalogLoadsThroughTheHost(t *testing.T) {
 		return
 	}
 	t.Fatal("aws.vpc did not arrive")
+}
+
+// TestTheWholeCatalogPassesValidateAll: plugintest.Open does not run schema.ValidateAll in infrena v0.6.0, and the
+// host does on load, so a dangling reference would fail a user's load and no test. This runs it on the definitions as
+// they arrive over the wire, and checks every accepted and approved edge arrived as a References and nothing else did.
+func TestTheWholeCatalogPassesValidateAll(t *testing.T) {
+	cat, err := catalog.Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := schema.ValidateAll(cat.Definitions()); err != nil {
+		t.Fatalf("the catalog's definitions fail infrena's ValidateAll: %v", err)
+	}
+	defs := openHost(t).Definitions()
+	if err := schema.ValidateAll(defs); err != nil {
+		t.Fatalf("the definitions after the wire fail infrena's ValidateAll: %v", err)
+	}
+	want := 0
+	for _, typ := range cat.Types {
+		for _, a := range typ.Attributes {
+			if a.References != nil {
+				want++
+			}
+		}
+	}
+	got := 0
+	var subnetVpc *schema.Reference
+	for _, d := range defs {
+		for name, a := range d.Attributes {
+			if a.Fields != nil {
+				t.Errorf("%s.%s declares Fields; every map is open on purpose", d.Type, name)
+			}
+			if a.References == nil {
+				continue
+			}
+			got++
+			if d.Type == "aws.subnet" && name == "VpcId" {
+				subnetVpc = a.References
+			}
+		}
+	}
+	if want == 0 || got != want {
+		t.Errorf("%d attributes arrived with References, the catalog carries %d", got, want)
+	}
+	if subnetVpc == nil || *subnetVpc != (schema.Reference{Type: "aws.vpc", Attribute: "VpcId"}) {
+		t.Errorf("aws.subnet VpcId references %+v, want aws.vpc's VpcId", subnetVpc)
+	}
 }

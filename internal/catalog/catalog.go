@@ -161,10 +161,15 @@ func (t *Type) Definition() *schema.ResourceDefinition {
 	attrs := make(map[string]schema.Attribute, len(t.Attributes)+1)
 	for _, a := range t.Attributes {
 		kind, _ := value.ParseKind(a.Kind)
-		// a.References is not passed on: schema.Attribute has no References field until infrena ships it.
+		// Fields stays nil: tags and free-form maps are open, and a nested shape here would claim keys AWS does not fix.
 		attrs[a.Name] = schema.Attribute{
 			Kind: kind, Required: a.Required, Computed: a.Computed, Optional: a.Optional,
 			ForceNew: a.ForceNew, Sensitive: a.Sensitive, Aliases: a.Aliases, Description: a.Description,
+		}
+		if r := a.References; r != nil {
+			attr := attrs[a.Name]
+			attr.References = &schema.Reference{Type: r.Type, Attribute: r.Attribute}
+			attrs[a.Name] = attr
 		}
 	}
 	scope := "<region>"
