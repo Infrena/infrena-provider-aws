@@ -26,7 +26,7 @@ func fixtureSchemas(t *testing.T) []*cfn.Schema {
 }
 
 func TestGenerateNamesBuildsAndKeepsTheBundleHash(t *testing.T) {
-	cat, _, err := Generate(fixtureSchemas(t), "sha-of-bundle", &Lock{}, &ReferenceLock{}, overlay(t), true)
+	cat, _, err := Generate(fixtureSchemas(t), "sha-of-bundle", &Lock{}, &ReferenceLock{}, overlay(t), ReferenceFlags{AcceptNew: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestGenerateNamesBuildsAndKeepsTheBundleHash(t *testing.T) {
 // pending tier-2 edge until IAM::Role is approved, and the overlay's Subnet requirement is backed by an edge.
 func TestGenerateCarriesOnlyAcceptedAndApprovedReferences(t *testing.T) {
 	refs := &ReferenceLock{}
-	cat, warnings, err := Generate(fixtureSchemas(t), "x", &Lock{}, refs, overlay(t), true)
+	cat, warnings, err := Generate(fixtureSchemas(t), "x", &Lock{}, refs, overlay(t), ReferenceFlags{AcceptNew: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestGenerateCarriesOnlyAcceptedAndApprovedReferences(t *testing.T) {
 
 	o := overlay(t)
 	o.References.ApproveTargets = []string{"AWS::IAM::Role"}
-	cat, _, err = Generate(fixtureSchemas(t), "x", &Lock{}, refs, o, false)
+	cat, _, err = Generate(fixtureSchemas(t), "x", &Lock{}, refs, o, ReferenceFlags{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,20 +81,25 @@ func TestGenerateCarriesOnlyAcceptedAndApprovedReferences(t *testing.T) {
 		t.Errorf("approved MonitoringRoleArn references = %+v", r)
 	}
 
-	if _, _, err := Generate(fixtureSchemas(t), "x", &Lock{}, &ReferenceLock{}, overlay(t), false); err == nil || !strings.Contains(err.Error(), AcceptNewReferencesFlag) {
+	if _, _, err := Generate(fixtureSchemas(t), "x", &Lock{}, &ReferenceLock{}, overlay(t), ReferenceFlags{}); err == nil || !strings.Contains(err.Error(), AcceptNewReferencesFlag) {
 		t.Errorf("an empty reference lock generated without the flag: err = %v", err)
 	}
 	o = overlay(t)
 	o.References.ApproveTargets = []string{"AWS::IAM::Rolee"}
-	if _, _, err := Generate(fixtureSchemas(t), "x", &Lock{}, &ReferenceLock{}, o, true); err == nil || !strings.Contains(err.Error(), "AWS::IAM::Rolee") {
+	if _, _, err := Generate(fixtureSchemas(t), "x", &Lock{}, &ReferenceLock{}, o, ReferenceFlags{AcceptNew: true}); err == nil || !strings.Contains(err.Error(), "AWS::IAM::Rolee") {
 		t.Errorf("a misspelt approve target was accepted: err = %v", err)
+	}
+	o = overlay(t)
+	o.References.CrossServiceTargets = []string{"AWS::KMS::Keyy"}
+	if _, _, err := Generate(fixtureSchemas(t), "x", &Lock{}, &ReferenceLock{}, o, ReferenceFlags{AcceptNew: true}); err == nil || !strings.Contains(err.Error(), "AWS::KMS::Keyy") {
+		t.Errorf("a misspelt cross-service target was accepted: err = %v", err)
 	}
 }
 
 func TestGenerateSkipsTypesCloudControlCannotManage(t *testing.T) {
 	schemas := fixtureSchemas(t)
 	nonProvisionable, _ := cfn.Parse([]byte(`{"typeName":"AWS::AppMesh::Mesh","properties":{"MeshName":{"type":"string"}},"handlers":{"read":{}}}`))
-	cat, _, err := Generate(append(schemas, nonProvisionable), "x", &Lock{}, &ReferenceLock{}, overlay(t), true)
+	cat, _, err := Generate(append(schemas, nonProvisionable), "x", &Lock{}, &ReferenceLock{}, overlay(t), ReferenceFlags{AcceptNew: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +113,7 @@ func TestGenerateSkipsTypesCloudControlCannotManage(t *testing.T) {
 func TestGenerateRefusesAnOverlayNamingAnUnknownType(t *testing.T) {
 	o := overlay(t)
 	o.Aliases["AWS::EC2::VPCC"] = map[string][]string{"CidrBlock": {"cidr"}}
-	if _, _, err := Generate(fixtureSchemas(t), "x", &Lock{}, &ReferenceLock{}, o, true); err == nil || !strings.Contains(err.Error(), "AWS::EC2::VPCC") {
+	if _, _, err := Generate(fixtureSchemas(t), "x", &Lock{}, &ReferenceLock{}, o, ReferenceFlags{AcceptNew: true}); err == nil || !strings.Contains(err.Error(), "AWS::EC2::VPCC") {
 		t.Fatalf("err = %v", err)
 	}
 }

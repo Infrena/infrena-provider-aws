@@ -22,10 +22,22 @@ const (
 // AcceptNewReferencesFlag is the gen-cloudcontrol flag that lets new edges into the lock.
 const AcceptNewReferencesFlag = "-accept-new-references"
 
+// AcceptReclassifiedReferencesFlag is the gen-cloudcontrol flag that lets the overlay's cross_service_targets move a
+// locked edge between tier 1 and tier 2.
+const AcceptReclassifiedReferencesFlag = "-accept-reclassified-references"
+
+// ReferenceFlags says which lock changes one generation may make. Without its flag, each fails generation.
+type ReferenceFlags struct {
+	AcceptNew          bool // derived edges the lock does not hold yet
+	AcceptReclassified bool // locked edges whose tier the cross-service rule now puts elsewhere
+}
+
 // ReferenceLock records every reference edge generation has ever derived, so a schema refresh cannot add, move or drop
 // a relationship silently (resource references design §4.3). Like the names lock, it only grows.
 type ReferenceLock struct {
 	References []LockedReference `json:"references"`
+	// Changes lists every locked edge whose status or tier the last Reconcile changed, for the generator to print.
+	Changes []string `json:"-"`
 }
 
 // LockedReference is one edge: Source.Property holds Target's Attribute.
@@ -94,9 +106,11 @@ func (l *ReferenceLock) sort() {
 //
 // live maps every current provisionable type to its top-level property names. A locked edge always stands over what
 // the heuristic now derives; a disagreement is a warning. A locked edge whose source or target no longer exists is
-// kept, warned about, and not returned. A derived edge the lock does not hold fails generation unless acceptNew is set.
-// Statuses follow the overlay on every run, since the overlay is itself reviewed. On error the lock is unchanged.
-func (l *ReferenceLock) Reconcile(derived []Derivation, live map[string][]string, o OverlayReferences, acceptNew bool) ([]LockedReference, []string, error) {
+// kept, warned about, and not returned. A derived edge the lock does not hold fails generation unless flags.AcceptNew is
+// set, and a locked edge the cross-service rule moves to another tier fails it unless flags.AcceptReclassified is set.
+// Statuses follow the overlay on every run, since the overlay is itself reviewed; every locked edge whose status or tier
+// changed is recorded in l.Changes. On error the lock is unchanged.
+func (l *ReferenceLock) Reconcile(derived []Derivation, live map[string][]string, o OverlayReferences, flags ReferenceFlags) ([]LockedReference, []string, error) {
 	locked := map[string]int{}
 	for i, r := range l.References {
 		if _, dup := locked[r.key()]; dup {
@@ -138,16 +152,22 @@ func (l *ReferenceLock) Reconcile(derived []Derivation, live map[string][]string
 		}
 	}
 
+	crossService := map[string]bool{}
+	for _, t := range o.CrossServiceTargets {
+		crossService[t] = true
+	}
+
 	var added []LockedReference
 	for _, d := range derived {
 		if d.Tier == 0 {
 			continue
 		}
 		if _, ok := locked[d.Source+"."+d.Property]; !ok {
-			added = append(added, LockedReference{Source: d.Source, Property: d.Property, Target: d.Target, Attribute: d.Attribute, Tier: d.Tier})
+			added = append(added, LockedReference{Source: d.Source, Property: d.Property, Target: d.Target, Attribute: d.Attribute,
+				Tier: tierOf(d.Source, d.Target, d.Tier, crossService)})
 		}
 	}
-	if len(added) > 0 && !acceptNew {
+	if len(added) > 0 && !flags.AcceptNew {
 		lines := make([]string, len(added))
 		for i, r := range added {
 			lines[i] = r.String()
@@ -157,7 +177,42 @@ func (l *ReferenceLock) Reconcile(derived []Derivation, live map[string][]string
 			len(added), strings.Join(lines, "\n  "), AcceptNewReferencesFlag)
 	}
 
+	// A locked edge's heuristic tier is the derivation's while the two still agree on the target; otherwise the lock's.
+	retier := map[int]int{}
+	var moved []string
+	for i, r := range l.References {
+		heuristic := r.Tier
+		if d, ok := byKey[r.key()]; ok && d.Tier > 0 && d.Target == r.Target && d.Attribute == r.Attribute {
+			heuristic = d.Tier
+		}
+		if want := tierOf(r.Source, r.Target, heuristic, crossService); want != r.Tier {
+			retier[i] = want
+			moved = append(moved, fmt.Sprintf("%s.%s -> %s.%s: tier %d -> %d", r.Source, r.Property, r.Target, r.Attribute, r.Tier, want))
+		}
+	}
+	if len(moved) > 0 && !flags.AcceptReclassified {
+		sort.Strings(moved)
+		return nil, nil, fmt.Errorf("%d locked reference edges change tier under the overlay's references.cross_service_targets:\n  %s\n"+
+			"review them, then run go run ./cmd/gen-cloudcontrol %s to record the move", len(moved), strings.Join(moved, "\n  "), AcceptReclassifiedReferencesFlag)
+	}
+
 	next := append(append([]LockedReference(nil), l.References...), added...)
+	var changes []string
+	for i := range l.References {
+		before := l.References[i]
+		r := &next[i]
+		if tier, ok := retier[i]; ok {
+			r.Tier = tier
+		}
+		r.Status = statusOf(*r)
+		if r.Status != before.Status || r.Tier != before.Tier {
+			change := fmt.Sprintf("%s.%s -> %s.%s: %s -> %s", r.Source, r.Property, r.Target, r.Attribute, before.Status, r.Status)
+			if r.Tier != before.Tier {
+				change += fmt.Sprintf(" (tier %d -> %d)", before.Tier, r.Tier)
+			}
+			changes = append(changes, change)
+		}
+	}
 	var usable []LockedReference
 	var warnings []string
 	has := func(typ, prop string) bool {
@@ -198,9 +253,23 @@ func (l *ReferenceLock) Reconcile(derived []Derivation, live map[string][]string
 	}
 	l.References = next
 	l.sort()
+	sort.Strings(changes)
+	l.Changes = changes
 	sort.Slice(usable, func(i, j int) bool { return usable[i].key() < usable[j].key() })
 	sort.Strings(warnings)
 	return usable, warnings, nil
+}
+
+// tierOf applies the cross-service rule to a heuristic tier: an exact match to another service's type is tier 2 unless
+// its target is in crossService, because a generic property name matches some other service's type exactly and wrongly
+// (ResourceId, NotificationArns). Tier 2 stays tier 2.
+func tierOf(source, target string, heuristic int, crossService map[string]bool) int {
+	sourceService, _, _ := split(source)
+	targetService, _, _ := split(target)
+	if heuristic == 1 && sourceService != targetService && !crossService[target] {
+		return 2
+	}
+	return heuristic
 }
 
 // CheckRequirements cross-checks the overlay's hand-maintained requirements against the reference edges: each

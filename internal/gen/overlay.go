@@ -22,7 +22,11 @@ type Overlay struct {
 // OverlayReferences is the human review of derived reference edges (resource references design §4.2), written with
 // CloudFormation type names.
 type OverlayReferences struct {
-	// ApproveTargets lists target types whose tier-2 (suffix-match) edges are approved, all of them at once.
+	// CrossServiceTargets lists the target types an exact match from ANOTHER service may reach as tier 1. Any other
+	// cross-service exact match is tier 2, because generic names (ResourceId, NotificationArns) match exactly and
+	// wrongly. Same-service exact matches are tier 1 without being listed.
+	CrossServiceTargets []string `yaml:"cross_service_targets"`
+	// ApproveTargets lists target types whose tier-2 edges are approved, all of them at once.
 	ApproveTargets []string `yaml:"approve_targets"`
 	// Reject lists Type.Property edges refused whatever their tier.
 	Reject []string `yaml:"reject"`

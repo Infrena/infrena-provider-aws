@@ -42,7 +42,7 @@ func TestTheCommittedCatalogMatchesTheBundleItClaims(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := len(lock.Names)
-	cat, _, err := Generate(schemas, sha, lock, refs, o, false)
+	cat, _, err := Generate(schemas, sha, lock, refs, o, ReferenceFlags{})
 	if err != nil {
 		t.Fatal(err)
 	}

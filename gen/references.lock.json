@@ -69,8 +69,8 @@
       "property": "ResourceShareArns",
       "target": "AWS::RAM::ResourceShare",
       "attribute": "Arn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::AmazonMQ::Broker",
@@ -405,8 +405,8 @@
       "property": "ClientCertificateId",
       "target": "AWS::ApiGateway::ClientCertificate",
       "attribute": "ClientCertificateId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::ApiGatewayV2::Stage",
@@ -629,16 +629,16 @@
       "property": "ResourceId",
       "target": "AWS::ApiGateway::Resource",
       "attribute": "ResourceId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::ApplicationAutoScaling::ScalingPolicy",
       "property": "ResourceId",
       "target": "AWS::ApiGateway::Resource",
       "attribute": "ResourceId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::ApplicationInsights::Application",
@@ -909,8 +909,8 @@
       "property": "BillingViewArn",
       "target": "AWS::Billing::BillingView",
       "attribute": "Arn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::Cases::Case",
@@ -1877,8 +1877,8 @@
       "property": "SourceLocationArn",
       "target": "AWS::MediaTailor::SourceLocation",
       "attribute": "Arn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::DataZone::Environment",
@@ -2117,8 +2117,8 @@
       "property": "MemberId",
       "target": "AWS::GuardDuty::Member",
       "attribute": "MemberId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::DevOpsAgent::Asset",
@@ -2333,8 +2333,8 @@
       "property": "ResourceId",
       "target": "AWS::ApiGateway::Resource",
       "attribute": "ResourceId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::EC2::GatewayRouteTableAssociation",
@@ -2637,8 +2637,8 @@
       "property": "CoreNetworkArn",
       "target": "AWS::NetworkManager::CoreNetwork",
       "attribute": "CoreNetworkArn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::EC2::Route",
@@ -2685,8 +2685,8 @@
       "property": "OdbNetworkArn",
       "target": "AWS::ODB::OdbNetwork",
       "attribute": "OdbNetworkArn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::EC2::Route",
@@ -3333,8 +3333,8 @@
       "property": "ResourceConfigurationArn",
       "target": "AWS::VpcLattice::ResourceConfiguration",
       "attribute": "Arn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::EC2::VPCEndpoint",
@@ -3357,8 +3357,8 @@
       "property": "ServiceNetworkArn",
       "target": "AWS::VpcLattice::ServiceNetwork",
       "attribute": "Arn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::EC2::VPCEndpoint",
@@ -4325,8 +4325,8 @@
       "property": "MemberId",
       "target": "AWS::GuardDuty::Member",
       "attribute": "MemberId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::ImageBuilder::Image",
@@ -4461,8 +4461,8 @@
       "property": "ServerCertificateArns",
       "target": "AWS::IAM::ServerCertificate",
       "attribute": "Arn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::IoT::DomainConfiguration",
@@ -4765,16 +4765,16 @@
       "property": "ThingArn",
       "target": "AWS::IoT::Thing",
       "attribute": "Arn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::IoTWireless::WirelessGateway",
       "property": "ThingArn",
       "target": "AWS::IoT::Thing",
       "attribute": "Arn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::KMS::Alias",
@@ -4885,8 +4885,8 @@
       "property": "CatalogId",
       "target": "AWS::Glue::Catalog",
       "attribute": "CatalogId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::Lambda::Function",
@@ -4909,8 +4909,8 @@
       "property": "OrganizationId",
       "target": "AWS::Organizations::Organization",
       "attribute": "Id",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::Lambda::MicrovmImage",
@@ -5237,8 +5237,8 @@
       "property": "ResourceId",
       "target": "AWS::ApiGateway::Resource",
       "attribute": "ResourceId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::MediaPackage::Asset",
@@ -5469,8 +5469,8 @@
       "property": "DirectConnectGatewayArn",
       "target": "AWS::DirectConnect::DirectConnectGateway",
       "attribute": "DirectConnectGatewayArn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::NetworkManager::Link",
@@ -5613,8 +5613,8 @@
       "property": "OrganizationalUnitId",
       "target": "AWS::Organizations::OrganizationalUnit",
       "attribute": "Id",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::ODB::CloudAutonomousVmCluster",
@@ -6565,8 +6565,8 @@
       "property": "ManagedPolicyArns",
       "target": "AWS::IAM::ManagedPolicy",
       "attribute": "PolicyArn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::RolesAnywhere::Profile",
@@ -6661,8 +6661,8 @@
       "property": "HostedZoneId",
       "target": "AWS::Route53::HostedZone",
       "attribute": "Id",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::Route53Profiles::ProfileAssociation",
@@ -6677,8 +6677,8 @@
       "property": "ResourceId",
       "target": "AWS::ApiGateway::Resource",
       "attribute": "ResourceId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::Route53Profiles::ProfileResourceAssociation",
@@ -6741,16 +6741,16 @@
       "property": "ResourceId",
       "target": "AWS::ApiGateway::Resource",
       "attribute": "ResourceId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::Route53Resolver::ResolverDNSSECConfig",
       "property": "ResourceId",
       "target": "AWS::ApiGateway::Resource",
       "attribute": "ResourceId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::Route53Resolver::ResolverEndpoint",
@@ -6773,8 +6773,8 @@
       "property": "ResourceId",
       "target": "AWS::ApiGateway::Resource",
       "attribute": "ResourceId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::Route53Resolver::ResolverRule",
@@ -7309,16 +7309,16 @@
       "property": "NotificationArns",
       "target": "AWS::Connect::Notification",
       "attribute": "Arn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::ServiceCatalog::LaunchNotificationConstraint",
       "property": "NotificationArns",
       "target": "AWS::Connect::Notification",
       "attribute": "Arn",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::ServiceCatalog::LaunchNotificationConstraint",
@@ -7413,8 +7413,8 @@
       "property": "ResourceId",
       "target": "AWS::ApiGateway::Resource",
       "attribute": "ResourceId",
-      "tier": 1,
-      "status": "accepted"
+      "tier": 2,
+      "status": "pending"
     },
     {
       "source": "AWS::ServiceCatalog::TagOptionAssociation",

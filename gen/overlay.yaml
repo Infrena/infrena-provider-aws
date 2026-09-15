@@ -117,9 +117,24 @@ requirements:
 
 # Reference edges: which attribute holds another resource's identifier (resource references design §4). The generator
 # derives them from property names and records every one in gen/references.lock.json. Tier 1 (an exact type-name
-# match) is accepted without review; tier 2 (a suffix match, like MonitoringRoleArn -> AWS::IAM::Role) reaches the
-# catalog only once its target type is listed under approve_targets. See docs/references-review.md.
+# match within one service, or to a type under cross_service_targets) is accepted without review; tier 2 (a suffix
+# match, like MonitoringRoleArn -> AWS::IAM::Role, or any other cross-service exact match) reaches the catalog only
+# once its target type is listed under approve_targets. See docs/references-review.md.
 references:
+  # Targets an exact match from another service may reach as tier 1. Generic names like ResourceId match some other
+  # service's type exactly and wrongly, so every other cross-service exact match is tier 2. Changing this list moves
+  # locked edges between tiers: regenerate with -accept-reclassified-references.
+  cross_service_targets:
+    - AWS::IAM::Role
+    - AWS::EC2::Subnet
+    - AWS::EC2::SecurityGroup
+    - AWS::EC2::VPC
+    - AWS::EC2::PrefixList
+    - AWS::EC2::TransitGateway
+    - AWS::KMS::Key
+    - AWS::Logs::LogGroup
+    - AWS::S3::Bucket
+    - AWS::Lambda::Function
   # Target types whose tier-2 edges are approved, all at once. Approving is James's decision: nothing is approved yet.
   approve_targets: []
   # Specific Type.Property edges refused, even in tier 1.

@@ -19,17 +19,20 @@ func main() {
 	overlayPath := flag.String("overlay", "gen/overlay.yaml", "curated overlay")
 	lockPath := flag.String("lock", "gen/names.lock.json", "type name lock")
 	refsPath := flag.String("references-lock", "gen/references.lock.json", "reference edge lock")
-	acceptNew := flag.Bool(strings.TrimPrefix(gen.AcceptNewReferencesFlag, "-"), false, "add derived reference edges the lock does not hold yet")
+	var flags gen.ReferenceFlags
+	flag.BoolVar(&flags.AcceptNew, strings.TrimPrefix(gen.AcceptNewReferencesFlag, "-"), false, "add derived reference edges the lock does not hold yet")
+	flag.BoolVar(&flags.AcceptReclassified, strings.TrimPrefix(gen.AcceptReclassifiedReferencesFlag, "-"), false,
+		"let the overlay's cross_service_targets move locked reference edges between tier 1 and tier 2")
 	out := flag.String("out", "internal/catalog/catalog.json.gz", "catalog to write")
 	warningsPath := flag.String("warnings", "gen/warnings.txt", "warnings to write")
 	flag.Parse()
-	if err := run(*bundle, *overlayPath, *lockPath, *refsPath, *out, *warningsPath, *acceptNew); err != nil {
+	if err := run(*bundle, *overlayPath, *lockPath, *refsPath, *out, *warningsPath, flags); err != nil {
 		fmt.Fprintln(os.Stderr, "gen-cloudcontrol:", err)
 		os.Exit(1)
 	}
 }
 
-func run(bundle, overlayPath, lockPath, refsPath, out, warningsPath string, acceptNew bool) error {
+func run(bundle, overlayPath, lockPath, refsPath, out, warningsPath string, flags gen.ReferenceFlags) error {
 	schemas, sha, err := cfn.ReadBundle(bundle)
 	if err != nil {
 		return err
@@ -47,7 +50,7 @@ func run(bundle, overlayPath, lockPath, refsPath, out, warningsPath string, acce
 		return err
 	}
 	before, refsBefore := len(lock.Names), len(refs.References)
-	cat, warnings, err := gen.Generate(schemas, sha, lock, refs, o, acceptNew)
+	cat, warnings, err := gen.Generate(schemas, sha, lock, refs, o, flags)
 	if err != nil {
 		return err
 	}
@@ -70,6 +73,9 @@ func run(bundle, overlayPath, lockPath, refsPath, out, warningsPath string, acce
 	}
 	if err := os.WriteFile(warningsPath, []byte(strings.Join(warnings, "\n")+"\n"), 0o644); err != nil {
 		return err
+	}
+	for _, c := range refs.Changes {
+		fmt.Fprintln(os.Stderr, "reference changed:", c)
 	}
 	statuses := map[string]int{}
 	for _, r := range refs.References {

@@ -10,8 +10,8 @@ import (
 )
 
 // Generate builds the catalog from every provisionable AWS schema. The lock gains names for new types and refs gains
-// derived reference edges, the latter only when acceptNew is set; saving both is the caller's job.
-func Generate(schemas []*cfn.Schema, bundleSHA string, lock *Lock, refs *ReferenceLock, o *Overlay, acceptNew bool) (*catalog.Catalog, []string, error) {
+// derived reference edges and tier moves, those only as flags allows; saving both is the caller's job.
+func Generate(schemas []*cfn.Schema, bundleSHA string, lock *Lock, refs *ReferenceLock, o *Overlay, flags ReferenceFlags) (*catalog.Catalog, []string, error) {
 	var provisionable []*cfn.Schema
 	var cfnTypes []string
 	live := map[string][]string{}
@@ -31,7 +31,7 @@ func Generate(schemas []*cfn.Schema, bundleSHA string, lock *Lock, refs *Referen
 	if err != nil {
 		return nil, nil, err
 	}
-	usable, warnings, err := refs.Reconcile(DeriveReferences(provisionable), live, o.References, acceptNew)
+	usable, warnings, err := refs.Reconcile(DeriveReferences(provisionable), live, o.References, flags)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -94,6 +94,9 @@ func checkOverlay(o *Overlay, cfnTypes []string) error {
 	}
 	for _, t := range o.DiscoverDefault {
 		check("discover_default", t)
+	}
+	for _, t := range o.References.CrossServiceTargets {
+		check("references cross_service_targets", t)
 	}
 	for _, t := range o.References.ApproveTargets {
 		check("references approve_targets", t)
