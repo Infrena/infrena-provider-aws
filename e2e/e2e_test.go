@@ -163,11 +163,34 @@ func (e *env) planOps(t *testing.T) map[string]string {
 	if err != nil {
 		t.Fatalf("plan wrote no --output file: %v", err)
 	}
-	var doc struct {
+	type planDoc struct {
 		Operations []struct{ Address, Kind string } `json:"operations"`
 	}
+	// infrena up to v0.6.x writes the plan as one JSON document. Later versions write an NDJSON report stream
+	// whose last line carries the plan, possibly nested under a key, so every line is checked for operations.
+	var doc planDoc
 	if err := json.Unmarshal(data, &doc); err != nil {
-		t.Fatalf("plan --output is not the expected JSON: %v\n%s", err, data)
+		found := false
+		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+			var direct planDoc
+			if json.Unmarshal([]byte(line), &direct) == nil && direct.Operations != nil {
+				doc, found = direct, true
+				continue
+			}
+			var wrapped map[string]json.RawMessage
+			if json.Unmarshal([]byte(line), &wrapped) != nil {
+				continue
+			}
+			for _, raw := range wrapped {
+				var inner planDoc
+				if json.Unmarshal(raw, &inner) == nil && inner.Operations != nil {
+					doc, found = inner, true
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("plan --output holds no plan, as one JSON document or as a report line: %v\n%s", err, data)
+		}
 	}
 	ops := map[string]string{}
 	for _, op := range doc.Operations {
