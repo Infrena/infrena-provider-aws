@@ -1,0 +1,107 @@
+infrena: ">= 0.7"
+
+project: ecs-example
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  vpc:
+    type: aws.vpc
+    cidr: 10.0.0.0/16
+    tags:
+      Name: ecs-vpc
+
+  private_subnet:
+    type: aws.subnet
+    vpc: ${vpc}
+    cidr: 10.0.1.0/24
+    az: us-east-1a
+    tags:
+      Name: ecs-private-subnet
+
+  ecs_security_group:
+    type: aws.securitygroup
+    description: ECS tasks security group
+    vpc_id: ${vpc}
+    ingress:
+      - ip_protocol: tcp
+        from_port: 8080
+        to_port: 8080
+        cidr_ip: 10.0.0.0/16
+
+  ecs_task_execution_role:
+    type: aws.role
+    name: ecs-task-execution-role
+    assume_role_policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "ecs-tasks.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+    managed_policy_arns:
+      - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ecs_cluster:
+    type: aws.ecs.cluster
+    name: example-cluster
+    tags:
+      Environment: dev
+
+  task_definition:
+    type: aws.ecs.taskdefinition
+    family: example-app
+    cpu: "256"
+    memory: "512"
+    network_mode: awsvpc
+    requires_compatibilities: [FARGATE]
+    execution_role_arn: ${ecs_task_execution_role.Arn}
+    container_definitions:
+      - name: app
+        image: nginx:latest
+        portMappings:
+          - containerPort: 80
+            hostPort: 80
+            protocol: tcp
+        logConfiguration:
+          logDriver: awslogs
+          options:
+            awslogs-group: /ecs/example-app
+            awslogs-region: us-east-1
+            awslogs-stream-prefix: ecs
+    tags:
+      Environment: dev
+
+  service:
+    type: aws.ecs.service
+    cluster: ${ecs_cluster.ClusterName}
+    service_name: example-service
+    task_definition: ${task_definition.TaskDefinitionArn}
+    desired_count: 2
+    launch_type: FARGATE
+    network_configuration:
+      awsvpcConfiguration:
+        subnets:
+          - ${private_subnet.SubnetId}
+        securityGroups:
+          - ${ecs_security_group.GroupId}
+        assignPublicIp: DISABLED
+    tags:
+      Environment: dev

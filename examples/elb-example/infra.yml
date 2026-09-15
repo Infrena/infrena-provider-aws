@@ -1,0 +1,112 @@
+infrena: ">= 0.7"
+
+project: elb-example
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  vpc:
+    type: aws.vpc
+    cidr: 10.0.0.0/16
+    enable_dns_support: true
+    enable_dns_hostnames: true
+    tags:
+      Name: elb-example-vpc
+
+  subnet_a:
+    type: aws.subnet
+    vpc: ${vpc}
+    cidr: 10.0.1.0/24
+    az: us-east-1a
+    map_public_ip_on_launch: true
+    tags:
+      Name: subnet-a
+
+  subnet_b:
+    type: aws.subnet
+    vpc: ${vpc}
+    cidr: 10.0.2.0/24
+    az: us-east-1b
+    map_public_ip_on_launch: true
+    tags:
+      Name: subnet-b
+
+  internet_gateway:
+    type: aws.internetgateway
+    tags:
+      Name: elb-igw
+
+  route_table:
+    type: aws.routetable
+    vpc_id: ${vpc}
+    tags:
+      Name: public-routes
+
+  igw_route:
+    type: aws.ec2.route
+    route_table_id: ${route_table}
+    destination_cidr_block: 0.0.0.0/0
+    gateway_id: ${internet_gateway.InternetGatewayId}
+
+  alb_security_group:
+    type: aws.securitygroup
+    description: Security group for load balancer
+    vpc_id: ${vpc}
+    ingress:
+      - ip_protocol: tcp
+        from_port: 80
+        to_port: 80
+        cidr_ip: 0.0.0.0/0
+      - ip_protocol: tcp
+        from_port: 443
+        to_port: 443
+        cidr_ip: 0.0.0.0/0
+    tags:
+      Name: alb-sg
+
+  application_load_balancer:
+    type: aws.elasticloadbalancingv2.loadbalancer
+    type_value: application
+    subnets:
+      - ${subnet_a.SubnetId}
+      - ${subnet_b.SubnetId}
+    security_groups:
+      - ${alb_security_group.GroupId}
+    scheme: internet-facing
+    tags:
+      Name: app-alb
+
+  target_group:
+    type: aws.elasticloadbalancingv2.targetgroup
+    protocol: HTTP
+    port: 80
+    vpc_id: ${vpc}
+    target_type: instance
+    health_check_protocol: HTTP
+    health_check_path: /
+    health_check_interval_seconds: 30
+    health_check_timeout_seconds: 5
+    healthy_threshold_count: 2
+    unhealthy_threshold_count: 3
+    tags:
+      Name: app-targets
+
+  http_listener:
+    type: aws.elasticloadbalancingv2.listener
+    load_balancer_arn: ${application_load_balancer}
+    port: 80
+    protocol: HTTP
+    default_actions:
+      - type: forward
+        target_group_arn: ${target_group.TargetGroupArn}

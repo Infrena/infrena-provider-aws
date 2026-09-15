@@ -1,0 +1,56 @@
+infrena: ">= 0.7"
+
+project: ecr-example
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  api_repository:
+    type: aws.ecr.repository
+    repository_name: myapp/api
+    image_tag_mutability: IMMUTABLE
+    image_scanning_configuration:
+      ScanOnPush: true
+    lifecycle_policy:
+      Rules:
+        - RulePriority: 1
+          Description: Expire untagged images after 7 days
+          Selection:
+            TagStatus: untagged
+            CountUnit: imageCountMoreThan
+            CountNumber: 0
+            DaysSinceImagePushed: 7
+          Action:
+            Type: expire
+        - RulePriority: 2
+          Description: Keep last 10 tagged images
+          Selection:
+            TagStatus: tagged
+            TagPrefixList:
+              - v
+            CountUnit: imageCountMoreThan
+            CountNumber: 10
+          Action:
+            Type: expire
+    tags:
+      Application: myapp
+      Environment: dev
+
+  worker_repository:
+    type: aws.ecr.repository
+    repository_name: myapp/worker
+    image_tag_mutability: MUTABLE
+    tags:
+      Application: myapp
+      Environment: dev

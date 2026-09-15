@@ -1,0 +1,71 @@
+infrena: ">= 0.7"
+
+project: iam-example
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  app_role:
+    type: aws.role
+    name: app-execution-role
+    description: Execution role for the application
+    assume_role_policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "ec2.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+    tags:
+      Environment: production
+      Team: platform
+
+  app_policy:
+    type: aws.managedpolicy
+    name: app-s3-access
+    description: Policy for S3 bucket access
+    policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": ["s3:GetObject", "s3:PutObject"],
+            "Resource": "arn:aws:s3:::my-bucket/*"
+          }
+        ]
+      }
+    roles:
+      - app-execution-role
+
+  app_instance_profile:
+    type: aws.iam.instanceprofile
+    instance_profile_name: app-instance-profile
+    roles:
+      - app-execution-role
+
+  app_user:
+    type: aws.iam.user
+    user_name: app-service-user
+    managed_policy_arns:
+      - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+    tags:
+      Environment: production
+      Purpose: application-access

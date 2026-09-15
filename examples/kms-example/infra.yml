@@ -1,0 +1,45 @@
+infrena: ">= 0.7"
+
+project: kms-example
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  app_encryption_key:
+    type: aws.kms.key
+    description: Encryption key for application data
+    enable_key_rotation: true
+    key_policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "Enable IAM User Permissions",
+            "Effect": "Allow",
+            "Principal": {
+              "AWS": "arn:aws:iam::123456789012:root"
+            },
+            "Action": "kms:*",
+            "Resource": "*"
+          }
+        ]
+      }
+    tags:
+      Environment: production
+      Purpose: application-encryption
+
+  app_key_alias:
+    type: aws.kms.alias
+    alias_name: alias/app-encryption-key
+    target_key_id: ${app_encryption_key.KeyId}

@@ -1,0 +1,112 @@
+infrena: ">= 0.7"
+
+project: vpc-example
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  vpc:
+    type: aws.vpc
+    cidr: 10.0.0.0/16
+    enable_dns_support: true
+    enable_dns_hostnames: true
+    tags:
+      Name: vpc-example
+
+  public_subnet_a:
+    type: aws.subnet
+    vpc: ${vpc}
+    cidr: 10.0.1.0/24
+    az: us-east-1a
+    map_public_ip_on_launch: true
+    tags:
+      Name: public-1a
+
+  private_subnet_a:
+    type: aws.subnet
+    vpc: ${vpc}
+    cidr: 10.0.2.0/24
+    az: us-east-1a
+    tags:
+      Name: private-1a
+
+  internet_gateway:
+    type: aws.internetgateway
+    tags:
+      Name: main-igw
+
+  public_route_table:
+    type: aws.routetable
+    vpc_id: ${vpc}
+    tags:
+      Name: public-routes
+
+  public_route:
+    type: aws.ec2.route
+    route_table_id: ${public_route_table}
+    destination_cidr_block: 0.0.0.0/0
+    gateway_id: ${internet_gateway.InternetGatewayId}
+
+  nat_eip:
+    type: aws.eip
+    domain: vpc
+    tags:
+      Name: nat-eip
+
+  nat_gateway:
+    type: aws.natgateway
+    subnet_id: ${public_subnet_a}
+    allocation_id: ${nat_eip.AllocationId}
+    tags:
+      Name: nat-gateway
+
+  private_route_table:
+    type: aws.routetable
+    vpc_id: ${vpc}
+    tags:
+      Name: private-routes
+
+  private_route:
+    type: aws.ec2.route
+    route_table_id: ${private_route_table}
+    destination_cidr_block: 0.0.0.0/0
+    nat_gateway_id: ${nat_gateway}
+
+  web_security_group:
+    type: aws.securitygroup
+    description: Allow HTTP and HTTPS from anywhere
+    vpc_id: ${vpc}
+    ingress:
+      - ip_protocol: tcp
+        from_port: 80
+        to_port: 80
+        cidr_ip: 0.0.0.0/0
+      - ip_protocol: tcp
+        from_port: 443
+        to_port: 443
+        cidr_ip: 0.0.0.0/0
+    tags:
+      Name: web-sg
+
+  app_security_group:
+    type: aws.securitygroup
+    description: Allow traffic from web servers only
+    vpc_id: ${vpc}
+    ingress:
+      - ip_protocol: tcp
+        from_port: 8080
+        to_port: 8080
+        source_security_group_id: ${web_security_group.GroupId}
+    tags:
+      Name: app-sg
