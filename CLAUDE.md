@@ -61,9 +61,16 @@ Go **1.27.0** — infrena's own `go.mod` floor, so this module must declare it t
 `GOTOOLCHAIN=auto` (the default) Go fetches a new enough toolchain.
 
 **Dependencies:** `github.com/infrena/infrena` plus the AWS SDK for Go v2 (`aws-sdk-go-v2`, its
-`config`, `credentials`, `service/sts`, `service/cloudcontrol`, and `smithy-go`), and `gopkg.in/yaml.v3`
-for the generator's overlay. `service/ec2` is gone — Cloud Control replaced it. Add another dependency
-only with a reason written in the plan.
+`config`, `credentials`, `service/sts`, `service/cloudcontrol`, `service/ec2`, and `smithy-go`), and
+`gopkg.in/yaml.v3` for the generator's overlay. Cloud Control replaced `service/ec2` for CRUD; it came
+back in 0.4.0 for one reason only, that Cloud Control's schemas carry no `IsDefault` on a VPC and no
+`DefaultForAz` on a subnet, so `DescribeVpcs` and `DescribeSubnets` are the only authoritative way to
+mark those as owned by AWS (`internal/ccprov/defaults.go`).
+
+**What an AWS SDK service costs, measured when `service/ec2` was added (2026-09-15):** no new indirect
+modules, +503 KiB of binary (+3.3%), cold build 8.7 s to 28.9 s, warm rebuild and plugin load time
+unchanged. The cold build is the number that will creep if more services arrive; measure it again
+before adding one, and add a dependency only with a reason written down.
 
 **How infrena is depended on.** infrena is private. `go.mod` REQUIRES a real infrena version (currently
 `v0.4.0`, the first release under the infrena name) and has **no `replace`**. Two ways to build:
