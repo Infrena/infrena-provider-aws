@@ -68,6 +68,29 @@ The identity needs a policy allowing:
     `iam:CreateServiceLinkedRole`, `ecs:TagResource`, `kms:DescribeKey`, `ecs:PutAccountSettingDefault`,
     `ecs:UntagResource`, `ecs:PutAccountSetting`, `ecs:ListTagsForResource`, `ecs:UpdateCluster`,
     `ecs:UpdateClusterSettings`, `ecs:PutClusterCapacityProviders`, `ecs:DeleteCluster`, `ecs:ListClusters`
+- the handler permissions for the three RDS types `TestDatabasesAgainstRealAWS` exercises, taken the same way
+  from each type's `handlers.*.permissions` in `schemas/CloudformationSchema.zip` (`aws-rds-dbinstance.json`,
+  `aws-rds-dbsubnetgroup.json`, `aws-rds-dbparametergroup.json`):
+  - DB instance (`aws-rds-dbinstance.json`, create/read/update/delete/list handlers, deduplicated):
+    `ec2:DescribeAccountAttributes`, `ec2:DescribeAvailabilityZones`, `ec2:DescribeInternetGateways`,
+    `ec2:DescribeSecurityGroups`, `ec2:DescribeSubnets`, `ec2:DescribeVpcAttribute`, `ec2:DescribeVpcs`,
+    `iam:CreateServiceLinkedRole`, `iam:GetRole`, `iam:ListRoles`, `iam:PassRole`, `kms:CreateGrant`,
+    `kms:DescribeKey`, `rds:AddRoleToDBInstance`, `rds:AddTagsToResource`, `rds:CreateDBInstance`,
+    `rds:CreateDBInstanceReadReplica`, `rds:CreateDBSnapshot`, `rds:DeleteDBInstance`,
+    `rds:DescribeDBClusterSnapshots`, `rds:DescribeDBClusters`, `rds:DescribeDBEngineVersions`,
+    `rds:DescribeDBInstanceAutomatedBackups`, `rds:DescribeDBInstances`, `rds:DescribeDBParameterGroups`,
+    `rds:DescribeDBSnapshots`, `rds:DescribeEvents`, `rds:ModifyDBInstance`, `rds:PromoteReadReplica`,
+    `rds:RebootDBInstance`, `rds:RemoveRoleFromDBInstance`, `rds:RemoveTagsFromResource`,
+    `rds:RestoreDBInstanceFromDBSnapshot`, `rds:RestoreDBInstanceToPointInTime`,
+    `rds:StartDBInstanceAutomatedBackupsReplication`, `rds:StopDBInstanceAutomatedBackupsReplication`,
+    `secretsmanager:CreateSecret`, `secretsmanager:TagResource`
+  - DB subnet group (`aws-rds-dbsubnetgroup.json`): `iam:CreateServiceLinkedRole`, `rds:AddTagsToResource`,
+    `rds:CreateDBSubnetGroup`, `rds:DeleteDBSubnetGroup`, `rds:DescribeDBSubnetGroups`, `rds:ListTagsForResource`,
+    `rds:ModifyDBSubnetGroup`, `rds:RemoveTagsFromResource`
+  - DB parameter group (`aws-rds-dbparametergroup.json`): `iam:CreateServiceLinkedRole`, `rds:AddTagsToResource`,
+    `rds:CreateDBParameterGroup`, `rds:DeleteDBParameterGroup`, `rds:DescribeDBParameterGroups`,
+    `rds:DescribeDBParameters`, `rds:DescribeEngineDefaultParameters`, `rds:ListTagsForResource`,
+    `rds:ModifyDBParameterGroup`, `rds:RemoveTagsFromResource`, `rds:ResetDBParameterGroup`
 
 A missing permission shows up as `AccessDenied` naming the action; add that action and try again.
 
@@ -108,21 +131,58 @@ Nothing is ever put in the bucket or the repository — it stays free-tier, and 
 required to delete it. It deletes everything it created, in dependency order, and is a separate test function
 from `TestTheLifecycleAgainstRealAWS` so a run can target either alone with `-run`.
 
+`TestDatabasesAgainstRealAWS` creates a VPC (`10.98.0.0/16`) with two subnets in different Availability Zones
+(`10.98.1.0/24`, `10.98.2.0/24` — a DB subnet group must span at least two AZs), a DB subnet group, a DB
+parameter group, and a DB instance, all named `infrena-live-<unix time>` and tagged
+`infrena-live-run: <unix time>`:
+
+- the DB instance is the smallest free-tier-eligible shape: engine `postgres`, `db.t3.micro`, 20 GiB `gp3`
+  storage, single-AZ, no public access, `BackupRetentionPeriod: 0`, and a `MasterUserPassword` generated fresh
+  for the run. **This is free-tier eligible but NOT free** if the account's AWS Free Tier allowance is already
+  used up elsewhere (by another instance, another account under the same organization's Free Tier, or because
+  the account is past its 12-month Free Tier window) — RDS bills for `db.t3.micro` and `gp3` storage like any
+  other instance once free tier no longer applies.
+- it updates the DB instance's tags — cheap, immediate (RDS's `AddTagsToResource`, not `ModifyDBInstance`), and
+  deliberately not the instance class or storage, which would take AWS a long time or replace the instance
+- `AWS::RDS::DBInstance` has no `SkipFinalSnapshot`-like property in its schema, so there is nothing to set to
+  avoid a final snapshot on delete; Cloud Control's `DeleteResource` for this type has no way to be told to take
+  one either
+
+It deletes everything it created, in dependency order (instance, then subnet group, then parameter group, then
+the subnets, then the VPC), and is a separate test function so a run can target it alone with `-run`.
+
+### The DB instance's longer timeouts
+
+`AWS::RDS::DBInstance`'s create, update and delete handlers are each registered with a 2160-minute (36-hour)
+`timeoutInMinutes` in the catalog (`internal/ccprov/catalog_test.go`, sourced from
+`schemas/CloudformationSchema.zip`'s `aws-rds-dbinstance.json`) — that is Cloud Control's own outer ceiling on
+one request, not a prediction of how long a real create takes. A real create typically takes AWS 5 to 10
+minutes and a delete several minutes more. That is far more than the few minutes the other tests take, so a run
+that includes `TestDatabasesAgainstRealAWS` needs `go test`'s own `-timeout` raised well past the `30m` used
+below — `45m` or more is reasonable headroom; raise it further if a run is timing out mid-create.
+
 ## Running it
 
-```bash
-INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
-  go test -tags live -count=1 -v -timeout 30m ./live/
+A run that includes `TestDatabasesAgainstRealAWS` (whether by itself or as part of the whole package) needs a
+longer `-timeout` than the other tests alone do — see "The DB instance's longer timeouts" above:
 
-# or just one of the two suites:
+```bash
+# TestTheLifecycleAgainstRealAWS and TestStorageAndContainersAgainstRealAWS only, 30m is plenty:
 INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
-  go test -tags live -count=1 -v -timeout 30m -run TestStorageAndContainersAgainstRealAWS ./live/
+  go test -tags live -count=1 -v -timeout 30m -run 'TestTheLifecycleAgainstRealAWS|TestStorageAndContainersAgainstRealAWS' ./live/
+
+# the whole package, or TestDatabasesAgainstRealAWS alone, needs the DB instance's much longer timeout:
+INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
+  go test -tags live -count=1 -v -timeout 45m ./live/
+
+INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
+  go test -tags live -count=1 -v -timeout 45m -run TestDatabasesAgainstRealAWS ./live/
 ```
 
 ## Cleaning up after a crashed run
 
 If a run is interrupted before its cleanup runs, `TestSweepLeftovers` finds and deletes anything
-this suite tagged more than an hour ago, across all seven types (buckets and repositories included — safe
+this suite tagged more than an hour ago, across all ten types (buckets and repositories included — safe
 without checking for emptiness, since this suite never puts objects or images in them):
 
 ```bash
