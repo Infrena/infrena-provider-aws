@@ -18,6 +18,10 @@ The identity needs a policy allowing:
   `cloudformation:GetResourceRequestStatus`, `cloudformation:ListResourceRequests`,
   `cloudformation:CancelResourceRequest`
 - `sts:GetCallerIdentity`
+- the two EC2 reads discovery uses to say which resources AWS itself owns: `ec2:DescribeVpcs` and
+  `ec2:DescribeSubnets`. **Both are already covered by the `ec2:Describe*` below**, so a policy built from this
+  list needs no change; they are named because a narrower policy that spells out each action would need them,
+  and because without them discovery still works — it marks nothing and says so on stderr.
 - the handler permissions for the four types `TestTheLifecycleAgainstRealAWS` exercises:
   `ec2:CreateVpc`, `ec2:DeleteVpc`, `ec2:ModifyVpcAttribute`, `ec2:CreateSubnet`, `ec2:DeleteSubnet`,
   `ec2:CreateSecurityGroup`, `ec2:DeleteSecurityGroup`, `ec2:AuthorizeSecurityGroupIngress`,

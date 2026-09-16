@@ -89,6 +89,14 @@ func (p *Provider) Read(ctx context.Context, current *resource.ResourceState) (*
 
 // read is GetResource with patience for propagation: (nil, nil) when the resource is gone.
 func (p *Provider) read(ctx context.Context, t *catalog.Type, region, id string, reference map[string]value.Value, pt patience) (*resource.ResourceState, error) {
+	st, _, err := p.readRaw(ctx, t, region, id, reference, pt)
+	return st, err
+}
+
+// readRaw is read, handing back the properties exactly as AWS returned them alongside the state. Discovery needs
+// them: deciding whether AWS owns a resource rests on what AWS actually said, including the aws:-prefixed tags
+// decoding drops (tags.go) and properties the catalog does not expose.
+func (p *Provider) readRaw(ctx context.Context, t *catalog.Type, region, id string, reference map[string]value.Value, pt patience) (*resource.ResourceState, map[string]any, error) {
 	cl := p.clients.get(region)
 	var desc *types.ResourceDescription
 	found, err := pt.wait(ctx, func() (bool, error) {
@@ -103,21 +111,22 @@ func (p *Provider) read(ctx context.Context, t *catalog.Type, region, id string,
 		return true, nil
 	})
 	if err != nil {
-		return nil, failure(p.instance, "GetResource", t, FormatID(t, region, id), err)
+		return nil, nil, failure(p.instance, "GetResource", t, FormatID(t, region, id), err)
 	}
 	if !found {
-		return nil, nil
+		return nil, nil, nil
 	}
 	props, err := decodeProperties(aws.ToString(desc.Properties))
 	if err != nil {
-		return nil, fmt.Errorf("aws instance %q: %s %s: AWS returned properties that are not a JSON object: %w",
+		return nil, nil, fmt.Errorf("aws instance %q: %s %s: AWS returned properties that are not a JSON object: %w",
 			p.instance, t.Name, FormatID(t, region, id), err)
 	}
 	identifier := aws.ToString(desc.Identifier)
 	if identifier == "" {
 		identifier = id
 	}
-	return stateFrom(t, region, identifier, props, reference)
+	st, err := stateFrom(t, region, identifier, props, reference)
+	return st, props, err
 }
 
 // Delete succeeds for a resource that is already gone, whenever that is discovered.

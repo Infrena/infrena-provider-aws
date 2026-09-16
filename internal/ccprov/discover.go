@@ -45,6 +45,8 @@ func (p *Provider) Discover(ctx context.Context, req provider.DiscoverRequest) (
 	var out []provider.DiscoveredResource
 	var failed []error
 	attempts := 0
+	// One run's answers about what AWS itself owns, asked lazily and cached per region.
+	defs := newDefaults(p)
 	for _, t := range types {
 		regions := p.opts.DiscoverRegions
 		if t.Global() {
@@ -55,7 +57,7 @@ func (p *Provider) Discover(ctx context.Context, req provider.DiscoverRequest) (
 				return nil, err
 			}
 			attempts++
-			found, err := p.discoverIn(ctx, t, region)
+			found, err := p.discoverIn(ctx, t, region, defs.in(region))
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					return nil, err
@@ -73,7 +75,7 @@ func (p *Provider) Discover(ctx context.Context, req provider.DiscoverRequest) (
 	return out, nil
 }
 
-func (p *Provider) discoverIn(ctx context.Context, t *catalog.Type, region string) ([]provider.DiscoveredResource, error) {
+func (p *Provider) discoverIn(ctx context.Context, t *catalog.Type, region string, facts regionFacts) ([]provider.DiscoveredResource, error) {
 	pages := cloudcontrol.NewListResourcesPaginator(p.clients.get(region), &cloudcontrol.ListResourcesInput{TypeName: aws.String(t.CFN)})
 	var out []provider.DiscoveredResource
 	for pages.HasMorePages() {
@@ -85,13 +87,20 @@ func (p *Provider) discoverIn(ctx context.Context, t *catalog.Type, region strin
 			return nil, failure(p.instance, "ListResources", t, region, err)
 		}
 		for _, d := range page.ResourceDescriptions {
-			st, err := p.read(ctx, t, region, aws.ToString(d.Identifier), nil, once)
+			st, props, err := p.readRaw(ctx, t, region, aws.ToString(d.Identifier), nil, once)
 			if err != nil {
 				return nil, err
 			}
-			if st != nil { // gone between the list and the read
-				out = append(out, provider.DiscoveredResource{Type: t.Name, ProviderID: st.ProviderID, Attributes: st.Attributes})
+			if st == nil { // gone between the list and the read
+				continue
 			}
+			// The plugin declares what the cloud owns; infrena never infers it. It shows the reason and leaves
+			// such a resource out of `import` unless a selector names it.
+			owned, why := systemOwned(ctx, t, props, facts)
+			out = append(out, provider.DiscoveredResource{
+				Type: t.Name, ProviderID: st.ProviderID, Attributes: st.Attributes,
+				SystemOwned: owned, SystemOwnedReason: why,
+			})
 		}
 	}
 	return out, nil

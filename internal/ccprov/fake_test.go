@@ -12,7 +12,7 @@ import (
 )
 
 var fakePrefixes = map[string]string{
-	"aws.vpc": "vpc-", "aws.securitygroup": "sg-", "aws.bucket": "bucket-", "aws.role": "role-",
+	"aws.vpc": "vpc-", "aws.subnet": "subnet-", "aws.securitygroup": "sg-", "aws.bucket": "bucket-", "aws.role": "role-",
 	"aws.dbinstance": "db-", "aws.test.regioned": "reg-", "aws.test.child": "child-",
 }
 

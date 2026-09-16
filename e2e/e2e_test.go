@@ -128,7 +128,8 @@ func (e *env) infrena(t *testing.T, args ...string) (string, int) {
 		"AWS_CONFIG_FILE="+filepath.Join(home, "none"), "AWS_SHARED_CREDENTIALS_FILE="+filepath.Join(home, "none"),
 		"AWS_PROFILE=", "AWS_REGION=", "AWS_DEFAULT_REGION=", "AWS_MAX_ATTEMPTS=", "AWS_SESSION_TOKEN=",
 		"AWS_ACCESS_KEY_ID=AKIDE2E", "AWS_SECRET_ACCESS_KEY=e2e-secret", "AWS_EC2_METADATA_DISABLED=true",
-		"AWS_ENDPOINT_URL=", "AWS_ENDPOINT_URL_CLOUDCONTROL="+e.fake.URL, "AWS_ENDPOINT_URL_STS="+e.fake.URL,
+		"AWS_ENDPOINT_URL=", "AWS_ENDPOINT_URL_CLOUDCONTROL="+e.fake.URL, "AWS_ENDPOINT_URL_EC2="+e.fake.URL,
+		"AWS_ENDPOINT_URL_STS="+e.fake.URL,
 	)
 	out, err := cmd.CombinedOutput()
 	code := 0

@@ -18,6 +18,7 @@ func array(item *catalog.Shape, unordered bool) *catalog.Shape {
 // testCatalog is every shape of type the provider handles:
 //
 //	aws.vpc              regional, provider-chosen defaults, a write-only property, tags as a map
+//	aws.subnet           regional, and one of the two types whose cloud-owned answer only EC2 has
 //	aws.securitygroup    an unordered list of objects (nested spelling, AWS-added keys, order)
 //	aws.bucket           nested objects inside ordered lists inside objects
 //	aws.role             global, an opaque policy document, an unordered list holding opaque values
@@ -40,6 +41,17 @@ func testCatalog() *catalog.Catalog {
 					{Name: "VpcId", Kind: "string", Computed: true, Aliases: []string{"vpc_id"}},
 					{Name: "DefaultSecurityGroup", Kind: "string", Computed: true, Aliases: []string{"default_security_group"}},
 					{Name: "CidrBlockAssociations", Kind: "list", Computed: true, Aliases: []string{"cidr_block_associations"}, Shape: array(scalar(), true)},
+					{Name: "Tags", Kind: "map", Optional: true, Computed: true, Shape: opaque()},
+				},
+			},
+			{
+				Name: "aws.subnet", CFN: "AWS::EC2::Subnet", RegionAttr: "region", Identifier: []string{"SubnetId"},
+				HasUpdate: true, HasList: true, TagsAsMap: "Tags",
+				Attributes: []*catalog.Attribute{
+					{Name: "SubnetId", Kind: "string", Computed: true, Aliases: []string{"subnet_id"}},
+					{Name: "VpcId", Kind: "string", Optional: true, Computed: true, ForceNew: true, Aliases: []string{"vpc", "vpc_id"}},
+					{Name: "CidrBlock", Kind: "string", Optional: true, Computed: true, ForceNew: true, Aliases: []string{"cidr", "cidr_block"}},
+					{Name: "AvailabilityZone", Kind: "string", Optional: true, Computed: true, ForceNew: true, Aliases: []string{"az", "availability_zone"}},
 					{Name: "Tags", Kind: "map", Optional: true, Computed: true, Shape: opaque()},
 				},
 			},

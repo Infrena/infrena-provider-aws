@@ -31,6 +31,7 @@ type Provider struct {
 	cat      *catalog.Catalog
 	opts     Options
 	clients  *clients
+	ec2      ec2Defaults // what AWS itself owns in a region; asked by Discover only
 	patience patience
 	pacing   pacing
 	log      io.Writer // stderr: stdout is the plugin protocol
@@ -44,8 +45,9 @@ var _ provider.Provider = (*Provider)(nil)
 
 // New builds an instance. It makes no network call.
 func New(instance string, cat *catalog.Catalog, cfg aws.Config, opts Options) *Provider {
+	cl := newClients(cfg)
 	return &Provider{
-		instance: instance, cat: cat, opts: opts, clients: newClients(cfg),
+		instance: instance, cat: cat, opts: opts, clients: cl, ec2: &ec2API{clients: cl},
 		patience: notFoundPatience, pacing: defaultPacing, log: os.Stderr, token: newToken,
 	}
 }

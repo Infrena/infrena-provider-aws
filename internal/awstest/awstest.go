@@ -8,8 +8,9 @@ import (
 )
 
 // Isolate stops the SDK reading the developer's config and credentials files, profile, instance metadata and real
-// endpoints, and points Cloud Control and STS at endpoint (which may be ""). It uses t.Setenv, so callers cannot run in
-// parallel. It returns the directory holding the empty config and credentials files.
+// endpoints, and points Cloud Control, EC2 and STS at endpoint (which may be ""). EC2 is there because discovery asks
+// it which VPC and subnets AWS itself owns; without it a discovery test would reach real AWS. It uses t.Setenv, so
+// callers cannot run in parallel. It returns the directory holding the empty config and credentials files.
 func Isolate(t testing.TB, endpoint string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -34,6 +35,7 @@ func Isolate(t testing.TB, endpoint string) string {
 		"AWS_EC2_METADATA_DISABLED":     "true",
 		"AWS_ENDPOINT_URL":              "",
 		"AWS_ENDPOINT_URL_CLOUDCONTROL": endpoint,
+		"AWS_ENDPOINT_URL_EC2":          endpoint,
 		"AWS_ENDPOINT_URL_STS":          endpoint,
 	} {
 		t.Setenv(k, v)
