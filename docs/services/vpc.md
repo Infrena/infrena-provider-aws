@@ -214,6 +214,21 @@ app_sg:
     Name: app-sg
 ```
 
+## Discovery and the VPC AWS gave you
+
+Every region starts with a default VPC, a default subnet in each availability zone, and a default security group, all
+created by AWS rather than by you. `infrena discover` marks each of them as cloud-owned and says why, and
+`infrena import` leaves a marked resource out unless a selector names it — so adopting an account's existing
+networking does not quietly put AWS's own resources under infrena's management, where a later `destroy` would try to
+delete them. To adopt one anyway, name it: `infrena import dev aws.vpc.us-east-1/vpc-0abc123`.
+
+The claim rests on evidence, never on appearance. The default VPC and the default subnets are the two cases Cloud
+Control cannot answer (AWS's schemas carry no `IsDefault` or `DefaultForAz`), so the plugin asks EC2 once per region
+per discovery run; a VPC is never assumed to be the default because its CIDR is 172.31.0.0/16 or because of its name.
+The default security group is recognised by `GroupName: default`, which AWS refuses to any other group. If the EC2
+call fails — usually a missing `ec2:DescribeVpcs` or `ec2:DescribeSubnets` permission — discovery still lists
+everything, marks nothing, and reports that on stderr.
+
 ## Common Pitfalls
 
 - **Unattached internet gateway:** Creating an internet gateway without adding a route to it does nothing. Add an `aws.ec2.route` with `gateway_id: ${igw}` to the public route table.

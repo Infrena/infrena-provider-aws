@@ -86,6 +86,28 @@ way the name is prefixed with the type's last segment. `import --generate` write
 example `vpc: ${vpc-app1}`) instead of a literal id wherever an imported resource's attribute points at
 another resource imported in the same run.
 
+### Resources AWS owns
+
+Discovery marks the resources AWS itself made and manages, and `import` leaves a marked resource out unless you
+name it: `infrena import dev` never adopts your default VPC by accident, while
+`infrena import dev aws.vpc.us-east-1/vpc-0abc123` still adopts it deliberately. Each one is reported with the
+evidence behind the claim:
+
+| Marked | Evidence |
+| --- | --- |
+| the default VPC | EC2 reports it as the region's default (`DescribeVpcs`, filtered `is-default`) |
+| a default subnet | EC2 reports `DefaultForAz` for it (`DescribeSubnets`) |
+| the default security group | its `GroupName` is `default` |
+| a service-linked role | its `Path` starts `/aws-service-role/` |
+| anything a CloudFormation stack owns | the `aws:cloudformation:stack-id` tag AWS writes on it |
+
+Nothing is marked on a guess: a VPC is not a default because its CIDR is 172.31.0.0/16, or because of what it is
+called. Cloud Control cannot answer the VPC and subnet questions at all — AWS's published schemas carry no
+`IsDefault` on `AWS::EC2::VPC` and no `DefaultForAz` on `AWS::EC2::Subnet` — so the plugin asks EC2, at most once
+per region per run and only while a VPC or subnet is being discovered. If that call fails, because the credentials
+lack `ec2:DescribeVpcs` or `ec2:DescribeSubnets`, discovery still returns everything it found; it marks nothing and
+says so on stderr.
+
 ## Import IDs
 
 `<region>/<identifier>` for a regional type (`us-east-1/vpc-0abc123`), `global/<identifier>` for a

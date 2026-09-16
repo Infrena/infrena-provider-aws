@@ -93,6 +93,7 @@ func testCatalog() *catalog.Catalog {
 				Attributes: []*catalog.Attribute{
 					{Name: "RoleName", Kind: "string", Optional: true, Computed: true, ForceNew: true, Aliases: []string{"name", "role_name"}},
 					{Name: "Arn", Kind: "string", Computed: true},
+					{Name: "Path", Kind: "string", Optional: true, Computed: true, ForceNew: true},
 					{Name: "AssumeRolePolicyDocument", Kind: "map", Required: true, Aliases: []string{"assume_role_policy", "assume_role_policy_document"}, Shape: opaque()},
 					{Name: "Policies", Kind: "list", Optional: true, Computed: true,
 						Shape: array(object(map[string]*catalog.Shape{"PolicyName": scalar(), "PolicyDocument": opaque()}), true)},

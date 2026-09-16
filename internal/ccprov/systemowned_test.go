@@ -7,6 +7,7 @@ import (
 
 	"github.com/infrena/infrena-provider-aws/internal/ccfake"
 	"github.com/infrena/infrena/pkg/provider"
+	"github.com/infrena/infrena/pkg/value"
 )
 
 // stubFacts is a region whose defaults are already settled: known ones, or, with the known flags false, a region EC2
@@ -41,6 +42,7 @@ func TestTheFlagIsSetOnlyOnEvidence(t *testing.T) {
 		subnets: map[string]bool{"subnet-default": true}, subnetsKnown: true,
 	}
 	blind := stubFacts{} // EC2 could not be asked
+	const stackID = "arn:aws:cloudformation:us-east-1:123456789012:stack/app/abc"
 
 	for _, c := range []struct {
 		name   string
@@ -66,6 +68,34 @@ func TestTheFlagIsSetOnlyOnEvidence(t *testing.T) {
 			map[string]any{"SubnetId": "subnet-mine", "VpcId": "vpc-default"}, known, ""},
 		{"a default subnet when EC2 could not be asked", "aws.subnet",
 			map[string]any{"SubnetId": "subnet-default"}, blind, ""},
+
+		{"the default security group", "aws.securitygroup",
+			map[string]any{"GroupId": "sg-1", "GroupName": "default"}, blind, "GroupName is default"},
+		{"a security group merely described as default", "aws.securitygroup",
+			map[string]any{"GroupId": "sg-2", "GroupName": "web", "GroupDescription": "default"}, blind, ""},
+
+		{"a service-linked role", "aws.role",
+			map[string]any{"RoleName": "AWSServiceRoleForECS", "Path": "/aws-service-role/ecs.amazonaws.com/"}, blind,
+			"Path starts /aws-service-role/"},
+		{"a role a user named after a service", "aws.role",
+			map[string]any{"RoleName": "AWSServiceRoleForNothing", "Path": "/"}, blind, ""},
+		{"a role under a path of its own", "aws.role",
+			map[string]any{"RoleName": "deploy", "Path": "/team/"}, blind, ""},
+
+		{"a bucket a CloudFormation stack owns", "aws.bucket",
+			map[string]any{"BucketName": "logs", "Tags": tagList("aws:cloudformation:stack-id", stackID)}, blind,
+			"tagged aws:cloudformation:stack-id"},
+		{"a bucket tagged by hand", "aws.bucket",
+			map[string]any{"BucketName": "logs", "Tags": tagList("team", "platform")}, blind, ""},
+		{"a bucket with no tags at all", "aws.bucket", map[string]any{"BucketName": "logs"}, blind, ""},
+
+		// Both claims are true of a stack's VPC. The type's own evidence is the more useful line to read.
+		{"the default VPC, also inside a stack", "aws.vpc",
+			map[string]any{"VpcId": "vpc-default", "Tags": tagList("aws:cloudformation:stack-id", stackID)}, known,
+			"the default VPC for this region, reported by EC2"},
+		{"a VPC a stack owns", "aws.vpc",
+			map[string]any{"VpcId": "vpc-mine", "Tags": tagList("aws:cloudformation:stack-id", stackID)}, known,
+			"tagged aws:cloudformation:stack-id"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			owned, reason := systemOwned(ctx, mustType(t, c.typ), c.props, c.facts)
@@ -145,6 +175,62 @@ func TestDiscoveryDeclaresDefaultSubnetsFromWhatEC2Says(t *testing.T) {
 	wantNotOwned(t, found, "us-east-1/subnet-mine")
 	if got := fake.Filters("DescribeSubnets"); len(got) != 1 || got[0] != "default-for-az=true" {
 		t.Errorf("DescribeSubnets filters = %v, want one call filtered to default-for-az=true", got)
+	}
+}
+
+func TestDiscoveryDeclaresTheDefaultSecurityGroup(t *testing.T) {
+	p, fake, _ := fakeProvider(t)
+	fake.Put("us-east-1", "AWS::EC2::SecurityGroup", "sg-default", map[string]any{
+		"GroupId": "sg-default", "GroupName": "default", "GroupDescription": "default VPC security group"})
+	fake.Put("us-east-1", "AWS::EC2::SecurityGroup", "sg-web", map[string]any{
+		"GroupId": "sg-web", "GroupName": "web", "GroupDescription": "default"})
+
+	found, err := p.Discover(ctx, provider.DiscoverRequest{Types: []string{"aws.securitygroup"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantOwned(t, found, "us-east-1/sg-default", "GroupName is default")
+	wantNotOwned(t, found, "us-east-1/sg-web")
+	if n := fake.Calls("DescribeVpcs") + fake.Calls("DescribeSubnets"); n != 0 {
+		t.Errorf("%d EC2 calls for a type whose evidence is in its own properties", n)
+	}
+}
+
+func TestDiscoveryDeclaresServiceLinkedRoles(t *testing.T) {
+	p, fake, _ := fakeProvider(t)
+	fake.Put("us-east-1", "AWS::IAM::Role", "AWSServiceRoleForECS", map[string]any{
+		"RoleName": "AWSServiceRoleForECS", "Path": "/aws-service-role/ecs.amazonaws.com/"})
+	fake.Put("us-east-1", "AWS::IAM::Role", "deploy", map[string]any{"RoleName": "deploy", "Path": "/"})
+
+	found, err := p.Discover(ctx, provider.DiscoverRequest{Types: []string{"aws.role"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantOwned(t, found, "global/AWSServiceRoleForECS", "Path starts /aws-service-role/")
+	wantNotOwned(t, found, "global/deploy")
+}
+
+// TestDiscoveryDeclaresWhatACloudFormationStackOwns reads the tag from the raw properties: the plugin drops every
+// aws: tag when it decodes, so the reported attributes no longer hold the evidence.
+func TestDiscoveryDeclaresWhatACloudFormationStackOwns(t *testing.T) {
+	p, fake, _ := fakeProvider(t)
+	fake.Put("us-east-1", "AWS::S3::Bucket", "stack-logs", map[string]any{"BucketName": "stack-logs",
+		"Tags": tagList("aws:cloudformation:stack-id", "arn:aws:cloudformation:us-east-1:123456789012:stack/app/abc", "team", "platform")})
+	fake.Put("us-east-1", "AWS::S3::Bucket", "my-logs", map[string]any{"BucketName": "my-logs",
+		"Tags": tagList("team", "platform")})
+
+	found, err := p.Discover(ctx, provider.DiscoverRequest{Types: []string{"aws.bucket"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantOwned(t, found, "us-east-1/stack-logs", "tagged aws:cloudformation:stack-id")
+	wantNotOwned(t, found, "us-east-1/my-logs")
+	tags, _ := byID(found)["us-east-1/stack-logs"].Attributes["Tags"].Raw.(map[string]value.Value)
+	if _, leaked := tags["aws:cloudformation:stack-id"]; leaked {
+		t.Errorf("the reported tags hold the aws: tag the flag was read from: %v", tags)
+	}
+	if _, kept := tags["team"]; !kept {
+		t.Errorf("the reported tags lost the user's own tag: %v", tags)
 	}
 }
 
