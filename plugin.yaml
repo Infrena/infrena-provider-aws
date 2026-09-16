@@ -2,7 +2,7 @@
 # Read at a release TAG, never at the default branch, which describes unreleased code.
 manifest: 2
 name: aws
-version: 0.4.0
+version: 0.5.0
 # The protocol THIS RELEASE'S binary speaks: exactly the pluginproto.Version of the infrena go.mod requires. It changes
 # in the same commit as that require (internal/awsprov/manifest_test.go and scripts/release-check refuse a mismatch).
 protocol: [4]
@@ -12,8 +12,11 @@ description: The AWS provider for infrena, serving every resource type AWS Cloud
 # `VpcId: ${vpc}` works, and protocol 3. 0.6.2 fixed a compiler bug: a whole-resource reference into an attribute
 # written with an alias (`vpc: ${vpc}`, `vpc_id: ${vpc}`) wrongly failed with "declares no reference", only the
 # canonical AWS name working. 0.7.0 moved to protocol 4 and taught discovery to name resources from their Name
-# tag and import --generate to write whole-resource references between resources imported together. go.mod
-# requires 0.7.0 exactly, and the floor matches it so no older host silently claims protocol 4. Releases before
-# 0.4.0 were published under the product's previous name and cannot pair with this plugin at all.
-infrena: ">= 0.7.0"
+# tag and import --generate to write whole-resource references between resources imported together. 0.7.1 fixed
+# Update and Delete to receive the refreshed observation instead of the last persisted state (infrena commit
+# 1399f20), which this plugin no longer works around (internal/ccprov/patch.go's Update reads current.Attributes
+# straight, not a fresh read). go.mod requires 0.7.1 exactly, and the floor matches it so no older host silently
+# hands this plugin stale state to diff against. Releases before 0.4.0 were published under the product's
+# previous name and cannot pair with this plugin at all.
+infrena: ">= 0.7.1"
 source: https://github.com/infrena/infrena-provider-aws

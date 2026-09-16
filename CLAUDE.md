@@ -73,7 +73,7 @@ unchanged. The cold build is the number that will creep if more services arrive;
 before adding one, and add a dependency only with a reason written down.
 
 **How infrena is depended on.** infrena is private. `go.mod` REQUIRES a real infrena version (currently
-`v0.7.0`, which speaks plugin protocol 4) and has **no `replace`**. Two ways to build:
+`v0.7.1`, which speaks plugin protocol 4) and has **no `replace`**. Two ways to build:
 
 - **Local, against your checkout:** a gitignored `go.work` (`go work init . ../infrena`) substitutes the
   sibling checkout's WORKING TREE, committed or not — the fast loop while both repos change daily. Run
@@ -158,12 +158,13 @@ These are the ones that are easy to get wrong and expensive to get wrong.
   with `patternProperties`, `additionalProperties` and no `properties`, `oneOf`/`anyOf`/`allOf`, or a
   multi-type `type` is opaque and copied exactly — translating or pruning its keys would corrupt user
   data. A change to reconciliation is a change to whether plans converge; the e2e suite is the check.
-- **Update reads the resource fresh before building its patch.** infrena's host passes `Update` the last
-  *persisted* state as current, not a freshly refreshed one (commit `c7ff98e`, found running the e2e
-  suite: drifted tags that were corrected in configuration never got patched because the diff ran
-  against stale state). The infrena team has confirmed this and plans to fix it on their side after the
-  rename; once the Verification log says that's landed, drop the extra read here — don't do it
-  preemptively.
+- **Update computes its patch straight from the `current` it is handed, with no extra read.** As of
+  infrena v0.7.1 (commit `1399f20`) the host passes `Update` (and `Delete`) the refreshed observation
+  from immediately before planning, not the last state persisted to disk. Before that fix, `current` was
+  the stale, persisted state, so this plugin worked around it with an extra `GetResource` before
+  building the patch (commit `c7ff98e`, found running the e2e suite: drifted tags that were corrected in
+  configuration never got patched because the diff ran against stale state). That workaround is gone —
+  do not reintroduce it.
 - **JSON text in a string attribute is kept as written when AWS returns the same document as an object**
   (`sameJSONText`, commit `973d4a5`). Schemas type object-or-string properties such as IAM policy documents as
   strings; without this, spacing or key order plans a change forever. Found by the first live run.
@@ -212,8 +213,9 @@ These are the ones that are easy to get wrong and expensive to get wrong.
 **Do not change the infrena repository from here.** A separate infrena session owns it. If something
 there is wrong or missing, write it down with evidence (file, symbol, what was observed) in the plan's
 Verification log or Findings and in the project note's follow-ups, and tell James. The
-"Update sees persisted state, not a fresh read" behaviour above is exactly this kind of finding: this
-repository works around it, and the workaround comes out once infrena's side changes.
+"Update sees persisted state, not a fresh read" behaviour above was exactly this kind of finding: this
+repository worked around it until infrena v0.7.1 fixed it on their side (commit `1399f20`), and the
+workaround came out in the same commit that bumped the `go.mod` requirement.
 
 The live suite against real AWS needs James's explicit approval each time. It runs as the `infrena-live`
 IAM user (profile `infrena-live`), never root keys, which `live/live_test.go`'s `guard` refuses before

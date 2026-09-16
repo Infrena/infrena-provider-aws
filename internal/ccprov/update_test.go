@@ -161,6 +161,45 @@ func TestAWriteOnlyValueIsPatchedOnlyWhenItChanges(t *testing.T) {
 	}
 }
 
+// TestUpdateComputesThePatchFromCurrentWithoutReReading proves Update no longer re-reads the resource before
+// building the patch: infrena v0.7.1 hands Update the refreshed observation as `current` (commit 1399f20), so the
+// extra GetResource this plugin used to do first (commit c7ff98e) is gone. Drift AWS's stored value behind the
+// provider's back, then update a different attribute: a patch built from a fresh read would see the drifted value
+// and try to patch it back to current's now-stale one; a patch built from current.Attributes, as given, does not,
+// because desired (state overlaid with configuration, as withChanges builds it) still carries current's value for
+// an attribute nothing configured.
+func TestUpdateComputesThePatchFromCurrentWithoutReReading(t *testing.T) {
+	p, fake, _ := fakeProvider(t)
+	st := createVPC(t, p, nil)
+	if attr(t, st, "EnableDnsSupport") != true {
+		t.Fatalf("precondition: EnableDnsSupport = %v, want true", st.Attributes["EnableDnsSupport"])
+	}
+	id := strings.TrimPrefix(st.ProviderID, "us-east-1/")
+	stored, ok := fake.Resource("us-east-1", "AWS::EC2::VPC", id)
+	if !ok {
+		t.Fatal("VPC not found in the fake")
+	}
+	stored["EnableDnsSupport"] = false // drift AWS's stored value behind infrena's back
+	fake.Put("us-east-1", "AWS::EC2::VPC", id, stored)
+
+	before := fake.Calls("GetResource")
+	got, err := p.Update(ctx, st, withChanges(st, map[string]value.Value{"Tags": obj("team", sv("platform"))}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := fake.Calls("GetResource") - before; n != 1 {
+		t.Errorf("GetResource calls during Update = %d, want 1 (only the read-back after the patch, no read before it)", n)
+	}
+	for _, op := range fake.LastPatch() {
+		if op["path"] == "/EnableDnsSupport" {
+			t.Errorf("patch %v touches EnableDnsSupport: the patch must be computed from current.Attributes as given, not a fresh read", fake.LastPatch())
+		}
+	}
+	if attr(t, got, "EnableDnsSupport") != false {
+		t.Errorf("state after update = %v, want the drifted value read back", got.Attributes)
+	}
+}
+
 func TestAChangeAWSWillNotMakeInPlaceSaysSo(t *testing.T) {
 	p, _, _ := fakeProvider(t)
 	st := createVPC(t, p, nil)

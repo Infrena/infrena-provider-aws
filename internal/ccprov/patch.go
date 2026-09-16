@@ -54,13 +54,12 @@ func sameJSON(a, b any) bool {
 // reference. When nothing differs under AWS's names (a spelling change) it only reads back, so state takes the new
 // spelling.
 //
-// current, as infrena hands it to Update, is the last state persisted to disk (executor/dispatch.go's "live" is
-// aspirational: apply's own refresh observations never reach the state it threads through to dispatch). It can be
-// older than what AWS holds right now — drift since the last refresh, most plainly — so diffing against it would
-// send a stale attribute back as a "change" (undoing real drift under it) while a genuine configured change that
-// happens to match the stale value goes unsent. The patch is computed against a fresh read instead; current.Attributes
-// only supplies the reference a write-only property's last known value is carried forward from (using desired.Attrs
-// there would make a just-configured write-only value look unchanged, since nothing else ever reports it back).
+// current, as infrena hands it to Update, is the refreshed observation from immediately before planning (as of
+// infrena v0.7.1, commit 1399f20; before that it was the last state persisted to disk, which could be older than
+// what AWS held right now, and this method worked around it with an extra read — found running the e2e suite,
+// commit c7ff98e). The patch is computed straight from current.Attributes. current.Attributes still supplies the
+// reference a write-only property's last known value is carried forward from (using desired.Attrs there would make
+// a just-configured write-only value look unchanged, since nothing else ever reports it back).
 func (p *Provider) Update(ctx context.Context, current *resource.ResourceState, desired *resource.DesiredResource) (*resource.ResourceState, error) {
 	t, err := p.lookup(current.Type)
 	if err != nil {
@@ -74,14 +73,7 @@ func (p *Provider) Update(ctx context.Context, current *resource.ResourceState, 
 		return nil, fmt.Errorf("%s (%s) has no update handler, so every change needs a replacement; infrena was sent an update, which is a defect in the catalog's force-new flags",
 			t.Name, t.CFN)
 	}
-	live, err := p.read(ctx, t, region, id, current.Attributes, p.patience)
-	if err != nil {
-		return nil, err
-	}
-	if live == nil {
-		return nil, fmt.Errorf("aws instance %q: %s %s no longer exists; nothing to update", p.instance, t.Name, current.ProviderID)
-	}
-	ops, err := patchOps(t, live.Attributes, desired.Attrs)
+	ops, err := patchOps(t, current.Attributes, desired.Attrs)
 	if err != nil {
 		return nil, err
 	}
