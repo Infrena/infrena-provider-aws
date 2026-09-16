@@ -73,7 +73,7 @@ unchanged. The cold build is the number that will creep if more services arrive;
 before adding one, and add a dependency only with a reason written down.
 
 **How infrena is depended on.** infrena is private. `go.mod` REQUIRES a real infrena version (currently
-`v0.4.0`, the first release under the infrena name) and has **no `replace`**. Two ways to build:
+`v0.7.0`, which speaks plugin protocol 4) and has **no `replace`**. Two ways to build:
 
 - **Local, against your checkout:** a gitignored `go.work` (`go work init . ../infrena`) substitutes the
   sibling checkout's WORKING TREE, committed or not — the fast loop while both repos change daily. Run
