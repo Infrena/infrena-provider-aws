@@ -164,7 +164,12 @@ These are the ones that are easy to get wrong and expensive to get wrong.
   the stale, persisted state, so this plugin worked around it with an extra `GetResource` before
   building the patch (commit `c7ff98e`, found running the e2e suite: drifted tags that were corrected in
   configuration never got patched because the diff ran against stale state). That workaround is gone —
-  do not reintroduce it.
+  do not reintroduce it. **This repository's e2e suite is the only place that host behaviour is tested**:
+  infrena's own suite structurally cannot exercise it, because its fake provider applies `desired` wholesale
+  rather than diffing, so nothing there notices which state `Update` received. The proof is differential and
+  worth repeating if `currentFor` ever changes: with the workaround removed, `TestTheWorkflow`'s
+  `a_tag_changed_outside_infrena_is_an_update` FAILS against an infrena v0.7.0 snapshot and passes against
+  v0.7.1. Seeing it pass on one version alone proves nothing.
 - **JSON text in a string attribute is kept as written when AWS returns the same document as an object**
   (`sameJSONText`, commit `973d4a5`). Schemas type object-or-string properties such as IAM policy documents as
   strings; without this, spacing or key order plans a change forever. Found by the first live run.
