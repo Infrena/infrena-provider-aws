@@ -343,9 +343,13 @@ func TestDatabasesAgainstRealAWS(t *testing.T) {
 		"SubnetIds": l(subnetA.Attributes["SubnetId"], subnetB.Attributes["SubnetId"]), "Tags": tags})
 
 	parameterGroupType := awstest.TypeFor(t, cat, "AWS::RDS::DBParameterGroup").Name
-	// postgres17 is paired with EngineVersion "17" below; they must name the same major version. If AWS has
-	// retired this family or version by the time this runs, bump both together (aws rds describe-db-engine-versions
-	// --engine postgres lists what's currently supported).
+	// The parameter group's family and the instance's EngineVersion must name the same major version, and
+	// both are pinned here to an EXACT minor version. Two runs on 2026-09-16 showed why neither looser form
+	// works: configuring "17" read back as "17.9", which plans a change on every apply, and leaving
+	// EngineVersion unset made AWS choose its current default major version, which then refused this
+	// parameter group ("can't be used for this instance. Use a parameter group with DBParameterGroupFamily
+	// postgres18"). When AWS retires 17.9 this test fails with that same clear message: pick a current pair
+	// from `aws rds describe-db-engine-versions --engine postgres` and bump both lines together.
 	parameterGroup := create(t, prov, parameterGroupType, map[string]value.Value{"region": s(region),
 		"DBParameterGroupName": s(name), "Description": s("infrena live " + run), "Family": s("postgres17"), "Tags": tags})
 
@@ -354,7 +358,7 @@ func TestDatabasesAgainstRealAWS(t *testing.T) {
 		"region":                s(region),
 		"DBInstanceIdentifier":  s(name),
 		"Engine":                s("postgres"),
-		"EngineVersion":         s("17"),
+		"EngineVersion":         s("17.9"),
 		"DBInstanceClass":       s("db.t3.micro"),
 		"AllocatedStorage":      s("20"),
 		"StorageType":           s("gp3"),
