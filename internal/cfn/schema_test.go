@@ -65,6 +65,19 @@ func TestListNeedsModelAndCompositeIdentifiers(t *testing.T) {
 	}
 }
 
+func TestListNeedsModelLooksInsideOneOf(t *testing.T) {
+	// The ELBv2 Listener list handler states its requirement (LoadBalancerArn or ListenerArns) only inside a
+	// top-level oneOf, with no top-level required. A version of ListNeedsModel that only checks the top level
+	// misses this and reports the type as plainly listable, which is wrong: AWS refuses ListResources for it with
+	// no parent resource model (found live 2026-09-16).
+	if !load(t, "aws-elasticloadbalancingv2-listener.json").ListNeedsModel() {
+		t.Error("Listener lists only under a load balancer (required nested in oneOf); ListNeedsModel = false")
+	}
+	if load(t, "aws-ec2-vpc.json").ListNeedsModel() {
+		t.Error("VPC lists without a model and has no oneOf; ListNeedsModel = true")
+	}
+}
+
 func TestTypeAcceptsAStringOrAList(t *testing.T) {
 	s, err := Parse([]byte(`{"typeName":"AWS::X::Y","properties":{"A":{"type":"string"},"B":{"type":["object","string"]}}}`))
 	if err != nil {

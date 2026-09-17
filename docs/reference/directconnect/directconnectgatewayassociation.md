@@ -20,4 +20,4 @@ Region attribute: `region`
 
 Supports update: yes
 
-Discovery: supported
+Discovery: supported (parent resource required)

@@ -92,20 +92,43 @@ func (s *Schema) Provisionable() bool {
 	return s.HasHandler("create") && s.HasHandler("read") && s.HasHandler("delete")
 }
 
-// ListNeedsModel reports whether listing requires a parent resource model (the list handler's schema has required
-// properties).
+// ListNeedsModel reports whether listing requires a parent resource model: the list handler's schema requires
+// something, whether as a plain top-level `required`, or inside a `oneOf`, `anyOf` or `allOf` branch (checked
+// recursively, since a branch can itself contain another branch). AWS sometimes states the requirement only inside
+// one of those instead of at the top level — for example AWS::ElasticLoadBalancingV2::Listener, whose list handler
+// needs LoadBalancerArn or ListenerArns via a top-level `oneOf` with no top-level `required`.
 func (s *Schema) ListNeedsModel() bool {
 	h, ok := s.Handlers["list"]
 	if !ok || len(h.HandlerSchema) == 0 {
 		return false
 	}
-	var hs struct {
-		Required []string `json:"required"`
-	}
+	var hs listHandlerRequirement
 	if err := json.Unmarshal(h.HandlerSchema, &hs); err != nil {
 		return false
 	}
-	return len(hs.Required) > 0
+	return hs.needsModel()
+}
+
+// listHandlerRequirement is the part of a list handler's handlerSchema ListNeedsModel inspects.
+type listHandlerRequirement struct {
+	Required []string                 `json:"required"`
+	OneOf    []listHandlerRequirement `json:"oneOf"`
+	AnyOf    []listHandlerRequirement `json:"anyOf"`
+	AllOf    []listHandlerRequirement `json:"allOf"`
+}
+
+func (hs listHandlerRequirement) needsModel() bool {
+	if len(hs.Required) > 0 {
+		return true
+	}
+	for _, branches := range [][]listHandlerRequirement{hs.OneOf, hs.AnyOf, hs.AllOf} {
+		for _, b := range branches {
+			if b.needsModel() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Timeout is a handler's timeout in minutes; the schema default is 120.
