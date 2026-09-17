@@ -13,7 +13,7 @@ Region attribute: `region`
 | Attribute | Also written as | Kind | Flags | References | Description |
 |-----------|-----------------|------|-------|------------|-------------|
 | `AccessConfig` | access_config | `map` | optional, computed, provider-chosen |  | An object representing the Access Config to use for the cluster. |
-| `ActiveCertificateAuthorityId` | active_certificate_authority_id | `string` | optional, computed, provider-chosen, write-only |  | The ID of the certificate authority to activate as the cluster's signing CA. Setting or changing this value activates the specified CA (the previously active CA becomes trusted). |
+| `ActiveCertificateAuthorityId` | active_certificate_authority_id | `string` | optional, computed, provider-chosen, write-only | aws.eks.certificateauthority.Id | The ID of the certificate authority to activate as the cluster's signing CA. Setting or changing this value activates the specified CA (the previously active CA becomes trusted). |
 | `Arn` |  | `string` | computed |  | The ARN of the cluster, such as arn:aws:eks:us-west-2:666666666666:cluster/prod. |
 | `BootstrapSelfManagedAddons` | bootstrap_self_managed_addons | `boolean` | optional, computed, provider-chosen, replaces on change, write-only |  | Set this value to false to avoid creating the default networking add-ons when the cluster is created. |
 | `CertificateAuthority` | certificate_authority | `map` | optional, computed, provider-chosen |  | The certificate authority information for the cluster, including the trust bundle and the currently active signing certificate authority. |

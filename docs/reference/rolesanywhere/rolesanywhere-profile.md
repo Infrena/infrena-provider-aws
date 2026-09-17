@@ -16,7 +16,7 @@ Region attribute: `region`
 | `AttributeMappings` | attribute_mappings | `list` | optional, computed, provider-chosen |  |  |
 | `DurationSeconds` | duration_seconds | `float` | optional, computed, provider-chosen |  |  |
 | `Enabled` |  | `boolean` | optional, computed, provider-chosen |  |  |
-| `ManagedPolicyArns` | managed_policy_arns | `list` | optional, computed, provider-chosen |  |  |
+| `ManagedPolicyArns` | managed_policy_arns | `list` | optional, computed, provider-chosen | aws.managedpolicy.PolicyArn |  |
 | `Name` |  | `string` | required |  |  |
 | `ProfileArn` | profile_arn | `string` | computed |  |  |
 | `ProfileId` | profile_id | `string` | computed |  |  |

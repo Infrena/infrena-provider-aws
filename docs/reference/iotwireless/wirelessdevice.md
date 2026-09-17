@@ -21,7 +21,7 @@ Region attribute: `region`
 | `Name` |  | `string` | optional, computed, provider-chosen |  | Wireless device name |
 | `Positioning` |  | `string` | optional, computed, provider-chosen |  | FPort values for the GNSS, stream, and ClockSync functions of the positioning information. |
 | `Tags` |  | `map` | optional, computed, provider-chosen, tags map |  | A list of key-value pairs that contain metadata for the device. Currently not supported, will not create if tags are passed. |
-| `ThingArn` | thing_arn | `string` | optional, computed, provider-chosen |  | Thing arn. Passed into update to associate Thing with Wireless device. |
+| `ThingArn` | thing_arn | `string` | optional, computed, provider-chosen | aws.thing.Arn | Thing arn. Passed into update to associate Thing with Wireless device. |
 | `ThingName` | thing_name | `string` | computed |  | Thing Arn. If there is a Thing created, this can be returned with a Get call. |
 | `Type` | type_value | `string` | required |  | Wireless device type, currently only Sidewalk and LoRa |
 

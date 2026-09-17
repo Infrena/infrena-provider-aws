@@ -14,7 +14,7 @@ Region attribute: `region`
 |-----------|-----------------|------|-------|------------|-------------|
 | `AdditionalArtifacts` | additional_artifacts | `list` | optional, computed, provider-chosen |  | A list of manifests that you want Amazon Web Services to create for this report. |
 | `AdditionalSchemaElements` | additional_schema_elements | `list` | optional, computed, provider-chosen, replaces on change |  | A list of strings that indicate additional content that Amazon Web Services includes in the report, such as individual resource IDs. |
-| `BillingViewArn` | billing_view_arn | `string` | optional, computed, provider-chosen, replaces on change |  | The Amazon resource name of the billing view. You can get this value by using the billing view service public APIs. |
+| `BillingViewArn` | billing_view_arn | `string` | optional, computed, provider-chosen, replaces on change | aws.billingview.Arn | The Amazon resource name of the billing view. You can get this value by using the billing view service public APIs. |
 | `Compression` |  | `string` | required |  | The compression format that AWS uses for the report. |
 | `Format` |  | `string` | required |  | The format that AWS saves the report in. |
 | `RefreshClosedReports` | refresh_closed_reports | `boolean` | required |  | Whether you want Amazon Web Services to update your reports after they have been finalized if Amazon Web Services detects charges related to previous months. These charges can include refunds, credits, or support fees. |

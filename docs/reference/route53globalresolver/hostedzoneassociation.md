@@ -14,7 +14,7 @@ Region attribute: `region`
 |-----------|-----------------|------|-------|------------|-------------|
 | `CreatedAt` | created_at | `string` | computed |  |  |
 | `HostedZoneAssociationId` | hosted_zone_association_id | `string` | computed |  |  |
-| `HostedZoneId` | hosted_zone_id | `string` | required, replaces on change |  |  |
+| `HostedZoneId` | hosted_zone_id | `string` | required, replaces on change | aws.hostedzone.Id |  |
 | `HostedZoneName` | hosted_zone_name | `string` | computed |  |  |
 | `Name` |  | `string` | required |  |  |
 | `ResourceArn` | resource_arn | `string` | required, replaces on change |  |  |

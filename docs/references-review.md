@@ -1,6 +1,13 @@
 # Reference edges: review
 
-> **Decided on 2026-09-14.** 785 accepted, 136 approved, 46 pending, 24 rejected, out of 991 edges in `gen/references.lock.json`. Only accepted and approved edges reach the catalog. Pending edges stay out until their target is approved.
+> **Decided on 2026-09-14, extended 2026-09-17.** 786 accepted, 152 approved, 18 pending, 35 rejected, out of 991 edges in `gen/references.lock.json`. Only accepted and approved edges reach the catalog. Pending edges stay out until their target is approved.
+>
+> The 2026-09-17 pass settled 45 of the 46 pending edges: 30 approved and 15 rejected, leaving 1. It ran in two
+> halves. The first judged 28 edges on the verdicts already recorded here. The second read both sides' schemas for
+> the 18 that had never been reviewed or were marked unsure, and decided on what the schema says rather than on
+> what the names suggest — which reversed the outcome for three of them. (The counts above previously said
+> 785 accepted / 24 rejected, one generation stale against the generator's own 786 / 23; the figures here now match
+> `gen/references.lock.json` exactly.)
 
 Generated from `gen/references.lock.json` and the derivation over bundle `543f4b1846d7`, for the resource references design (infrena `docs/superpowers/specs/2026-09-14-resource-references-design.md` §4). Verdicts are a reading of property names and descriptions, not verified against AWS.
 
@@ -17,10 +24,10 @@ Generated from `gen/references.lock.json` and the derivation over bundle `543f4b
 
 | status | edges | reaches the catalog |
 | --- | ---: | --- |
-| accepted | 785 | yes |
-| approved | 136 | yes |
-| pending | 46 | no |
-| rejected | 24 | no |
+| accepted | 786 | yes |
+| approved | 166 | yes |
+| pending | 1 | no |
+| rejected | 38 | no |
 
 Candidate properties: 1503. Resolved to an edge: 991 (65.9%). Unresolved: 285 ambiguous, 143 no such type, 84 target lacks the attribute. Only top-level properties are considered: infrena refuses references on nested attributes.
 
@@ -122,11 +129,56 @@ Every edge from another service to `AWS::Connect::Notification`, `AWS::Lambda::V
 
 ## Still pending
 
-46 edges, not in the catalog. Marked * where the edge was an exact cross-service match before decision 1; those were never reviewed as tier 2.
+1 edge, not in the catalog.
 
 | target | at | edges | verdict | sources |
 | --- | --- | ---: | --- | --- |
-| `AWS::Glue::Catalog` | `CatalogId` | 2 | unsure: a Lake Formation catalog id is usually an account id | `AWS::LakeFormation::DataCellsFilter.TableCatalogId`, `AWS::LakeFormation::Tag.CatalogId`* |
+| `AWS::Organizations::OrganizationalUnit` | `Id` | 1 | unsure: the source legally holds a value this type cannot represent | `AWS::Notifications::OrganizationalUnitAssociation.OrganizationalUnitId` |
+
+Its pattern is `^(r-[0-9a-z]{4,32})|(ou-[0-9a-z]{4,32}-[a-z0-9]{8,32})$` — an Organizations **root** id or an **OU** id.
+`AWS::Organizations::OrganizationalUnit.Id` is constrained to `^ou-...$` alone, and no `AWS::Organizations::Root` type
+exists in the catalog to carry the other case. The edge is right whenever the value is an OU and wrong whenever it is
+a root, so it stays out until someone decides whether silently resolving nothing for root-valued edges is acceptable.
+
+## Decided on 2026-09-17
+
+45 edges left this list: 30 approved, 15 rejected. The second half of the pass read both sides' schemas instead of
+their names, and that **reversed three edges a name-reading had accepted**, which is the reason this section exists:
+
+- `AWS::IoT::DomainConfiguration.ServerCertificateArns` -> `AWS::IAM::ServerCertificate.Arn`: **rejected.** Named for
+  server certificates, but its own pattern is `^arn:aws...:acm:...:certificate/...$` — it accepts ACM certificate
+  ARNs only, never IAM's `arn:aws:iam::<account>:server-certificate/<name>`. The right target is
+  `AWS::CertificateManager::Certificate`. The property name points at the wrong service.
+- `AWS::LakeFormation::DataCellsFilter.TableCatalogId` and `AWS::LakeFormation::Tag.CatalogId` ->
+  `AWS::Glue::Catalog.CatalogId`: **rejected.** Both resolve to `CatalogIdString`, exactly 12 characters, and
+  `Tag.CatalogId`'s description says "The identifier for the Data Catalog. By default, the account ID." It is an
+  account id, not a catalog resource.
+
+Two approvals rest on structure alone, their schemas carrying no description text whatsoever, and were included
+deliberately rather than left pending: `AWS::IAM::ManagedPolicy` (from `RolesAnywhere::Profile.ManagedPolicyArns`,
+which commonly names an AWS-owned policy no configuration created, so the edge often resolves to nothing — a
+coverage limit, not a wrong type) and `AWS::Route53::HostedZone` (from `Route53GlobalResolver::HostedZoneAssociation`).
+
+Three approved edges name an attribute that is not the target's primary identifier. Each is a real unique `readOnly`
+attribute rather than a mis-picked one, but worth knowing if edge resolution ever assumes a strict identifier match:
+`AWS::IoT::Thing.Arn` (identifier is `ThingName`), `AWS::NetworkManager::CoreNetwork.CoreNetworkArn` (identifier is
+`CoreNetworkId`), and `AWS::EKS::CertificateAuthority.Id` (identifier is the composite `[ClusterName, Id]`, so `Id`
+alone is half of it, scoped by the cluster the edge already sits on).
+
+The 12 rejected in the first half were fabrications of the name-matching heuristic: a Detective or IdentityStore
+member id is not a GuardDuty member, a Signer platform is not an Amplify form, an Outpost LAG is not a Direct
+Connect LAG, DataSync locations are neither GameLift locations nor MediaTailor source locations, EC2 host resource
+groups belong to License Manager, Inspector rules packages are not Panorama packages, a QBusiness IAM identity
+provider is not a WorkSpaces Web one, and a managed notification configuration is AWS-owned rather than the
+customer-created type.
+
+## Superseded: the 46 that were pending
+
+Kept for the reasoning, not as a list of open questions. Marked * where the edge was an exact cross-service match before decision 1; those were never reviewed as tier 2.
+
+| target | at | edges | verdict | sources |
+| --- | --- | ---: | --- | --- |
+| `AWS::Glue::Catalog` | `CatalogId` | 2 | unsure -> REJECTED: the schema says the id is an account id | `AWS::LakeFormation::DataCellsFilter.TableCatalogId`, `AWS::LakeFormation::Tag.CatalogId`* |
 | `AWS::GroundStation::Config` | `Arn` | 2 | looks right: the two MissionProfile config arns (the Route 53 Resolver edge to this target is rejected) | `AWS::GroundStation::MissionProfile.TelemetrySinkConfigArn`, `AWS::GroundStation::MissionProfile.TrackingConfigArn` |
 | `AWS::GuardDuty::Member` | `MemberId` | 2 | FABRICATED: Detective's MemberId is an account id; IdentityStore's is a user or group | `AWS::Detective::MemberInvitation.MemberId`*, `AWS::IdentityStore::GroupMembership.MemberId`* |
 | `AWS::IoT::Thing` | `Arn` | 2 | not reviewed | `AWS::IoTWireless::WirelessDevice.ThingArn`*, `AWS::IoTWireless::WirelessGateway.ThingArn`* |

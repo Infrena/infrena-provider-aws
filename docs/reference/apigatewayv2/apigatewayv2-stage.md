@@ -15,7 +15,7 @@ Region attribute: `region`
 | `AccessLogSettings` | access_log_settings | `map` | optional, computed, provider-chosen |  | Settings for logging access in this stage. |
 | `ApiId` | api_id | `string` | required, replaces on change | aws.apigatewayv2.api.ApiId | The API identifier. |
 | `AutoDeploy` | auto_deploy | `boolean` | optional, computed, provider-chosen |  | Specifies whether updates to an API automatically trigger a new deployment. The default value is false. |
-| `ClientCertificateId` | client_certificate_id | `string` | optional, computed, provider-chosen |  | The identifier of a client certificate for a Stage. Supported only for WebSocket APIs. |
+| `ClientCertificateId` | client_certificate_id | `string` | optional, computed, provider-chosen | aws.clientcertificate.ClientCertificateId | The identifier of a client certificate for a Stage. Supported only for WebSocket APIs. |
 | `DefaultRouteSettings` | default_route_settings | `map` | optional, computed, provider-chosen |  | The default route settings for the stage. |
 | `DeploymentId` | deployment_id | `string` | optional, computed, provider-chosen | aws.apigatewayv2.deployment.DeploymentId | The deployment identifier for the API stage. Can't be updated if autoDeploy is enabled. |
 | `Description` |  | `string` | optional, computed, provider-chosen |  | The description for the API stage. |

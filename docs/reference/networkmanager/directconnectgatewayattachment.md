@@ -18,7 +18,7 @@ Region attribute: `region`
 | `CoreNetworkArn` | core_network_arn | `string` | computed |  | The ARN of a core network for the Direct Connect Gateway attachment. |
 | `CoreNetworkId` | core_network_id | `string` | required, replaces on change | aws.corenetwork.CoreNetworkId | The ID of a core network for the Direct Connect Gateway attachment. |
 | `CreatedAt` | created_at | `string` | computed |  | Creation time of the attachment. |
-| `DirectConnectGatewayArn` | direct_connect_gateway_arn | `string` | required, replaces on change |  | The ARN of the Direct Connect Gateway. |
+| `DirectConnectGatewayArn` | direct_connect_gateway_arn | `string` | required, replaces on change | aws.directconnectgateway.DirectConnectGatewayArn | The ARN of the Direct Connect Gateway. |
 | `EdgeLocations` | edge_locations | `list` | required |  | The Regions where the edges are located. |
 | `LastModificationErrors` | last_modification_errors | `list` | computed |  | Errors from the last modification of the attachment. |
 | `NetworkFunctionGroupName` | network_function_group_name | `string` | computed |  | The name of the network function group attachment. |

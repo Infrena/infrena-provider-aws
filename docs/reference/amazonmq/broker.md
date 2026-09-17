@@ -37,7 +37,7 @@ Region attribute: `region`
 | `MqttEndpoints` | mqtt_endpoints | `list` | computed |  |  |
 | `OpenWireEndpoints` | open_wire_endpoints | `list` | computed |  |  |
 | `PubliclyAccessible` | publicly_accessible | `boolean` | required, replaces on change |  |  |
-| `ResourceShareArns` | resource_share_arns | `list` | optional, computed, provider-chosen |  | The ARNs of the resource shares to be associated with the broker. |
+| `ResourceShareArns` | resource_share_arns | `list` | optional, computed, provider-chosen | aws.resourceshare.Arn | The ARNs of the resource shares to be associated with the broker. |
 | `SecurityGroups` | security_groups | `list` | optional, computed, provider-chosen |  |  |
 | `StompEndpoints` | stomp_endpoints | `list` | computed |  |  |
 | `StorageSize` | storage_size | `integer` | optional, computed, provider-chosen |  | The broker's storage size in GB. |

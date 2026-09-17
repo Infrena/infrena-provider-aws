@@ -62,7 +62,7 @@
       "target": "AWS::AmazonMQ::Broker",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::AmazonMQ::Broker",
@@ -70,7 +70,7 @@
       "target": "AWS::RAM::ResourceShare",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::AmazonMQ::Broker",
@@ -406,7 +406,7 @@
       "target": "AWS::ApiGateway::ClientCertificate",
       "attribute": "ClientCertificateId",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::ApiGatewayV2::Stage",
@@ -678,7 +678,7 @@
       "target": "AWS::MPA::ApprovalTeam",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::Backup::RestoreTestingSelection",
@@ -806,7 +806,7 @@
       "target": "AWS::Deadline::Limit",
       "attribute": "LimitId",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::BedrockAgentCore::Harness",
@@ -878,7 +878,7 @@
       "target": "AWS::BedrockAgentCore::Runtime",
       "attribute": "AgentRuntimeId",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::BillingConductor::CustomLineItem",
@@ -910,7 +910,7 @@
       "target": "AWS::Billing::BillingView",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::Cases::Case",
@@ -1534,7 +1534,7 @@
       "target": "AWS::Connect::PhoneNumber",
       "attribute": "PhoneNumberArn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::Connect::PredefinedAttribute",
@@ -1590,7 +1590,7 @@
       "target": "AWS::Connect::Queue",
       "attribute": "QueueArn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::Connect::RoutingProfile",
@@ -1646,7 +1646,7 @@
       "target": "AWS::Connect::ContactFlow",
       "attribute": "ContactFlowArn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::Connect::TestCase",
@@ -1870,7 +1870,7 @@
       "target": "AWS::GameLift::Location",
       "attribute": "LocationArn",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::DataSync::Task",
@@ -1878,7 +1878,7 @@
       "target": "AWS::MediaTailor::SourceLocation",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::DataZone::Environment",
@@ -1998,7 +1998,7 @@
       "target": "AWS::Deadline::StorageProfile",
       "attribute": "StorageProfileId",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::Deadline::Queue",
@@ -2118,7 +2118,7 @@
       "target": "AWS::GuardDuty::Member",
       "attribute": "MemberId",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::DevOpsAgent::Asset",
@@ -2142,7 +2142,7 @@
       "target": "AWS::DevOpsAgent::Association",
       "attribute": "AssociationId",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::DevOpsAgent::Association",
@@ -2438,7 +2438,7 @@
       "target": "AWS::Inspector::ResourceGroup",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::EC2::Instance",
@@ -2558,7 +2558,7 @@
       "target": "AWS::DirectConnect::Lag",
       "attribute": "LagId",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::EC2::NatGateway",
@@ -2638,7 +2638,7 @@
       "target": "AWS::NetworkManager::CoreNetwork",
       "attribute": "CoreNetworkArn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::EC2::Route",
@@ -2686,7 +2686,7 @@
       "target": "AWS::ODB::OdbNetwork",
       "attribute": "OdbNetworkArn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::EC2::Route",
@@ -3334,7 +3334,7 @@
       "target": "AWS::VpcLattice::ResourceConfiguration",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::EC2::VPCEndpoint",
@@ -3358,7 +3358,7 @@
       "target": "AWS::VpcLattice::ServiceNetwork",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::EC2::VPCEndpoint",
@@ -3702,7 +3702,7 @@
       "target": "AWS::EKS::CertificateAuthority",
       "attribute": "Id",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::EKS::Cluster",
@@ -4174,7 +4174,7 @@
       "target": "AWS::GroundStation::Config",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::GroundStation::MissionProfile",
@@ -4182,7 +4182,7 @@
       "target": "AWS::GroundStation::Config",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::GuardDuty::Filter",
@@ -4326,7 +4326,7 @@
       "target": "AWS::GuardDuty::Member",
       "attribute": "MemberId",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::ImageBuilder::Image",
@@ -4430,7 +4430,7 @@
       "target": "AWS::Panorama::Package",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::IoT::AccountAuditConfiguration",
@@ -4462,7 +4462,7 @@
       "target": "AWS::IAM::ServerCertificate",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::IoT::DomainConfiguration",
@@ -4470,7 +4470,7 @@
       "target": "AWS::IoT::Certificate",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::IoT::EncryptionConfiguration",
@@ -4702,7 +4702,7 @@
       "target": "AWS::IoTTwinMaker::Entity",
       "attribute": "EntityId",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::IoTTwinMaker::Entity",
@@ -4766,7 +4766,7 @@
       "target": "AWS::IoT::Thing",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::IoTWireless::WirelessGateway",
@@ -4774,7 +4774,7 @@
       "target": "AWS::IoT::Thing",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::KMS::Alias",
@@ -4878,7 +4878,7 @@
       "target": "AWS::Glue::Catalog",
       "attribute": "CatalogId",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::LakeFormation::Tag",
@@ -4886,7 +4886,7 @@
       "target": "AWS::Glue::Catalog",
       "attribute": "CatalogId",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::Lambda::Function",
@@ -4910,7 +4910,7 @@
       "target": "AWS::Organizations::Organization",
       "attribute": "Id",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::Lambda::MicrovmImage",
@@ -5470,7 +5470,7 @@
       "target": "AWS::DirectConnect::DirectConnectGateway",
       "attribute": "DirectConnectGatewayArn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::NetworkManager::Link",
@@ -5590,7 +5590,7 @@
       "target": "AWS::Notifications::NotificationConfiguration",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::Notifications::ManagedNotificationAdditionalChannelAssociation",
@@ -5598,7 +5598,7 @@
       "target": "AWS::Notifications::NotificationConfiguration",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::Notifications::OrganizationalUnitAssociation",
@@ -5662,7 +5662,7 @@
       "target": "AWS::EC2::RouteTable",
       "attribute": "RouteTableId",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::OSIS::Pipeline",
@@ -5878,7 +5878,7 @@
       "target": "AWS::WorkSpacesWeb::IdentityProvider",
       "attribute": "IdentityProviderArn",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::QBusiness::Application",
@@ -6110,7 +6110,7 @@
       "target": "AWS::QuickSight::Folder",
       "attribute": "Arn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::QuickSight::KnowledgeBase",
@@ -6166,7 +6166,7 @@
       "target": "AWS::QuickSight::Theme",
       "attribute": "ThemeId",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::QuickSight::Theme",
@@ -6566,7 +6566,7 @@
       "target": "AWS::IAM::ManagedPolicy",
       "attribute": "PolicyArn",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::RolesAnywhere::Profile",
@@ -6662,7 +6662,7 @@
       "target": "AWS::Route53::HostedZone",
       "attribute": "Id",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::Route53Profiles::ProfileAssociation",
@@ -7374,7 +7374,7 @@
       "target": "AWS::ServiceCatalog::Portfolio",
       "attribute": "Id",
       "tier": 2,
-      "status": "pending"
+      "status": "approved"
     },
     {
       "source": "AWS::ServiceCatalog::PortfolioShare",
@@ -7462,7 +7462,7 @@
       "target": "AWS::AmplifyUIBuilder::Form",
       "attribute": "Id",
       "tier": 2,
-      "status": "pending"
+      "status": "rejected"
     },
     {
       "source": "AWS::SimSpaceWeaver::Simulation",
