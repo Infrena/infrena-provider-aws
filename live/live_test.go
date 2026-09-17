@@ -103,6 +103,9 @@ func configure(t *testing.T, profile, region string) (provider.Provider, *catalo
 	bucket := awstest.TypeFor(t, cat, "AWS::S3::Bucket").Name
 	repo := awstest.TypeFor(t, cat, "AWS::ECR::Repository").Name
 	cluster := awstest.TypeFor(t, cat, "AWS::ECS::Cluster").Name
+	taskDefinition := awstest.TypeFor(t, cat, "AWS::ECS::TaskDefinition").Name
+	ecsService := awstest.TypeFor(t, cat, "AWS::ECS::Service").Name
+	logGroup := awstest.TypeFor(t, cat, "AWS::Logs::LogGroup").Name
 	dbInstance := awstest.TypeFor(t, cat, "AWS::RDS::DBInstance").Name
 	dbSubnetGroup := awstest.TypeFor(t, cat, "AWS::RDS::DBSubnetGroup").Name
 	dbParameterGroup := awstest.TypeFor(t, cat, "AWS::RDS::DBParameterGroup").Name
@@ -115,6 +118,7 @@ func configure(t *testing.T, profile, region string) (provider.Provider, *catalo
 		"profile":          s(profile),
 		"discover_regions": l(s(region)),
 		"discover_types": l(s("aws.vpc"), s("aws.subnet"), s("aws.securitygroup"), s(role), s(bucket), s(repo), s(cluster),
+			s(taskDefinition), s(ecsService), s(logGroup),
 			s(dbInstance), s(dbSubnetGroup), s(dbParameterGroup), s(loadBalancer), s(targetGroup), s(listener),
 			s(hostedZone), s(recordSet)),
 	}})
@@ -739,6 +743,212 @@ func TestDNSAgainstRealAWS(t *testing.T) {
 	deleteAndConfirm(t, prov, vpc)
 }
 
+// TestContainerServicesAgainstRealAWS covers ECS's application layer above the bare cluster
+// TestStorageAndContainersAgainstRealAWS already exercises: a CloudWatch Logs log group, a Fargate task
+// definition and a service running on it, in a dedicated VPC with two subnets in different Availability
+// Zones and its own security group, so nothing depends on the account's default VPC or its default
+// cluster.
+//
+// AWS::ECS::TaskDefinition is create-only in effect, not just in name. Its schema
+// (schemas/CloudformationSchema.zip's aws-ecs-taskdefinition.json) lists every substantive property —
+// Family, ContainerDefinitions, Cpu, Memory, NetworkMode, RequiresCompatibilities, ExecutionRoleArn,
+// TaskRoleArn, Volumes and the rest — in createOnlyProperties; only Tags is left out, and the update
+// handler's own permissions are exactly the three tag actions (ecs:TagResource, ecs:UntagResource,
+// ecs:ListTagsForResource). The catalog's HasUpdate is true for this type and Cloud Control's
+// UpdateResource is reachable, but calling it with anything but a tag change is, in AWS's own model,
+// "register a new revision" — a Create, not an Update. So this test never calls update() on the task
+// definition; the cheap in-place update below runs on the service instead, the same shape of update
+// every other test in this file makes.
+//
+// Cost: the log group and the task definition are free. The service is created with DesiredCount: 0.
+// ECS::Service's schema puts no minimum on DesiredCount, and CreateService is documented to accept 0 for
+// a brand-new service — a service with no running tasks costs nothing and starts nothing. Confirmed
+// against real AWS on 2026-09-17: AWS accepted DesiredCount: 0 on create and scheduled no task, so this
+// test bills nothing. If that ever changes and 0 is rejected, change DesiredCount to 1 and update
+// live/README.md's cost section to match — a running Fargate task on this shape bills a few cents an
+// hour, not "free".
+//
+// What's expected to come back rewritten, and how each is handled: TaskDefinitionArn gains the revision
+// suffix AWS assigns (":1" on a first register) — it's a computed attribute, never part of what's
+// configured, so converged() never asserts it. ContainerDefinitions is asserted in full: reconciliation
+// (CLAUDE.md, internal/ccprov/reconcile.go) drops keys AWS added that the reference doesn't have, so a
+// create that configures only the fields this test cares about (Name, Image, Essential, Command,
+// LogConfiguration) should read back unchanged, the same way the load balancer test's Matcher does. The
+// container's LogConfiguration.Options map is opaque — schemas/CloudformationSchema.zip declares it
+// patternProperties with no properties, oneOf/anyOf/allOf — so it is copied exactly and its keys are
+// written in AWS's own kebab-case spelling ("awslogs-group", not "awslogs_group"), never translated.
+//
+// A log group is created explicitly (LogGroupName, RetentionInDays) rather than relying on the
+// container's awslogs-create-group option, so this test owns the group's lifecycle and deletes it itself
+// instead of leaving a group AWS auto-created behind.
+//
+// The execution role is a plain IAM role trusted by ecs-tasks.amazonaws.com with the AWS managed policy
+// AmazonECSTaskExecutionRolePolicy attached via ManagedPolicyArns — IAM is global, so it takes no region
+// attribute, the same as the role TestTheLifecycleAgainstRealAWS creates.
+//
+// No inbound rule is configured on the security group: DesiredCount: 0 means no task, and therefore no
+// network interface, is ever created by this test, so there is nothing for an ingress rule to reach.
+// GroupDescription is the only required attribute on aws.securitygroup.
+//
+// How long AWS takes: a log group, a task definition register/deregister and an ECS cluster are each a
+// few seconds. A service create/delete at DesiredCount: 0 involves no task placement, so it is fast too,
+// but ECS can still take a little while to report a service fully drained even with nothing running.
+// -timeout 20m is generous headroom alongside the VPC this test also creates and destroys; raise it if a
+// run shows the service delete waiting out deleteAndConfirm's retries.
+//
+// Kept separate from the other tests so a run can target it alone with -run TestContainerServicesAgainstRealAWS.
+func TestContainerServicesAgainstRealAWS(t *testing.T) {
+	profile, region := guard(t)
+	prov, cat := configure(t, profile, region)
+	ctx := context.Background()
+	run := strconv.FormatInt(time.Now().Unix(), 10)
+	tags := m(runTag, s(run))
+	name := "infrena-live-" + run
+
+	vpc := create(t, prov, "aws.vpc", map[string]value.Value{"region": s(region), "CidrBlock": s("10.95.0.0/16"), "Tags": tags})
+	vpcID := vpc.Attributes["VpcId"]
+	subnetA := create(t, prov, "aws.subnet", map[string]value.Value{"region": s(region), "VpcId": vpcID,
+		"CidrBlock": s("10.95.1.0/24"), "AvailabilityZone": s(region + "a"), "Tags": tags})
+	subnetB := create(t, prov, "aws.subnet", map[string]value.Value{"region": s(region), "VpcId": vpcID,
+		"CidrBlock": s("10.95.2.0/24"), "AvailabilityZone": s(region + "b"), "Tags": tags})
+	sg := create(t, prov, "aws.securitygroup", map[string]value.Value{"region": s(region), "VpcId": vpcID,
+		"GroupDescription": s("infrena live " + run), "Tags": tags})
+
+	logGroupType := awstest.TypeFor(t, cat, "AWS::Logs::LogGroup").Name
+	logGroup := create(t, prov, logGroupType, map[string]value.Value{"region": s(region),
+		"LogGroupName": s("/ecs/" + name), "RetentionInDays": n(1), "Tags": tags})
+
+	roleType := awstest.TypeFor(t, cat, "AWS::IAM::Role").Name
+	// JSON text, spaced unlike AWS's answer, the same reasoning as the role TestTheLifecycleAgainstRealAWS
+	// creates: infrena's compiler requires this object-or-string property as text, and a real user would
+	// not hand-write compact JSON.
+	trustPolicy := s(`{
+  "Version": "2012-10-17",
+  "Statement": [ { "Effect": "Allow", "Principal": { "Service": "ecs-tasks.amazonaws.com" }, "Action": "sts:AssumeRole" } ]
+}`)
+	executionRole := create(t, prov, roleType, map[string]value.Value{
+		"RoleName":                 s("infrena-live-ecsexec-" + run),
+		"AssumeRolePolicyDocument": trustPolicy,
+		"ManagedPolicyArns":        l(s("arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy")),
+		"Tags":                     tags,
+	})
+
+	clusterType := awstest.TypeFor(t, cat, "AWS::ECS::Cluster").Name
+	cluster := create(t, prov, clusterType, map[string]value.Value{"region": s(region), "ClusterName": s(name),
+		"ClusterSettings": l(m("name", s("containerInsights"), "value", s("disabled"))), "Tags": tags})
+
+	container := m(
+		"name", s("app"),
+		"image", s("public.ecr.aws/docker/library/busybox:latest"),
+		"essential", value.Bool(true, value.SourceExplicit),
+		"command", l(s("sh"), s("-c"), s("sleep 3600")),
+		// Options is opaque (see the comment above the function): its keys are AWS's own kebab-case, not
+		// translated to snake_case the way LogDriver and the map's own key ("options") are.
+		"log_configuration", m("log_driver", s("awslogs"), "options", m(
+			"awslogs-group", logGroup.Attributes["LogGroupName"],
+			"awslogs-region", s(region),
+			"awslogs-stream-prefix", s("ecs"),
+		)),
+	)
+	taskDefType := awstest.TypeFor(t, cat, "AWS::ECS::TaskDefinition").Name
+	taskDef := create(t, prov, taskDefType, map[string]value.Value{
+		"region":                  s(region),
+		"Family":                  s(name),
+		"Cpu":                     s("256"),
+		"Memory":                  s("512"),
+		"NetworkMode":             s("awsvpc"),
+		"RequiresCompatibilities": l(s("FARGATE")),
+		"ExecutionRoleArn":        executionRole.Attributes["Arn"],
+		"ContainerDefinitions":    l(container),
+		"Tags":                    tags,
+	})
+
+	serviceType := awstest.TypeFor(t, cat, "AWS::ECS::Service").Name
+	service := create(t, prov, serviceType, map[string]value.Value{
+		"region":         s(region),
+		"Cluster":        cluster.Attributes["ClusterName"],
+		"ServiceName":    s(name),
+		"TaskDefinition": taskDef.Attributes["TaskDefinitionArn"],
+		"LaunchType":     s("FARGATE"),
+		// See the comment above the function: 0 is expected to be legal and to start nothing.
+		"DesiredCount": n(0),
+		"NetworkConfiguration": m("awsvpc_configuration", m(
+			"subnets", l(subnetA.Attributes["SubnetId"], subnetB.Attributes["SubnetId"]),
+			"security_groups", l(sg.Attributes["GroupId"]),
+			"assign_public_ip", s("DISABLED"),
+		)),
+		"Tags": tags,
+	})
+
+	// Cheap, in-place update: a tag on the service, the same shape as every other test in this file — see
+	// the comment above the function for why the task definition itself is never updated in place.
+	service = update(t, prov, service, map[string]value.Value{"Tags": m(runTag, s(run), "Purpose", s("live-test"))})
+
+	var everything []string
+	for _, typ := range cat.Types {
+		everything = append(everything, typ.Name)
+	}
+	found, err := prov.Discover(ctx, provider.DiscoverRequest{Types: everything})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, r := range found {
+		seen[r.ProviderID] = true
+	}
+	// All four new types list without a parent: none of aws.ecs.service, aws.ecs.taskdefinition,
+	// aws.ecs.cluster or aws.loggroup carries list_needs_model in the catalog, unlike the ELB listener
+	// and Route 53 record set elsewhere in this file, which both do and are skipped by discovery. So
+	// every one of them is asserted here rather than only logged. Confirmed against real AWS on
+	// 2026-09-17: all four were found, and the only skip reported was the listener/record set pair.
+	for _, st := range []*resource.ResourceState{service, taskDef, cluster, logGroup, executionRole, sg, subnetB, subnetA, vpc} {
+		if !seen[st.ProviderID] {
+			t.Errorf("discovery did not find %s (allow for propagation before calling it a bug)", st.ProviderID)
+		}
+	}
+
+	// Dependency order: the service depends on the cluster and the task definition (and would hold a
+	// network interface in the subnets and the security group once it schedules a task, though
+	// DesiredCount: 0 means it never does here); the task definition and the cluster are otherwise
+	// independent of each other; the log group and the execution role are referenced from the task
+	// definition's container and ExecutionRoleArn but not the reverse, so both outlive it here regardless.
+	// deleteAndConfirm wraps the service (it can take a little while to report itself drained even with
+	// nothing running) and the subnets/VPC (an ENI can hold a subnet); the rest have no lingering
+	// dependency to wait out.
+	deleteAndConfirm(t, prov, service)
+
+	start := time.Now()
+	if err := prov.Delete(ctx, taskDef); err != nil {
+		t.Fatalf("delete %s: %v", taskDef.ProviderID, err)
+	}
+	t.Logf("deleted %s in %s", taskDef.ProviderID, time.Since(start).Round(time.Millisecond))
+	// AWS::ECS::TaskDefinition's delete is DeregisterTaskDefinition, which marks the revision INACTIVE
+	// rather than physically removing it — AWS keeps deregistered revisions visible to
+	// DescribeTaskDefinition indefinitely. Cloud Control's GetResource for this type treats an INACTIVE
+	// revision as not-found, the same as every other type's delete in this file — confirmed against real
+	// AWS on 2026-09-17, where this read reported the resource gone while DescribeTaskDefinition still
+	// returned revision :1 with status INACTIVE. That deregistered revision is permanent and free, and it
+	// is the one thing this test cannot clean up after itself: Cloud Control's delete only deregisters,
+	// and nothing in this suite calls AWS's own DeleteTaskDefinitions. See live/README.md.
+	if got, err := prov.Read(ctx, taskDef); err != nil || got != nil {
+		t.Errorf("read %s after delete = %v, %v; want gone", taskDef.ProviderID, got, err)
+	}
+
+	for _, st := range []*resource.ResourceState{cluster, logGroup, executionRole} {
+		start := time.Now()
+		if err := prov.Delete(ctx, st); err != nil {
+			t.Fatalf("delete %s: %v", st.ProviderID, err)
+		}
+		t.Logf("deleted %s in %s", st.ProviderID, time.Since(start).Round(time.Millisecond))
+		if got, err := prov.Read(ctx, st); err != nil || got != nil {
+			t.Errorf("read %s after delete = %v, %v; want gone", st.ProviderID, got, err)
+		}
+	}
+	for _, st := range []*resource.ResourceState{sg, subnetB, subnetA, vpc} {
+		deleteAndConfirm(t, prov, st)
+	}
+}
+
 // TestSweepLeftovers deletes what a crashed run left: anything tagged by this suite more than an hour ago.
 func TestSweepLeftovers(t *testing.T) {
 	profile, region := guard(t)
@@ -749,8 +959,14 @@ func TestSweepLeftovers(t *testing.T) {
 	// first, in that order: a load balancer's listeners go with it but a target group cannot be deleted while a
 	// listener still forwards to it, and a load balancer holds network interfaces in the subnets and the security
 	// group below. DB instances, subnet groups and parameter groups follow: an instance depends on the other two
-	// plus subnets, and a subnet group depends on the subnets. The hosted zone comes right before the VPC it may
-	// be associated with, for the same reason the security group and subnets do.
+	// plus subnets, and a subnet group depends on the subnets. The ECS service comes before the task definition
+	// and the cluster it runs on (a service holds both), the task definition and the cluster are independent of
+	// each other, and the log group they may still reference by name comes right after. The hosted zone comes
+	// right before the VPC it may be associated with, for the same reason the security group and subnets do.
+	//
+	// All four ECS/Logs types added by TestContainerServicesAgainstRealAWS — the cluster, the task definition,
+	// the service and the log group — declare tagging: {taggable: true} in their schemas, so unlike Route 53's
+	// record set below, none of them needed leaving out of this sweep.
 	//
 	// AWS::Route53::RecordSet is deliberately not in this list: its schema declares tagging: {taggable: false},
 	// so unlike every other type here it cannot be tagged and therefore cannot be found by run tag at all. A
@@ -766,7 +982,10 @@ func TestSweepLeftovers(t *testing.T) {
 		awstest.TypeFor(t, cat, "AWS::RDS::DBInstance").Name,
 		awstest.TypeFor(t, cat, "AWS::RDS::DBSubnetGroup").Name,
 		awstest.TypeFor(t, cat, "AWS::RDS::DBParameterGroup").Name,
+		awstest.TypeFor(t, cat, "AWS::ECS::Service").Name,
+		awstest.TypeFor(t, cat, "AWS::ECS::TaskDefinition").Name,
 		awstest.TypeFor(t, cat, "AWS::ECS::Cluster").Name,
+		awstest.TypeFor(t, cat, "AWS::Logs::LogGroup").Name,
 		awstest.TypeFor(t, cat, "AWS::ECR::Repository").Name,
 		awstest.TypeFor(t, cat, "AWS::S3::Bucket").Name,
 		awstest.TypeFor(t, cat, "AWS::IAM::Role").Name,

@@ -133,6 +133,36 @@ The identity needs a policy allowing:
   - record set: `route53:ListHostedZones`, `route53:GetChange`, `route53:ChangeResourceRecordSets`,
     `route53:ListResourceRecordSets`, `route53:GetHostedZone`
 
+- the handler permissions for the two more ECS types and the CloudWatch Logs type
+  `TestContainerServicesAgainstRealAWS` exercises, taken the same way from each type's
+  `handlers.*.permissions` in `schemas/CloudformationSchema.zip` (`aws-ecs-taskdefinition.json`,
+  `aws-ecs-service.json`, `aws-logs-loggroup.json`). Its cluster needs nothing beyond the `ecs:` actions
+  already listed above for `TestStorageAndContainersAgainstRealAWS`'s cluster, and its VPC, subnets and
+  security group need nothing beyond the `ec2:` actions already listed at the top of this section:
+  - task definition (create/read/update/delete/list handlers, deduplicated): `ecs:RegisterTaskDefinition`,
+    `ecs:DeregisterTaskDefinition`, `ecs:DescribeTaskDefinition`, `ecs:ListTaskDefinitions`,
+    `ecs:TagResource`, `ecs:UntagResource`, `ecs:ListTagsForResource`, `iam:GetRole`, `iam:PassRole`
+  - service: `ecs:CreateService`, `ecs:DeleteService`, `ecs:DescribeServices`,
+    `ecs:DescribeServiceDeployments`, `ecs:ListServiceDeployments`, `ecs:ListServices`, `ecs:ListClusters`,
+    `ecs:ListTagsForResource`, `ecs:StopServiceDeployment`, `ecs:TagResource`, `ecs:UntagResource`,
+    `ecs:UpdateService`, `iam:PassRole`
+  - log group (`aws-logs-loggroup.json`, create/read/update/delete/list handlers, deduplicated):
+    `logs:DescribeLogGroups`, `logs:CreateLogGroup`, `logs:DeleteLogGroup`, `logs:PutRetentionPolicy`,
+    `logs:DeleteRetentionPolicy`, `logs:TagResource`, `logs:UntagResource`, `logs:ListTagsForResource`,
+    `logs:GetDataProtectionPolicy`, `logs:PutDataProtectionPolicy`, `logs:DeleteDataProtectionPolicy`,
+    `logs:CreateLogDelivery`, `logs:AssociateKmsKey`, `logs:DisassociateKmsKey`, `logs:PutResourcePolicy`,
+    `logs:DescribeResourcePolicies`, `logs:DeleteResourcePolicy`, `logs:PutIndexPolicy`,
+    `logs:DescribeIndexPolicies`, `logs:DeleteIndexPolicy`, `logs:PutLogGroupDeletionProtection`,
+    `logs:PutBearerTokenAuthentication`, `s3:REST.PUT.OBJECT`, `firehose:TagDeliveryStream`
+  - the execution role this test creates is an `AWS::IAM::Role` like the one
+    `TestTheLifecycleAgainstRealAWS` creates, but attaches a managed policy
+    (`ManagedPolicyArns: [AmazonECSTaskExecutionRolePolicy]`), which that role never does. The role
+    permissions listed near the top of this section do not cover that: add `iam:AttachRolePolicy`,
+    `iam:DetachRolePolicy`, `iam:GetRolePolicy`, `iam:PutRolePolicy`, `iam:DeleteRolePolicy`,
+    `iam:UpdateRoleDescription`, `iam:UpdateAssumeRolePolicy`, `iam:PutRolePermissionsBoundary`,
+    `iam:DeleteRolePermissionsBoundary` (all from `aws-iam-role.json`'s `update` and `delete` handlers,
+    which cover every property those handlers can touch, not only `ManagedPolicyArns`).
+
 A missing permission shows up as `AccessDenied` naming the action; add that action and try again.
 
 ## Variables
@@ -249,6 +279,52 @@ It deletes everything it created in dependency order (both record sets, then the
 `DeleteHostedZone` refuses a zone that still holds anything but its default NS/SOA records), and is a separate
 test function so a run can target it alone with `-run`.
 
+`TestContainerServicesAgainstRealAWS` creates a VPC (`10.95.0.0/16`) with two subnets in different Availability
+Zones (`10.95.1.0/24`, `10.95.2.0/24`) and a security group (no inbound rule — see below), a CloudWatch Logs log
+group, an IAM execution role, an ECS cluster, a Fargate task definition and a service running on it, all named
+`infrena-live-<unix time>` (the log group `/ecs/infrena-live-<unix time>`, the role
+`infrena-live-ecsexec-<unix time>`) and tagged `infrena-live-run: <unix time>`, to cover ECS's application layer
+above the bare cluster `TestStorageAndContainersAgainstRealAWS` exercises:
+
+- **Cost: this is free.** The service is created with `DesiredCount: 0` — legal, per `AWS::ECS::Service`'s schema
+  (no minimum on `DesiredCount`), and confirmed against real AWS on 2026-09-17, which accepted it on create and
+  scheduled no task — so it holds no network interface and bills nothing. The log
+  group and the task definition cost nothing regardless of whether anything ever runs. **If AWS ever starts
+  rejecting `DesiredCount: 0` for a brand-new service**, `live_test.go` changes it to `1`, and that changes this
+  cost story: a running Fargate task on this shape (256 CPU units / 512 MiB) bills on the order of a cent per
+  hour in `us-east-1`, not nothing, and it also means the container (`public.ecr.aws/docker/library/busybox:latest`,
+  running `sh -c "sleep 3600"`) actually starts.
+- the log group is created explicitly (`LogGroupName`, `RetentionInDays: 1`) rather than relying on the
+  container's `awslogs-create-group` option, so this test owns its lifecycle and deletes it itself.
+- the execution role is a plain IAM role trusted by `ecs-tasks.amazonaws.com`, with the AWS managed policy
+  `AmazonECSTaskExecutionRolePolicy` attached via `ManagedPolicyArns` — IAM is global, so, like the role
+  `TestTheLifecycleAgainstRealAWS` creates, it takes no region attribute.
+- the task definition requires `FARGATE`, uses `NetworkMode: awsvpc`, `Cpu: "256"` / `Memory: "512"`, and one
+  container definition (`Name`, `Image`, `Essential: true`, `Command`, and a `LogConfiguration` pointing at the
+  log group above). **`AWS::ECS::TaskDefinition` is create-only in effect**: its schema
+  (`schemas/CloudformationSchema.zip`'s `aws-ecs-taskdefinition.json`) lists every substantive property in
+  `createOnlyProperties` — only `Tags` is left out — so this test never calls `update()` on it; see the comment
+  above the test function in `live_test.go`.
+- the service runs on the cluster and task definition above with `LaunchType: FARGATE`, `NetworkConfiguration`
+  naming both subnets and the security group, and `DesiredCount: 0`; it is updated in place by adding a tag —
+  the cheap update this test makes, since the task definition itself cannot be updated in place.
+- no inbound rule is configured on the security group: with `DesiredCount: 0`, no task and therefore no network
+  interface is ever created for one to reach.
+
+It deletes everything it created in dependency order (service, task definition, cluster, log group, execution
+role, security group, the subnets, then the VPC), waiting out a lingering dependency on the service and the
+subnets/VPC, and is a separate test function so a run can target it alone with `-run`.
+
+**One thing it cannot delete: the task definition revision.** Cloud Control's delete for
+`AWS::ECS::TaskDefinition` is `DeregisterTaskDefinition`, which marks the revision `INACTIVE` rather than
+removing it, and AWS keeps deregistered revisions indefinitely. Confirmed on the 2026-09-17 run: after the
+test's delete, the plugin's read correctly reported the resource gone, while
+`aws ecs describe-task-definition --task-definition infrena-live-<unix time>:1` still returned it with status
+`INACTIVE`, and the family still appears in `aws ecs list-task-definition-families --status INACTIVE`. So every
+run of this test leaves one `INACTIVE` revision behind for good. It costs nothing, it does not show up in
+`ACTIVE` listings, and nothing in this suite can clear it — AWS's own `DeleteTaskDefinitions` is the only way to
+remove one, and this suite never calls it.
+
 ### The load balancer's longer timeouts
 
 Creating an ALB typically takes AWS 2 to 4 minutes and deleting one 1 to 3, and the elastic network interfaces it
@@ -265,6 +341,14 @@ one request, not a prediction of how long a real create takes. A real create typ
 minutes and a delete several minutes more. That is far more than the few minutes the other tests take, so a run
 that includes `TestDatabasesAgainstRealAWS` needs `go test`'s own `-timeout` raised well past the `30m` used
 below — `45m` or more is reasonable headroom; raise it further if a run is timing out mid-create.
+
+### The container services test's timeouts
+
+A log group, a task definition register/deregister and an ECS cluster each typically take AWS a few seconds. A
+service create or delete at `DesiredCount: 0` involves no task placement, so it is fast too, but ECS can still
+take a little while to report a service fully drained even with nothing running, which `deleteAndConfirm` waits
+out. `-timeout 20m` is generous headroom for `TestContainerServicesAgainstRealAWS` alone, alongside the VPC it
+also creates and destroys.
 
 ## Running it
 
@@ -291,15 +375,25 @@ INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
 # TestDNSAgainstRealAWS alone: a hosted zone and its record sets are quick, 10m is generous:
 INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
   go test -tags live -count=1 -v -timeout 10m -run TestDNSAgainstRealAWS ./live/
+
+# TestContainerServicesAgainstRealAWS alone: nothing here waits on AWS as long as an ALB or a DB instance, 20m
+# is generous:
+INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
+  go test -tags live -count=1 -v -timeout 20m -run TestContainerServicesAgainstRealAWS ./live/
 ```
 
 ## Cleaning up after a crashed run
 
 If a run is interrupted before its cleanup runs, `TestSweepLeftovers` finds and deletes anything
-this suite tagged more than an hour ago, across all fourteen taggable types (buckets and repositories included —
+this suite tagged more than an hour ago, across all seventeen taggable types (buckets and repositories included —
 safe without checking for emptiness, since this suite never puts objects or images in them), listeners first,
-then load balancers, then target groups, then the hosted zone right before the VPC it may be associated with, so
-nothing is refused for still being in use. `AWS::Route53::RecordSet` is not among them: its schema declares
+then load balancers, then target groups, then the ECS service, the task definition, the cluster and the log
+group, then the hosted zone right before the VPC it may be associated with, so nothing is refused for still
+being in use. All four of `TestContainerServicesAgainstRealAWS`'s types (the cluster, the task definition, the
+service and the log group) declare `tagging: {taggable: true}`, so none of them needed leaving out of this sweep
+the way the record set below is — though sweeping a task definition only deregisters it, leaving behind the
+permanent `INACTIVE` revision described above, which is expected and free.
+`AWS::Route53::RecordSet` is not among them: its schema declares
 `tagging: {taggable: false}`, so a record set cannot be tagged and this sweep has no way to find one by the run
 tag the way it finds everything else. A crash between `TestDNSAgainstRealAWS` creating a record set and its own
 teardown running leaves that record behind untagged, which then makes the hosted zone sweep below fail (as a
