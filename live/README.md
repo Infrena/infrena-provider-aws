@@ -163,6 +163,24 @@ The identity needs a policy allowing:
     `iam:DeleteRolePermissionsBoundary` (all from `aws-iam-role.json`'s `update` and `delete` handlers,
     which cover every property those handlers can touch, not only `ManagedPolicyArns`).
 
+- the handler permissions for the Lambda type `TestFunctionsAgainstRealAWS` exercises, taken the same way from
+  its `handlers.*.permissions` in `schemas/CloudformationSchema.zip` (`aws-lambda-function.json`). Its execution
+  role is a plain `AWS::IAM::Role` like the one `TestTheLifecycleAgainstRealAWS` creates — no managed policy is
+  attached, so nothing beyond the base IAM role permissions listed at the top of this section is needed for it:
+  - function (create/read/update/delete/list handlers, deduplicated): `lambda:CreateFunction`,
+    `lambda:GetFunction`, `lambda:PutFunctionConcurrency`, `lambda:DeleteFunctionConcurrency`,
+    `lambda:TagResource`, `lambda:UntagResource`, `lambda:UpdateFunctionConfiguration`,
+    `lambda:UpdateFunctionCode`, `lambda:GetCodeSigningConfig`, `lambda:GetFunctionCodeSigningConfig`,
+    `lambda:PutFunctionCodeSigningConfig`, `lambda:DeleteFunctionCodeSigningConfig`, `lambda:GetLayerVersion`,
+    `lambda:GetRuntimeManagementConfig`, `lambda:PutRuntimeManagementConfig`, `lambda:GetFunctionRecursionConfig`,
+    `lambda:PutFunctionRecursionConfig`, `lambda:GetFunctionScalingConfig`, `lambda:PutFunctionScalingConfig`,
+    `lambda:PassCapacityProvider`, `lambda:PublishVersion`, `lambda:ListFunctions`, `lambda:DeleteFunction`,
+    `iam:PassRole`, `s3:GetObject`, `s3:GetObjectVersion`, `elasticfilesystem:DescribeMountTargets`,
+    `s3files:ListMountTargets`, `kms:CreateGrant`, `kms:Decrypt`, `kms:DescribeKey`, `kms:Encrypt`,
+    `kms:GenerateDataKey`, plus the four `ec2:` actions its handlers list (`ec2:DescribeSecurityGroups`,
+    `ec2:DescribeSubnets`, `ec2:DescribeVpcs`, `ec2:DescribeNetworkInterfaces`; **already covered by the
+    `ec2:Describe*` above**)
+
 A missing permission shows up as `AccessDenied` naming the action; add that action and try again.
 
 ## Variables
@@ -325,6 +343,53 @@ run of this test leaves one `INACTIVE` revision behind for good. It costs nothin
 `ACTIVE` listings, and nothing in this suite can clear it — AWS's own `DeleteTaskDefinitions` is the only way to
 remove one, and this suite never calls it.
 
+`TestFunctionsAgainstRealAWS` creates an IAM execution role (`infrena-live-lambdaexec-<unix time>`) and a Lambda
+function (`infrena-live-<unix time>`) whose deployment package is defined inline, tagged
+`infrena-live-run: <unix time>`. No VPC, subnets or security group are created — the function sets no
+`VpcConfig` — so this is the smallest test in the suite: two resources, nothing for `deleteAndConfirm` to wait
+out.
+
+- **Cost: FREE.** The function is never invoked — this test only calls the plugin's Create, Read, Update,
+  Discover and Delete, never anything that runs code — and Lambda bills per invocation and per GB-second of
+  execution, not for a function that merely exists. The inline deployment package is a few hundred bytes, far
+  under Lambda's free code-storage allowance. Because the function is never invoked, Lambda never auto-creates
+  its CloudWatch log group (normally `/aws/lambda/<FunctionName>`, created lazily on first invocation) — none
+  should exist after a run, and that absence is expected, not a leftover.
+- the function's code is inline (`Code.ZipFile`), which `aws-lambda-function.json` says "works only for Node.js
+  and Python functions" — no S3 bucket and no container image are used. It runs `Runtime: python3.13` with
+  `Handler: index.handler` (CFN packages inline code into a file literally named `index`, extension matching the
+  runtime); the schema types `Runtime` as a bare string with no enum in this bundle, so this choice rests on
+  outside knowledge of Lambda's runtime support, not on anything the schema itself asserts — worth rechecking if
+  this test is run long after 2026.
+- the role's trust policy names `lambda.amazonaws.com` and nothing is attached to it: this test never invokes
+  the function, so it needs none of the CloudWatch Logs permissions `AWSLambdaBasicExecutionRole` would grant.
+- it updates the function's `Description` — checked against the schema, not assumed: `createOnlyProperties` for
+  this type is only `FunctionName`, `PackageType` and `TenancyConfig`, and `Description` is in neither that list
+  nor `readOnlyProperties`/`writeOnlyProperties`, so this is a genuine `UpdateFunctionConfiguration` change, not
+  a replacement.
+- **IAM propagation hazard:** creating the function immediately after creating its execution role can fail with
+  `InvalidParameterValueException: The role defined for the function cannot be assumed by Lambda`, because the
+  role has not yet propagated through IAM. Cloud Control's own Lambda handler retries `CreateFunction` against
+  this internally for a while, which is usually enough, but nothing in this plugin or this test adds a retry of
+  its own on top of that (unlike `aws.vpc`/`aws.subnet`'s read-side propagation patience). If the very first run
+  fails on function creation with that message, rerun it; see the comment above `TestFunctionsAgainstRealAWS` in
+  `live_test.go` for what to change if it recurs.
+- **This test found a real bug on its first run, and `Code` is why it earns its place.** Every field of `Code`
+  (`ImageUri`, `S3Bucket`, `S3Key`, `S3ObjectVersion`, `ZipFile`, `SourceKMSKeyArn`, `S3ObjectStorageMode`) is
+  `writeOnlyProperties` in the schema, the same shape as RDS's `MasterUserPassword`, which this suite already
+  relies on being carried forward rather than compared against what AWS reads back. But the generator used to
+  collect only pointers of the exact form `/properties/Name`, and every one of `Code`'s is one level deeper
+  (`/properties/Code/ZipFile`), so none counted and `Code` was generated as an ordinary attribute. The live run
+  on 2026-09-17 showed Cloud Control returning `Code` as an **empty object**: state recorded an empty map against
+  a configured `zip_file`, and the convergence check failed on `Code` while everything else passed. That is a
+  plan that never converges — every plan wants `Code` back, every apply re-sends it, the next read empties it.
+  Fixed in the generator (commit `41cf7e8`): a property whose *every* leaf is write-only is now write-only as a
+  whole, while one with only some write-only leaves stays ordinary on purpose, because flagging it whole would
+  hide real drift in the leaves AWS does return. See the comment above `TestFunctionsAgainstRealAWS`.
+
+It deletes everything it created in dependency order (the function, then the role — the function's `Role` names
+the role's `Arn`), and is a separate test function so a run can target it alone with `-run`.
+
 ### The load balancer's longer timeouts
 
 Creating an ALB typically takes AWS 2 to 4 minutes and deleting one 1 to 3, and the elastic network interfaces it
@@ -350,6 +415,15 @@ take a little while to report a service fully drained even with nothing running,
 out. `-timeout 20m` is generous headroom for `TestContainerServicesAgainstRealAWS` alone, alongside the VPC it
 also creates and destroys.
 
+### The functions test's timeouts
+
+`AWS::Lambda::Function`'s create, update and delete handlers are registered in the catalog with the schema's
+default 120-minute `timeoutInMinutes` (`aws-lambda-function.json` sets none of its own), which, like the other
+timeout ceilings in this file, is Cloud Control's own outer bound and not a prediction of how long a real call
+takes. Creating or deleting a function with an inline deployment package and no VPC typically takes AWS a few
+seconds; there is no ALB, no DB instance and no network interface anywhere in this test to wait on.
+`-timeout 10m` is generous headroom for `TestFunctionsAgainstRealAWS` alone.
+
 ## Running it
 
 A run that includes `TestDatabasesAgainstRealAWS` or `TestLoadBalancersAgainstRealAWS` (whether by itself or as
@@ -365,7 +439,8 @@ INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
 INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
   go test -tags live -count=1 -v -timeout 30m -run TestLoadBalancersAgainstRealAWS ./live/
 
-# the whole package now runs the DB instance and the ALB back to back: give it 60m:
+# the whole package now runs the DB instance and the ALB back to back, plus the function test (fast, adds
+# little): give it 60m:
 INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
   go test -tags live -count=1 -v -timeout 60m ./live/
 
@@ -380,19 +455,26 @@ INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
 # is generous:
 INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
   go test -tags live -count=1 -v -timeout 20m -run TestContainerServicesAgainstRealAWS ./live/
+
+# TestFunctionsAgainstRealAWS alone: no VPC, no ALB, no DB instance — the smallest test in this suite, 10m is
+# generous:
+INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
+  go test -tags live -count=1 -v -timeout 10m -run TestFunctionsAgainstRealAWS ./live/
 ```
 
 ## Cleaning up after a crashed run
 
 If a run is interrupted before its cleanup runs, `TestSweepLeftovers` finds and deletes anything
-this suite tagged more than an hour ago, across all seventeen taggable types (buckets and repositories included —
+this suite tagged more than an hour ago, across all eighteen taggable types (buckets and repositories included —
 safe without checking for emptiness, since this suite never puts objects or images in them), listeners first,
 then load balancers, then target groups, then the ECS service, the task definition, the cluster and the log
-group, then the hosted zone right before the VPC it may be associated with, so nothing is refused for still
-being in use. All four of `TestContainerServicesAgainstRealAWS`'s types (the cluster, the task definition, the
-service and the log group) declare `tagging: {taggable: true}`, so none of them needed leaving out of this sweep
-the way the record set below is — though sweeping a task definition only deregisters it, leaving behind the
-permanent `INACTIVE` revision described above, which is expected and free.
+group, then the Lambda function right before the IAM role (a function's `Role` names the role's `Arn`), then the
+hosted zone right before the VPC it may be associated with, so nothing is refused for still being in use. All
+four of `TestContainerServicesAgainstRealAWS`'s types (the cluster, the task definition, the service and the log
+group) declare `tagging: {taggable: true}`, so none of them needed leaving out of this sweep the way the record
+set below is — though sweeping a task definition only deregisters it, leaving behind the permanent `INACTIVE`
+revision described above, which is expected and free. `AWS::Lambda::Function` also declares
+`tagging: {taggable: true}`, so it sweeps the same way as everything else here.
 `AWS::Route53::RecordSet` is not among them: its schema declares
 `tagging: {taggable: false}`, so a record set cannot be tagged and this sweep has no way to find one by the run
 tag the way it finds everything else. A crash between `TestDNSAgainstRealAWS` creating a record set and its own

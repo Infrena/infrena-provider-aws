@@ -114,13 +114,14 @@ func configure(t *testing.T, profile, region string) (provider.Provider, *catalo
 	listener := awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::Listener").Name
 	hostedZone := awstest.TypeFor(t, cat, "AWS::Route53::HostedZone").Name
 	recordSet := awstest.TypeFor(t, cat, "AWS::Route53::RecordSet").Name
+	function := awstest.TypeFor(t, cat, "AWS::Lambda::Function").Name
 	prov, err := host.Configure(provider.Config{Instance: "live", Values: map[string]value.Value{
 		"profile":          s(profile),
 		"discover_regions": l(s(region)),
 		"discover_types": l(s("aws.vpc"), s("aws.subnet"), s("aws.securitygroup"), s(role), s(bucket), s(repo), s(cluster),
 			s(taskDefinition), s(ecsService), s(logGroup),
 			s(dbInstance), s(dbSubnetGroup), s(dbParameterGroup), s(loadBalancer), s(targetGroup), s(listener),
-			s(hostedZone), s(recordSet)),
+			s(hostedZone), s(recordSet), s(function)),
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -949,6 +950,153 @@ func TestContainerServicesAgainstRealAWS(t *testing.T) {
 	}
 }
 
+// TestFunctionsAgainstRealAWS covers AWS Lambda: an execution role and a Lambda function whose deployment package
+// is defined inline (Code.ZipFile), so nothing is uploaded to S3 and no container image is built or pushed. No
+// VPC is created — the function sets no VpcConfig — so this is the smallest test in this file: two types, no
+// subnets, no security group, and nothing for deleteAndConfirm to wait out.
+//
+// Cost: FREE, and deliberately so. Nothing here ever invokes the function — this test calls only the plugin's
+// Create, Read, Update, Discover and Delete, never anything that runs code — and Lambda bills per invocation and
+// per GB-second of execution, not for a function that merely exists. The inline deployment package is a few
+// hundred bytes, far under Lambda's free code-storage allowance. Because the function is never invoked, Lambda
+// never auto-creates its CloudWatch log group (normally named /aws/lambda/<FunctionName> and created lazily on
+// first invocation) — none should exist after this test runs, and that absence is expected, not evidence of a
+// leftover this test failed to clean up.
+//
+// The runtime: schemas/CloudformationSchema.zip's aws-lambda-function.json says inline code "works only for
+// Node.js and Python functions", and types Runtime as a bare string with no enum in this schema bundle — so
+// nothing about which runtimes AWS currently supports is checked mechanically here, unlike, say, an enum
+// property would be. "python3.13" is used below on outside knowledge (Lambda added it in December 2024), not
+// because the schema says so; if this test is run long after 2026, confirm python3.13 has not been deprecated
+// (`aws lambda list-runtimes` or the console) before assuming a failure here is this test's fault. Handler is
+// "index.handler" for the same reason as Node.js: CFN packages inline code into a file literally named "index"
+// (with the extension matching the runtime, ".py" here), regardless of language.
+//
+// IAM PROPAGATION HAZARD — the most likely first-run failure, flagged rather than silently worked around:
+// creating a Lambda function immediately after creating its execution role can fail with
+// "InvalidParameterValueException: The role defined for the function cannot be assumed by Lambda", because the
+// role has not yet propagated through IAM. Cloud Control's own Lambda handler already retries CreateFunction
+// against this internally for a while before giving up, which is why this usually just works — but unlike
+// aws.vpc/aws.subnet's read-side propagation retries (internal/ccprov/patience.go's patience, used by Read),
+// there is no equivalent retry anywhere in this plugin, or in this file's create() helper, for a Create call AWS
+// itself keeps rejecting synchronously. If the very first run fails on function creation with that message,
+// that is the cause, not a bug: rerun it (the role will have propagated by then), or, if it recurs, add a short
+// sleep between creating the role and creating the function.
+//
+// REWRITTEN VALUES — this test found a real bug on its first run, and Code is why it is worth keeping.
+// Every leaf of Code (ImageUri, S3Bucket, S3Key, S3ObjectVersion, ZipFile, SourceKMSKeyArn, S3ObjectStorageMode)
+// is writeOnlyProperties in aws-lambda-function.json, the same shape as RDS's MasterUserPassword (CLAUDE.md,
+// internal/ccprov/values.go's stateFrom): AWS never returns a write-only value, so it is carried forward from
+// what was last configured rather than compared against what Read gets back. That carry-forward only fires for
+// an attribute the catalog's Type.WriteOnly lists, and the generator used to collect only pointers of the exact
+// form "/properties/Name" — every one of Code's is one level deeper ("/properties/Code/ZipFile"), so none of
+// them counted and Code was generated as an ordinary attribute.
+//
+// What the first live run showed (2026-09-17): Cloud Control's GetResource returns Code as an EMPTY OBJECT, so
+// stateFrom recorded Code as an empty map with provider provenance against a configured zip_file, and
+// converged() failed on Code specifically while create, the Description update, discovery and teardown all
+// passed. That is a plan that never converges — every plan would want Code back, every apply would re-send it,
+// and the next read would empty it again — which is the one failure class this provider cannot ship with.
+//
+// Fixed in the generator, not worked around here (commit 41cf7e8): a property whose every leaf is write-only is
+// now write-only as a whole (cfn.Schema.WhollyNested), so Code is carried forward. A property with only SOME
+// write-only leaves deliberately stays ordinary, because flagging it whole would hide real drift in the leaves
+// AWS does return; those now warn instead of vanishing silently. Eight types gained an attribute and 87 partial
+// cases became visible. If this assertion on Code ever fails again, suspect that rule before suspecting the test.
+//
+// The cheap, in-place update below is the function's Description, checked against the schema rather than
+// assumed: createOnlyProperties for this type is only FunctionName, PackageType and TenancyConfig; Description
+// is in neither readOnlyProperties nor writeOnlyProperties and is no part of Code, so changing it is a genuine
+// UpdateFunctionConfiguration call, not a replacement and not a silent no-op. A tag would also have worked, the
+// same way every other test in this file updates one, but Description exercises a plain scalar
+// UpdateFunctionConfiguration path nothing else here does.
+//
+// Kept separate from the other tests so a run can target it alone with -run TestFunctionsAgainstRealAWS.
+func TestFunctionsAgainstRealAWS(t *testing.T) {
+	profile, region := guard(t)
+	prov, cat := configure(t, profile, region)
+	ctx := context.Background()
+	run := strconv.FormatInt(time.Now().Unix(), 10)
+	tags := m(runTag, s(run))
+	name := "infrena-live-" + run
+
+	roleType := awstest.TypeFor(t, cat, "AWS::IAM::Role").Name
+	// JSON text, spaced unlike AWS's answer, the same reasoning as every other role this file creates: infrena's
+	// compiler requires this object-or-string property as text, and a real user would not hand-write compact
+	// JSON.
+	trustPolicy := s(`{
+  "Version": "2012-10-17",
+  "Statement": [ { "Effect": "Allow", "Principal": { "Service": "lambda.amazonaws.com" }, "Action": "sts:AssumeRole" } ]
+}`)
+	role := create(t, prov, roleType, map[string]value.Value{
+		"RoleName":                 s("infrena-live-lambdaexec-" + run),
+		"AssumeRolePolicyDocument": trustPolicy,
+		"Tags":                     tags,
+	})
+	// No managed policy is attached: this test never invokes the function, so nothing it does needs the
+	// CloudWatch Logs permissions AWSLambdaBasicExecutionRole would grant. A trust policy naming
+	// lambda.amazonaws.com is all CreateFunction checks.
+
+	functionType := awstest.TypeFor(t, cat, "AWS::Lambda::Function").Name
+	code := m("zip_file", s("def handler(event, context):\n    return {\"statusCode\": 200, \"body\": \"ok\"}\n"))
+	fn := create(t, prov, functionType, map[string]value.Value{
+		"region":       s(region),
+		"FunctionName": s(name),
+		"PackageType":  s("Zip"), // spelled out so create-only never differs from what AWS would infer; see the ALB test's IpAddressType for the same reasoning
+		"Runtime":      s("python3.13"),
+		"Handler":      s("index.handler"),
+		"Code":         code,
+		"Role":         role.Attributes["Arn"],
+		"Description":  s("infrena live " + run),
+		"Tags":         tags,
+	})
+
+	// Cheap, in-place update: see the comment above the function for why Description, not Tags, was chosen here.
+	fn = update(t, prov, fn, map[string]value.Value{"Description": s("infrena live " + run + " updated")})
+
+	var everything []string
+	for _, typ := range cat.Types {
+		everything = append(everything, typ.Name)
+	}
+	found, err := prov.Discover(ctx, provider.DiscoverRequest{Types: everything})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, r := range found {
+		seen[r.ProviderID] = true
+	}
+	// Both types list without a parent: neither aws.lambda.function nor aws.role carries list_needs_model in the
+	// catalog (checked the same way as the ECS/Logs types above:
+	// `zcat internal/catalog/catalog.json.gz | python3 -c '...'`), unlike aws.lambda.alias and
+	// aws.lambda.permission, which both do and are skipped by discovery entirely — neither is used by this test.
+	// So both are asserted here rather than only logged.
+	for _, st := range []*resource.ResourceState{fn, role} {
+		if !seen[st.ProviderID] {
+			t.Errorf("discovery did not find %s (allow for propagation before calling it a bug)", st.ProviderID)
+		}
+	}
+
+	// Dependency order: the function's Role names the role's Arn, so the function is deleted first.
+	start := time.Now()
+	if err := prov.Delete(ctx, fn); err != nil {
+		t.Fatalf("delete %s: %v", fn.ProviderID, err)
+	}
+	t.Logf("deleted %s in %s", fn.ProviderID, time.Since(start).Round(time.Millisecond))
+	if got, err := prov.Read(ctx, fn); err != nil || got != nil {
+		t.Errorf("read %s after delete = %v, %v; want gone", fn.ProviderID, got, err)
+	}
+
+	start = time.Now()
+	if err := prov.Delete(ctx, role); err != nil {
+		t.Fatalf("delete %s: %v", role.ProviderID, err)
+	}
+	t.Logf("deleted %s in %s", role.ProviderID, time.Since(start).Round(time.Millisecond))
+	if got, err := prov.Read(ctx, role); err != nil || got != nil {
+		t.Errorf("read %s after delete = %v, %v; want gone", role.ProviderID, got, err)
+	}
+}
+
 // TestSweepLeftovers deletes what a crashed run left: anything tagged by this suite more than an hour ago.
 func TestSweepLeftovers(t *testing.T) {
 	profile, region := guard(t)
@@ -967,6 +1115,10 @@ func TestSweepLeftovers(t *testing.T) {
 	// All four ECS/Logs types added by TestContainerServicesAgainstRealAWS — the cluster, the task definition,
 	// the service and the log group — declare tagging: {taggable: true} in their schemas, so unlike Route 53's
 	// record set below, none of them needed leaving out of this sweep.
+	//
+	// AWS::Lambda::Function, added by TestFunctionsAgainstRealAWS, also declares tagging: {taggable: true}, so it
+	// sweeps the same way. It comes right before the IAM role: the function's Role names the role's Arn, so the
+	// function must go first.
 	//
 	// AWS::Route53::RecordSet is deliberately not in this list: its schema declares tagging: {taggable: false},
 	// so unlike every other type here it cannot be tagged and therefore cannot be found by run tag at all. A
@@ -988,6 +1140,7 @@ func TestSweepLeftovers(t *testing.T) {
 		awstest.TypeFor(t, cat, "AWS::Logs::LogGroup").Name,
 		awstest.TypeFor(t, cat, "AWS::ECR::Repository").Name,
 		awstest.TypeFor(t, cat, "AWS::S3::Bucket").Name,
+		awstest.TypeFor(t, cat, "AWS::Lambda::Function").Name,
 		awstest.TypeFor(t, cat, "AWS::IAM::Role").Name,
 		awstest.TypeFor(t, cat, "AWS::Route53::HostedZone").Name,
 		"aws.securitygroup", "aws.subnet", "aws.vpc",
