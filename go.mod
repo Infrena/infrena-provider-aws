@@ -12,7 +12,7 @@ require (
 	github.com/aws/smithy-go v1.28.1
 	// infrena is private: fetch it with GOPRIVATE=github.com/infrena/* and git credentials. Local work
 	// builds against ../infrena through a gitignored go.work; CI builds this exact version (GOWORK=off).
-	github.com/infrena/infrena v0.7.1
+	github.com/infrena/infrena v0.11.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 

@@ -15,8 +15,12 @@ description: The AWS provider for infrena, serving every resource type AWS Cloud
 # tag and import --generate to write whole-resource references between resources imported together. 0.7.1 fixed
 # Update and Delete to receive the refreshed observation instead of the last persisted state (infrena commit
 # 1399f20), which this plugin no longer works around (internal/ccprov/patch.go's Update reads current.Attributes
-# straight, not a fresh read). go.mod requires 0.7.1 exactly, and the floor matches it so no older host silently
-# hands this plugin stale state to diff against. Releases before 0.4.0 were published under the product's
-# previous name and cannot pair with this plugin at all.
+# straight, not a fresh read). go.mod requires 0.11.1 as of 2026-09-17, and the floor deliberately does NOT follow
+# it: every release from 0.7.1 up speaks protocol 4 and hands Update the refreshed observation, and nothing this
+# plugin imports changed between them — pkg/pluginproto, pluginsdk, plugintest, schema, value and resource have an
+# empty diff across v0.7.1..v0.11.1 — so raising this floor would refuse hosts 0.7.1 to 0.11.0 that work perfectly.
+# internal/awsprov/manifest_test.go asserts 0.7.1 is admitted, so a raised floor fails the suite as well. What the
+# floor must never admit is anything below 0.7.1, which hands Update stale state to diff against. Releases before
+# 0.4.0 were published under the product's previous name and cannot pair with this plugin at all.
 infrena: ">= 0.7.1"
 source: https://github.com/infrena/infrena-provider-aws
