@@ -315,3 +315,43 @@ func TestNothingIsWrittenToStdout(t *testing.T) {
 		t.Error("the provider's log is not stderr")
 	}
 }
+
+// TestAWriteOnlyValueSurvivesAWSReturningAnEmptyOne is the bug the first live Lambda run found (2026-09-17).
+// TestReadCarriesWriteOnlyValuesForward above only covers AWS leaving the property OUT, which is what most types
+// do — so a green suite said nothing about the other case. AWS::Lambda::Function returns Code as an empty object
+// instead: present and non-nil, so the carry-forward was skipped, the empty value decoded over the deployment
+// package the user wrote, and every plan wanted it back forever. A write-only value AWS sends is never
+// authoritative, whatever shape it arrives in.
+func TestAWriteOnlyValueSurvivesAWSReturningAnEmptyOne(t *testing.T) {
+	p, fake, _ := fakeProvider(t)
+	// AWS answers with the write-only property PRESENT but empty, the Lambda Code shape.
+	fake.Put("us-east-1", "AWS::RDS::DBInstance", "db-1", map[string]any{
+		"DBInstanceIdentifier": "db-1",
+		"MasterUserPassword":   "",
+	})
+	st, err := p.Read(ctx, &resource.ResourceState{Type: "aws.dbinstance", ProviderID: "us-east-1/db-1",
+		Attributes: map[string]value.Value{"MasterUserPassword": sv("hunter2")}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := attr(t, st, "MasterUserPassword"); got != "hunter2" {
+		t.Errorf("MasterUserPassword = %q, want the configured value: AWS's empty answer overwrote it, so the plan never converges", got)
+	}
+}
+
+// TestAWriteOnlyValueWithNoReferenceIsOmitted: on Discover and Import there is no configuration to carry forward,
+// so reporting AWS's empty shell would invent a value the user never wrote.
+func TestAWriteOnlyValueWithNoReferenceIsOmitted(t *testing.T) {
+	p, fake, _ := fakeProvider(t)
+	fake.Put("us-east-1", "AWS::RDS::DBInstance", "db-2", map[string]any{
+		"DBInstanceIdentifier": "db-2",
+		"MasterUserPassword":   "",
+	})
+	st, err := p.Read(ctx, &resource.ResourceState{Type: "aws.dbinstance", ProviderID: "us-east-1/db-2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, has := st.Attributes["MasterUserPassword"]; has {
+		t.Errorf("MasterUserPassword reported as %v with nothing configured; a write-only value AWS cannot return should be omitted", v)
+	}
+}

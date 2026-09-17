@@ -160,12 +160,24 @@ func stateFrom(t *catalog.Type, region, identifier string, props map[string]any,
 		if r, ok := reference[a.Name]; ok && r.Known {
 			ref = &r
 		}
+		// A write-only value AWS sends back is never authoritative: by the schema's own declaration AWS does not
+		// return one, so whatever arrives is at best an empty shell. Most types omit the property and this used to
+		// be handled below, as part of "absent"; AWS::Lambda::Function instead returns Code as an empty OBJECT,
+		// which counted as present, decoded to an empty map, and overwrote the deployment package the user wrote —
+		// so every plan wanted it back and none ever converged (found by the live Lambda run, 2026-09-17; the
+		// catalog side of the same bug is commit 41cf7e8). Prefer the reference whether AWS omitted it, nulled it
+		// or emptied it. With no reference (Discover, Import) report nothing rather than a fake empty value.
+		// Only wholly-write-only properties reach here: one with a mix of write-only and readable leaves is
+		// deliberately left ordinary by the generator, so this never hides drift in a leaf AWS does return.
+		if slices.Contains(t.WriteOnly, a.Name) {
+			if ref != nil {
+				attrs[a.Name] = *ref
+			}
+			continue
+		}
 		datum, present := props[a.Name]
 		if !present || datum == nil {
-			switch {
-			case ref != nil && slices.Contains(t.WriteOnly, a.Name):
-				attrs[a.Name] = *ref // AWS never returns it
-			case ref != nil && emptyCollection(*ref):
+			if ref != nil && emptyCollection(*ref) {
 				attrs[a.Name] = *ref // AWS omits an empty list or map; an empty one was asked for
 			}
 			continue
