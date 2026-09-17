@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,28 +9,6 @@ import (
 
 	"github.com/infrena/infrena-provider-aws/internal/catalog"
 )
-
-func TestGenerateVPCDocumentation(t *testing.T) {
-	dir := t.TempDir()
-	oldCwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Chdir(oldCwd)
-
-	// Change to temp dir and create docs/reference structure
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create a minimal catalog.Embedded() mock by manually generating docs for aws.vpc
-	// We'll create the test by running the actual generator and checking the output
-
-	// For this test, we need to actually run the generator which requires the embedded catalog
-	// Let's test the generation logic on a sample type instead
-
-	t.Skip("skipping integration test; unit tests below")
-}
 
 func TestFormatFlags(t *testing.T) {
 	tests := []struct {
@@ -155,15 +134,17 @@ func TestDocumentationIsUpToDate(t *testing.T) {
 		t.Fatalf("writeIndex: %v", err)
 	}
 
-	// Now compare with repo docs
-	repoDocsDir := filepath.Join(oldCwd, "docs", "reference")
-
-	// Check if docs/reference exists and compare
-	if info, err := os.Stat(repoDocsDir); err == nil && info.IsDir() {
-		// Compare generated docs with repo docs
-		if err := compareDirectories(tempDir, repoDocsDir); err != nil {
-			t.Errorf("generated documentation does not match committed docs: %v\nRun: go run ./cmd/gen-docs", err)
-		}
+	// The committed pages are at the repository root, two levels up. A test's working directory is its own
+	// package directory, so joining "docs/reference" onto it named cmd/gen-docs/docs/reference, which has never
+	// existed: os.Stat failed, the guard below skipped the comparison in silence, and this test passed however
+	// stale the pages were. Not finding them is now a failure rather than a reason to skip.
+	repoDocsDir := filepath.Join(oldCwd, "..", "..", "docs", "reference")
+	info, err := os.Stat(repoDocsDir)
+	if err != nil || !info.IsDir() {
+		t.Fatalf("committed reference pages not found at %s (%v); this test compares against them", repoDocsDir, err)
+	}
+	if err := compareDirectories(tempDir, repoDocsDir); err != nil {
+		t.Errorf("generated documentation does not match committed docs: %v\nRun: go run ./cmd/gen-docs", err)
 	}
 }
 
@@ -198,8 +179,11 @@ func compareDirectories(genDir, repoDir string) error {
 			return err
 		}
 
+		// This returned err, which is nil here — the walk callback checks it at the top, so a difference was
+		// found, discarded, and reported as success. The test was green through every stale-docs commit it was
+		// meant to catch, including two on 2026-09-17 that left 23 pages describing the catalog wrongly.
 		if strings.TrimSpace(string(genContent)) != strings.TrimSpace(string(repoContent)) {
-			return err
+			return fmt.Errorf("%s differs from the generator's output", relPath)
 		}
 
 		return nil
