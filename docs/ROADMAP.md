@@ -17,7 +17,7 @@ The AWS provider for infrena. Docs live in this repository until the project goe
 
 Documentation ships with these: a generated reference page for every one of the 1,584 types, longer guides with examples for the common services, runnable `examples/`, and example modules for common setups.
 
-Verified against real AWS — 18 types across 9 services, each created, updated, discovered and deleted in a real account, with the account checked for leftovers afterwards:
+Verified against real AWS — 19 types across 10 services, each created, updated, discovered and deleted in a real account, with the account checked for leftovers afterwards:
 
 | Service | Types |
 | --- | --- |
@@ -26,15 +26,36 @@ Verified against real AWS — 18 types across 9 services, each created, updated,
 | S3 | bucket |
 | ECR | repository |
 | ECS | cluster, task definition, service |
+| Lambda | function |
 | CloudWatch Logs | log group |
 | RDS | DB instance, DB subnet group, DB parameter group |
 | Elastic Load Balancing v2 | load balancer, target group, listener |
 | Route 53 | hosted zone, record set |
 
+These runs are worth their cost: the Lambda one found a bug that would have left every inline-code function
+planning a change forever, and it needed fixes in both the generator and the provider. A write-only test already
+existed and stayed green throughout, because it only covered AWS omitting a property rather than returning an
+empty one.
+
 ## Next
 
-1. **More live coverage.** Lambda is the last one outstanding. RDS, load balancers, Route 53, and ECS services and task definitions are done. Each needs a real run before it is called verified — nothing is listed above on the strength of a passing fake.
-2. **Pending references.** 46 uncertain reference matches still await review (`docs/references-review.md`). These are judgement calls about whether an attribute really points at another resource type, and a wrong accept writes a bad reference into the catalog, so they wait for a human.
+1. **Pending references.** 46 uncertain reference matches still await review (`docs/references-review.md`). These are judgement calls about whether an attribute really points at another resource type, and a wrong accept writes a bad reference into the catalog, so they wait for a human.
+2. **More live coverage, chosen by behaviour rather than by service.** Every finding so far came from a *shape*, not a
+   service: async handlers (RDS), rewritten values (IAM, ECR, RDS), silent cross-resource coupling (RDS parameter
+   group family, ALB subnets), parent-only listing (ELB listener, Route 53 record set), deregister-not-delete (ECS
+   task definition), and write-only values (Lambda). A type that is just another CRUD box teaches nothing. The
+   shapes still untested, all free or nearly so: cross-resource wiring and a subscription flow (SQS queue, SNS
+   topic and subscription); targets naming other resources (EventBridge rule, Scheduler schedule); a JSON document
+   as a property (Step Functions state machine); deeply nested structures (API Gateway v2); composite IDs and
+   untagged types (EC2 route table, route, internet gateway). Deliberately avoided: KMS keys, whose mandatory
+   7–30 day deletion window means the suite cannot clean up after itself, and ACM certificates, which never reach
+   `ISSUED` without DNS validation. Nothing is listed above on the strength of a passing fake.
+3. **Types Cloud Control cannot manage at all**, which belongs in the docs before a user concludes the provider is
+   broken. Six types in AWS's own bundle declare create/delete/update but no read handler, so they are correctly
+   excluded from the catalog: `AWS::IAM::Policy`, `AWS::SNS::TopicPolicy`, `AWS::SQS::QueuePolicy`,
+   `AWS::EC2::NetworkAclEntry`, `AWS::EC2::VPNGatewayRoutePropagation`, `AWS::AmazonMQ::ConfigurationAssociation`.
+   For IAM this is harmless — `RolePolicy`, `UserPolicy`, `GroupPolicy` and `ManagedPolicy` cover the same ground —
+   but whether the SNS and SQS topic/queue types expose an equivalent property has NOT been checked.
 
 ## Later
 
