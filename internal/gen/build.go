@@ -60,12 +60,23 @@ func BuildType(s *cfn.Schema, names map[string]string, o *Overlay) (*catalog.Typ
 	for _, p := range s.PrimaryIdentifier {
 		t.Identifier = append(t.Identifier, strings.TrimPrefix(p, "/properties/"))
 	}
+	// A property whose every leaf is write-only is write-only as a whole: AWS never returns any of it, so its
+	// configured value must be carried forward or the plan never converges (see Schema.WhollyNested).
+	whollyWriteOnly, partlyWriteOnly := s.WhollyNested(s.WriteOnlyProperties)
+	for p := range whollyWriteOnly {
+		writeOnly[p] = true
+	}
 	for p := range writeOnly {
 		t.WriteOnly = append(t.WriteOnly, p)
 	}
 	sort.Strings(t.WriteOnly)
 	if n := len(s.Nested(s.CreateOnlyProperties)); n > 0 {
 		warnings = append(warnings, fmt.Sprintf("%s: %d nested create-only pointers cannot be expressed", s.TypeName, n))
+	}
+	// Partly-write-only properties get the same visibility create-only ones already had. Flagging one whole would
+	// carry forward the leaves AWS does return and hide drift in them, so they stay ordinary and are named here.
+	for _, p := range partlyWriteOnly {
+		warnings = append(warnings, fmt.Sprintf("%s.%s: some but not all leaves are write-only; left ordinary", s.TypeName, p))
 	}
 	tagProp := tagsAsMap(s)
 	t.TagsAsMap = tagProp

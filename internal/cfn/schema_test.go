@@ -107,3 +107,42 @@ func TestParseRefusesSomethingThatIsNotASchema(t *testing.T) {
 		t.Fatal("accepted a document with no typeName")
 	}
 }
+
+// TestWhollyNestedSplitsPropertiesByWhetherEveryLeafIsNamed covers the gap the first live Lambda run exposed
+// (2026-09-17): Code's write-only pointers are all one level down, so TopLevel dropped every one of them, the
+// catalog marked Code as ordinary, Cloud Control returned it empty, and the plan never converged.
+func TestWhollyNestedSplitsPropertiesByWhetherEveryLeafIsNamed(t *testing.T) {
+	// Lambda's Code names all seven of its leaves write-only, so the whole property is.
+	fn := load(t, "aws-lambda-function.json")
+	whole, partial := fn.WhollyNested(fn.WriteOnlyProperties)
+	if !whole["Code"] {
+		t.Errorf("Code: every leaf is write-only, so it must be wholly write-only; whole = %v", whole)
+	}
+	for _, p := range partial {
+		if p == "Code" {
+			t.Errorf("Code was called partial, which would leave the plan unable to converge")
+		}
+	}
+	// The fixture must be able to contradict the assertion: if Code ever stops naming every leaf, this test
+	// should stop claiming it does.
+	if leaves := fn.leafNames(fn.Properties["Code"]); len(leaves) != 7 {
+		t.Errorf("Code leaves = %v, want the 7 the 2026-09-14 bundle declares", leaves)
+	}
+
+	// A security group names ONE leaf inside SecurityGroupIngress. Flagging the whole property would carry
+	// forward the leaves AWS does return and hide real drift in them, so it must stay ordinary.
+	sg := load(t, "aws-ec2-securitygroup.json")
+	whole, partial = sg.WhollyNested(sg.WriteOnlyProperties)
+	if whole["SecurityGroupIngress"] {
+		t.Error("SecurityGroupIngress names only one leaf write-only; flagging it whole would hide drift")
+	}
+	found := false
+	for _, p := range partial {
+		if p == "SecurityGroupIngress" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("SecurityGroupIngress should be reported partial so it is visible, not silent; partial = %v", partial)
+	}
+}

@@ -5,6 +5,7 @@ package cfn
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -158,6 +159,81 @@ func (s *Schema) Nested(pointers []string) []string {
 			out = append(out, p)
 		}
 	}
+	return out
+}
+
+// WhollyNested splits nested pointers by their top-level property into those that cover EVERY leaf of that property,
+// and those that cover only some. infrena's flags are per-attribute, so a property is only safe to flag as a whole
+// when nothing inside it is left out: AWS::Lambda::Function's Code names all seven of its leaves write-only, so the
+// attribute is write-only and its configured value must be carried forward. A property with only some leaves named
+// must NOT be flagged, because carrying the whole thing forward would hide real drift in the leaves AWS does return.
+//
+// Found by the first live Lambda run (2026-09-17): Code's pointers are all of the form /properties/Code/ZipFile, so
+// TopLevel dropped every one of them, the catalog marked Code as ordinary, Cloud Control returned Code as an empty
+// object, and the plan never converged. Across the 2026-09-14 bundle this splits 100 nested write-only properties
+// into 13 wholly-nested and 87 partial.
+func (s *Schema) WhollyNested(pointers []string) (whole map[string]bool, partial []string) {
+	whole = map[string]bool{}
+	named := map[string]map[string]bool{}
+	for _, p := range s.Nested(pointers) {
+		rest := strings.TrimPrefix(p, "/properties/")
+		top, leaf, _ := strings.Cut(rest, "/")
+		if named[top] == nil {
+			named[top] = map[string]bool{}
+		}
+		// Only the first segment below the property is a leaf this can reason about; anything deeper is covered
+		// by its own parent being named, or is partial, which is the safe answer either way.
+		first, _, _ := strings.Cut(leaf, "/")
+		named[top][first] = true
+	}
+	tops := make([]string, 0, len(named))
+	for top := range named {
+		tops = append(tops, top)
+	}
+	sort.Strings(tops)
+	for _, top := range tops {
+		leaves := s.leafNames(s.Properties[top])
+		if len(leaves) == 0 {
+			partial = append(partial, top)
+			continue
+		}
+		covered := true
+		for _, leaf := range leaves {
+			if !named[top][leaf] {
+				covered = false
+				break
+			}
+		}
+		if covered {
+			whole[top] = true
+		} else {
+			partial = append(partial, top)
+		}
+	}
+	return whole, partial
+}
+
+// leafNames returns the immediate property names of a node, following $ref and looking through an array's items.
+// It returns nil for anything without a fixed set of named properties, which WhollyNested treats as partial.
+func (s *Schema) leafNames(n *Node) []string {
+	r := s.Resolve(n)
+	if r == nil {
+		return nil
+	}
+	if len(r.Properties) == 0 && r.Items != nil {
+		r = s.Resolve(r.Items)
+		if r == nil {
+			return nil
+		}
+	}
+	if len(r.Properties) == 0 || len(r.PatternProperties) > 0 {
+		return nil
+	}
+	out := make([]string, 0, len(r.Properties))
+	for name := range r.Properties {
+		out = append(out, name)
+	}
+	sort.Strings(out)
 	return out
 }
 

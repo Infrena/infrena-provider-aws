@@ -1,3 +1,4 @@
+AWS::AmazonMQ::Broker.LdapServerMetadata: some but not all leaves are write-only; left ordinary
 AWS::ApiGateway::DomainNameV2.Policy: kind guessed as string
 AWS::ApiGateway::Model.Schema: kind guessed as string
 AWS::ApiGateway::RestApi.Body: kind guessed as string
@@ -5,15 +6,24 @@ AWS::ApiGateway::RestApi.Parameters: kind guessed as string
 AWS::ApiGateway::RestApi.Policy: kind guessed as string
 AWS::ApiGatewayV2::Api.CredentialsArn: write-only and looks secret; consider the overlay's sensitive list
 AWS::ApiGatewayV2::Authorizer.AuthorizerCredentialsArn: write-only and looks secret; consider the overlay's sensitive list
+AWS::AppStream::DirectoryConfig.ServiceAccountCredentials: some but not all leaves are write-only; left ordinary
+AWS::ApplicationAutoScaling::ScalingPolicy.TargetTrackingScalingPolicyConfiguration: some but not all leaves are write-only; left ordinary
+AWS::Athena::WorkGroup.WorkGroupConfiguration: some but not all leaves are write-only; left ordinary
+AWS::AuditManager::Assessment.AwsAccount: some but not all leaves are write-only; left ordinary
+AWS::AuditManager::Assessment.Delegations: some but not all leaves are write-only; left ordinary
 AWS::B2BI::Capability.Configuration: kind guessed as string
 AWS::B2BI::Transformer.EdiType: kind guessed as string
 AWS::BCMDataExports::Export: 2 nested create-only pointers cannot be expressed
 AWS::Backup::BackupVault.AccessPolicy: kind guessed as string
+AWS::Backup::BackupVault.LockConfiguration: some but not all leaves are write-only; left ordinary
 AWS::Backup::LogicallyAirGappedBackupVault.AccessPolicy: kind guessed as string
+AWS::Batch::ComputeEnvironment.ComputeResources: some but not all leaves are write-only; left ordinary
 AWS::Batch::ComputeEnvironment: 3 nested create-only pointers cannot be expressed
+AWS::Bedrock::Agent.ActionGroups: some but not all leaves are write-only; left ordinary
 AWS::Bedrock::ApplicationInferenceProfile.ModelSource: kind guessed as string
 AWS::Bedrock::DataSource: 3 nested create-only pointers cannot be expressed
 AWS::Bedrock::KnowledgeBase: 7 nested create-only pointers cannot be expressed
+AWS::Bedrock::Prompt.Variants: some but not all leaves are write-only; left ordinary
 AWS::BedrockAgentCore::ApiKeyCredentialProvider.ApiKeySecretConfig: write-only and looks secret; consider the overlay's sensitive list
 AWS::BedrockAgentCore::ApiKeyCredentialProvider.ApiKeySecretSource: write-only and looks secret; consider the overlay's sensitive list
 AWS::BedrockAgentCore::Gateway.AuthorizerConfiguration: kind guessed as string
@@ -21,12 +31,15 @@ AWS::BedrockAgentCore::Gateway.ProtocolConfiguration: kind guessed as string
 AWS::BedrockAgentCore::Gateway.ProtocolType: kind guessed as string
 AWS::BedrockAgentCore::GatewayTarget.AuthorizationData: kind guessed as string
 AWS::BedrockAgentCore::GatewayTarget.PrivateEndpoint: kind guessed as string
+AWS::BedrockAgentCore::GatewayTarget.PrivateEndpoint: some but not all leaves are write-only; left ordinary
 AWS::BedrockAgentCore::GatewayTarget.TargetConfiguration: kind guessed as string
 AWS::BedrockAgentCore::Harness: 1 nested create-only pointers cannot be expressed
 AWS::BillingConductor::CustomLineItem: 3 nested create-only pointers cannot be expressed
 AWS::Cases::CaseRule.Rule: kind guessed as string
 AWS::Cases::Layout.Content: kind guessed as string
+AWS::Cassandra::Keyspace.ReplicationSpecification: some but not all leaves are write-only; left ordinary
 AWS::CertificateManager::AcmeDomainValidation: 1 nested create-only pointers cannot be expressed
+AWS::CertificateManager::Certificate.DomainValidationOptions: some but not all leaves are write-only; left ordinary
 AWS::Chime::MediaPipelineKinesisVideoStreamPool: 1 nested create-only pointers cannot be expressed
 AWS::CleanRooms::AnalysisTemplate.Source: kind guessed as string
 AWS::CleanRooms::AnalysisTemplate.SourceMetadata: kind guessed as string
@@ -36,26 +49,55 @@ AWS::CleanRooms::PrivacyBudgetTemplate: 1 nested create-only pointers cannot be 
 AWS::CloudFormation::Stack.TemplateBody: kind guessed as string
 AWS::CloudFront::ConnectionFunction: 1 nested create-only pointers cannot be expressed
 AWS::CloudTrail::ResourcePolicy.ResourcePolicy: kind guessed as string
+AWS::CodePipeline::CustomActionType.ConfigurationProperties: some but not all leaves are write-only; left ordinary
+AWS::CodePipeline::CustomActionType.Settings: some but not all leaves are write-only; left ordinary
+AWS::CodePipeline::Webhook.AuthenticationConfiguration: some but not all leaves are write-only; left ordinary
 AWS::Config::ConfigRule.InputParameters: kind guessed as string
+AWS::Config::ConfigRule.Source: some but not all leaves are write-only; left ordinary
+AWS::Connect::Workspace.Media: some but not all leaves are write-only; left ordinary
 AWS::ControlTower::LandingZone.Manifest: kind guessed as string
 AWS::CustomerProfiles::CalculatedAttributeDefinition: 2 nested create-only pointers cannot be expressed
+AWS::DMS::Endpoint.DocDbSettings: some but not all leaves are write-only; left ordinary
+AWS::DMS::Endpoint.GcpMySQLSettings: some but not all leaves are write-only; left ordinary
+AWS::DMS::Endpoint.KafkaSettings: some but not all leaves are write-only; left ordinary
+AWS::DMS::Endpoint.MicrosoftSqlServerSettings: some but not all leaves are write-only; left ordinary
+AWS::DMS::Endpoint.MongoDbSettings: some but not all leaves are write-only; left ordinary
+AWS::DMS::Endpoint.OracleSettings: some but not all leaves are write-only; left ordinary
+AWS::DMS::Endpoint.RedisSettings: some but not all leaves are write-only; left ordinary
+AWS::DMS::Endpoint.RedshiftSettings: some but not all leaves are write-only; left ordinary
+AWS::DMS::Endpoint.S3Settings: some but not all leaves are write-only; left ordinary
 AWS::DMS::Endpoint: 2 nested create-only pointers cannot be expressed
+AWS::DMS::MigrationProject.SourceDataProviderDescriptors: some but not all leaves are write-only; left ordinary
+AWS::DMS::MigrationProject.TargetDataProviderDescriptors: some but not all leaves are write-only; left ordinary
+AWS::DataSync::LocationFSxONTAP.Protocol: some but not all leaves are write-only; left ordinary
 AWS::DataZone::Connection.Props: kind guessed as string
 AWS::DataZone::DataSource.Configuration: kind guessed as string
 AWS::DataZone::PolicyGrant.Detail: kind guessed as string
 AWS::DataZone::PolicyGrant.Principal: kind guessed as string
+AWS::DataZone::PolicyGrant.Principal: some but not all leaves are write-only; left ordinary
 AWS::DataZone::ProjectMembership.Member: kind guessed as string
 AWS::DataZone::UserProfile.Details: kind guessed as string
 AWS::Deadline::Fleet.Configuration: kind guessed as string
+AWS::DevOpsAgent::Association.Configuration: some but not all leaves are write-only; left ordinary
+AWS::DevOpsAgent::PrivateConnection.ConnectionConfiguration: some but not all leaves are write-only; left ordinary
 AWS::DevOpsAgent::Service: 5 nested create-only pointers cannot be expressed
+AWS::DynamoDB::GlobalTable.GlobalSecondaryIndexes: some but not all leaves are write-only; left ordinary
+AWS::DynamoDB::GlobalTable.Replicas: some but not all leaves are write-only; left ordinary
 AWS::DynamoDB::Table.KeySchema: kind guessed as string
+AWS::EC2::EC2Fleet.LaunchTemplateConfigs: some but not all leaves are write-only; left ordinary
 AWS::EC2::EC2Fleet: 2 nested create-only pointers cannot be expressed
+AWS::EC2::Instance.BlockDeviceMappings: some but not all leaves are write-only; left ordinary
 AWS::EC2::InstanceConnectEndpoint.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::EC2::SecurityGroup.SecurityGroupIngress: some but not all leaves are write-only; left ordinary
+AWS::EC2::SpotFleet.SpotFleetRequestConfigData: some but not all leaves are write-only; left ordinary
 AWS::EC2::SpotFleet: 17 nested create-only pointers cannot be expressed
 AWS::EC2::TransitGatewayConnectPeer: 4 nested create-only pointers cannot be expressed
+AWS::EC2::VPC.VpcEncryptionControl: some but not all leaves are write-only; left ordinary
 AWS::EC2::VPCEndpoint.PolicyDocument: kind guessed as string
 AWS::EC2::VPCEndpoint: 2 nested create-only pointers cannot be expressed
+AWS::EC2::VPNConnection.VpnTunnelOptionsSpecifications: some but not all leaves are write-only; left ordinary
 AWS::EC2::VerifiedAccessEndpoint: 9 nested create-only pointers cannot be expressed
+AWS::EC2::VerifiedAccessTrustProvider.NativeApplicationOidcOptions: some but not all leaves are write-only; left ordinary
 AWS::ECR::PublicRepository.RepositoryPolicyText: kind guessed as string
 AWS::ECR::PullThroughCacheRule.CredentialArn: write-only and looks secret; consider the overlay's sensitive list
 AWS::ECR::Repository.RepositoryPolicyText: kind guessed as string
@@ -63,31 +105,55 @@ AWS::ECR::Repository: 2 nested create-only pointers cannot be expressed
 AWS::ECS::CapacityProvider: 2 nested create-only pointers cannot be expressed
 AWS::EFS::AccessPoint: 8 nested create-only pointers cannot be expressed
 AWS::EKS::Capability: 2 nested create-only pointers cannot be expressed
+AWS::EKS::Cluster.AccessConfig: some but not all leaves are write-only; left ordinary
 AWS::EKS::Cluster: 3 nested create-only pointers cannot be expressed
 AWS::EMR::SecurityConfiguration.SecurityConfiguration: kind guessed as string
 AWS::ElastiCache::User.NoPasswordRequired: write-only and looks secret; consider the overlay's sensitive list
+AWS::ElasticBeanstalk::Environment.OptionSettings: some but not all leaves are write-only; left ordinary
 AWS::ElasticBeanstalk::Environment: 2 nested create-only pointers cannot be expressed
+AWS::ElasticLoadBalancingV2::Listener.DefaultActions: some but not all leaves are write-only; left ordinary
+AWS::ElasticLoadBalancingV2::ListenerRule.Actions: some but not all leaves are write-only; left ordinary
+AWS::EntityResolution::IdMappingWorkflow.IdMappingTechniques: some but not all leaves are write-only; left ordinary
 AWS::EntityResolution::MatchingWorkflow: 1 nested create-only pointers cannot be expressed
+AWS::Events::Connection.AuthParameters: some but not all leaves are write-only; left ordinary
 AWS::Events::EventBus.Policy: kind guessed as string
 AWS::Events::Rule.EventPattern: kind guessed as string
 AWS::FIS::ExperimentTemplate: 1 nested create-only pointers cannot be expressed
+AWS::FSx::S3AccessPointAttachment.S3AccessPoint: some but not all leaves are write-only; left ordinary
+AWS::FinSpace::Environment.FederationParameters: some but not all leaves are write-only; left ordinary
+AWS::GlobalAccelerator::CrossAccountAttachment.Resources: some but not all leaves are write-only; left ordinary
+AWS::GlobalAccelerator::EndpointGroup.EndpointConfigurations: some but not all leaves are write-only; left ordinary
+AWS::Glue::Catalog.CatalogProperties: some but not all leaves are write-only; left ordinary
 AWS::Glue::Classifier: 4 nested create-only pointers cannot be expressed
+AWS::Glue::Connection.ConnectionInput: some but not all leaves are write-only; left ordinary
 AWS::Glue::Connection: 1 nested create-only pointers cannot be expressed
 AWS::Glue::DataQualityRuleset.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::Glue::Integration.IntegrationConfig: some but not all leaves are write-only; left ordinary
 AWS::Glue::Integration: 1 nested create-only pointers cannot be expressed
 AWS::Glue::MLTransform: 1 nested create-only pointers cannot be expressed
 AWS::Grafana::Workspace.ClientToken: write-only and looks secret; consider the overlay's sensitive list
 AWS::IAM::ManagedPolicy.PolicyDocument: kind guessed as string
 AWS::IAM::Role.AssumeRolePolicyDocument: kind guessed as string
 AWS::IAM::SAMLProvider.RemovePrivateKey: write-only and looks secret; consider the overlay's sensitive list
+AWS::IAM::User.LoginProfile: some but not all leaves are write-only; left ordinary
 AWS::IVS::EncoderConfiguration: 4 nested create-only pointers cannot be expressed
 AWS::IVS::RecordingConfiguration: 8 nested create-only pointers cannot be expressed
 AWS::IVS::StorageConfiguration: 1 nested create-only pointers cannot be expressed
 AWS::InspectorV2::Connector: 1 nested create-only pointers cannot be expressed
 AWS::IoT::Policy.PolicyDocument: kind guessed as string
 AWS::IoTFleetWise::Campaign.CollectionScheme: kind guessed as string
+AWS::IoTSiteWise::AssetModel.AssetModelCompositeModels: some but not all leaves are write-only; left ordinary
+AWS::IoTSiteWise::AssetModel.AssetModelProperties: some but not all leaves are write-only; left ordinary
+AWS::IoTWireless::WirelessDeviceImportTask.Sidewalk: some but not all leaves are write-only; left ordinary
 AWS::KMS::Key.KeyPolicy: kind guessed as string
 AWS::KMS::ReplicaKey.KeyPolicy: kind guessed as string
+AWS::KinesisAnalyticsV2::Application.ApplicationConfiguration: some but not all leaves are write-only; left ordinary
+AWS::KinesisFirehose::DeliveryStream.ElasticsearchDestinationConfiguration: some but not all leaves are write-only; left ordinary
+AWS::KinesisFirehose::DeliveryStream.ExtendedS3DestinationConfiguration: some but not all leaves are write-only; left ordinary
+AWS::KinesisFirehose::DeliveryStream.HttpEndpointDestinationConfiguration: some but not all leaves are write-only; left ordinary
+AWS::KinesisFirehose::DeliveryStream.RedshiftDestinationConfiguration: some but not all leaves are write-only; left ordinary
+AWS::KinesisFirehose::DeliveryStream.SnowflakeDestinationConfiguration: some but not all leaves are write-only; left ordinary
+AWS::KinesisFirehose::DeliveryStream.SplunkDestinationConfiguration: some but not all leaves are write-only; left ordinary
 AWS::KinesisFirehose::DeliveryStream: 5 nested create-only pointers cannot be expressed
 AWS::Lightsail::Database.RotateMasterUserPassword: write-only and looks secret; consider the overlay's sensitive list
 AWS::Logs::ResourcePolicy.PolicyDocument: kind guessed as string
@@ -114,8 +180,10 @@ AWS::ODB::CloudVmCluster: 1 nested create-only pointers cannot be expressed
 AWS::ObservabilityAdmin::OrganizationTelemetryRule: 1 nested create-only pointers cannot be expressed
 AWS::ObservabilityAdmin::TelemetryRule: 1 nested create-only pointers cannot be expressed
 AWS::Omics::AnnotationStore.StoreOptions: kind guessed as string
+AWS::OpenSearchServerless::Index.Settings: some but not all leaves are write-only; left ordinary
 AWS::OpenSearchServerless::Index: 1 nested create-only pointers cannot be expressed
 AWS::OpenSearchServerless::SecurityConfig: 1 nested create-only pointers cannot be expressed
+AWS::OpenSearchService::Domain.AdvancedSecurityOptions: some but not all leaves are write-only; left ordinary
 AWS::Organizations::Policy.Content: kind guessed as string
 AWS::Organizations::ResourcePolicy.Content: kind guessed as string
 AWS::PCAConnectorAD::Template.Definition: kind guessed as string
@@ -132,6 +200,9 @@ AWS::Redshift::Cluster.ManageMasterPassword: write-only and looks secret; consid
 AWS::RedshiftServerless::Namespace.ManageAdminPassword: write-only and looks secret; consider the overlay's sensitive list
 AWS::RedshiftServerless::Snapshot: 2 nested create-only pointers cannot be expressed
 AWS::RefactorSpaces::Route: 4 nested create-only pointers cannot be expressed
+AWS::RoboMaker::RobotApplication.RobotSoftwareSuite: some but not all leaves are write-only; left ordinary
+AWS::RoboMaker::SimulationApplication.RobotSoftwareSuite: some but not all leaves are write-only; left ordinary
+AWS::RoboMaker::SimulationApplication.SimulationSoftwareSuite: some but not all leaves are write-only; left ordinary
 AWS::Route53::HealthCheck: 3 nested create-only pointers cannot be expressed
 AWS::Route53GlobalResolver::AccessSource.ClientToken: write-only and looks secret; consider the overlay's sensitive list
 AWS::Route53GlobalResolver::AccessToken.ClientToken: write-only and looks secret; consider the overlay's sensitive list
@@ -139,6 +210,9 @@ AWS::Route53GlobalResolver::DnsView.ClientToken: write-only and looks secret; co
 AWS::Route53GlobalResolver::FirewallDomainList.ClientToken: write-only and looks secret; consider the overlay's sensitive list
 AWS::Route53GlobalResolver::FirewallRule.ClientToken: write-only and looks secret; consider the overlay's sensitive list
 AWS::Route53GlobalResolver::GlobalResolver.ClientToken: write-only and looks secret; consider the overlay's sensitive list
+AWS::S3::Bucket.LifecycleConfiguration: some but not all leaves are write-only; left ordinary
+AWS::S3::Bucket.MetadataConfiguration: some but not all leaves are write-only; left ordinary
+AWS::S3::Bucket.ReplicationConfiguration: some but not all leaves are write-only; left ordinary
 AWS::S3::BucketPolicy.PolicyDocument: kind guessed as string
 AWS::S3::StorageLens: 1 nested create-only pointers cannot be expressed
 AWS::S3Express::BucketPolicy.PolicyDocument: kind guessed as string
@@ -146,6 +220,7 @@ AWS::S3Files::AccessPoint: 8 nested create-only pointers cannot be expressed
 AWS::S3Tables::TableBucketPolicy.ResourcePolicy: kind guessed as string
 AWS::S3Tables::TablePolicy.ResourcePolicy: kind guessed as string
 AWS::S3Vectors::VectorBucketPolicy.Policy: kind guessed as string
+AWS::SES::EmailIdentity.DkimSigningAttributes: some but not all leaves are write-only; left ordinary
 AWS::SES::MailManagerArchive.Retention: kind guessed as string
 AWS::SES::MailManagerIngressPoint.IngressPointConfiguration: kind guessed as string
 AWS::SES::MailManagerIngressPoint.NetworkConfiguration: kind guessed as string
@@ -168,15 +243,25 @@ AWS::SageMaker::Cluster: 1 nested create-only pointers cannot be expressed
 AWS::SageMaker::Device: 1 nested create-only pointers cannot be expressed
 AWS::SageMaker::Domain: 1 nested create-only pointers cannot be expressed
 AWS::SageMaker::FeatureGroup: 3 nested create-only pointers cannot be expressed
+AWS::SageMaker::InferenceComponent.RuntimeConfig: some but not all leaves are write-only; left ordinary
+AWS::SageMaker::InferenceComponent.Specification: some but not all leaves are write-only; left ordinary
+AWS::SageMaker::InferenceComponent.Specifications: some but not all leaves are write-only; left ordinary
 AWS::SageMaker::ModelPackage.ClientToken: write-only and looks secret; consider the overlay's sensitive list
 AWS::SageMaker::ModelPackageGroup.ModelPackageGroupPolicy: kind guessed as string
 AWS::SageMaker::PartnerApp.ClientToken: write-only and looks secret; consider the overlay's sensitive list
 AWS::SageMaker::UserProfile: 2 nested create-only pointers cannot be expressed
+AWS::SageMaker::Workforce.OidcConfig: some but not all leaves are write-only; left ordinary
 AWS::SecretsManager::ResourcePolicy.ResourcePolicy: kind guessed as string
 AWS::SecretsManager::Secret.GenerateSecretString: write-only and looks secret; consider the overlay's sensitive list
 AWS::SecurityAgent::Application: 1 nested create-only pointers cannot be expressed
+AWS::SecurityAgent::Pentest.Assets: some but not all leaves are write-only; left ordinary
 AWS::SecurityHub::Connector: 1 nested create-only pointers cannot be expressed
 AWS::SecurityHub::ConnectorV2: 2 nested create-only pointers cannot be expressed
+AWS::SecurityLake::SubscriberNotification.NotificationConfiguration: some but not all leaves are write-only; left ordinary
+AWS::ServiceCatalog::CloudFormationProduct.ProvisioningArtifactParameters: some but not all leaves are write-only; left ordinary
+AWS::Synthetics::Canary.Code: some but not all leaves are write-only; left ordinary
+AWS::Synthetics::Canary.Replicas: some but not all leaves are write-only; left ordinary
+AWS::Synthetics::Canary.RunConfig: some but not all leaves are write-only; left ordinary
 AWS::Timestream::ScheduledQuery.ClientToken: write-only and looks secret; consider the overlay's sensitive list
 AWS::Transfer::WebApp.WebAppUnits: kind guessed as string
 AWS::Transfer::WebApp: 3 nested create-only pointers cannot be expressed
@@ -186,5 +271,7 @@ AWS::VpcLattice::TargetGroup: 6 nested create-only pointers cannot be expressed
 AWS::Wisdom::AIAgent.Configuration: kind guessed as string
 AWS::Wisdom::AssistantAssociation.Association: kind guessed as string
 AWS::Wisdom::KnowledgeBase.SourceConfiguration: kind guessed as string
+AWS::Wisdom::MessageTemplate.MessageTemplateAttachments: some but not all leaves are write-only; left ordinary
 AWS::WorkSpacesWeb::SessionLogger.EventFilter: kind guessed as string
+AWS::WorkSpacesWeb::UserSettings.BrandingConfiguration: some but not all leaves are write-only; left ordinary
 AWS::XRay::SamplingRule: 1 nested create-only pointers cannot be expressed
