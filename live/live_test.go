@@ -106,11 +106,14 @@ func configure(t *testing.T, profile, region string) (provider.Provider, *catalo
 	dbInstance := awstest.TypeFor(t, cat, "AWS::RDS::DBInstance").Name
 	dbSubnetGroup := awstest.TypeFor(t, cat, "AWS::RDS::DBSubnetGroup").Name
 	dbParameterGroup := awstest.TypeFor(t, cat, "AWS::RDS::DBParameterGroup").Name
+	loadBalancer := awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::LoadBalancer").Name
+	targetGroup := awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::TargetGroup").Name
+	listener := awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::Listener").Name
 	prov, err := host.Configure(provider.Config{Instance: "live", Values: map[string]value.Value{
 		"profile":          s(profile),
 		"discover_regions": l(s(region)),
 		"discover_types": l(s("aws.vpc"), s("aws.subnet"), s("aws.securitygroup"), s(role), s(bucket), s(repo), s(cluster),
-			s(dbInstance), s(dbSubnetGroup), s(dbParameterGroup)),
+			s(dbInstance), s(dbSubnetGroup), s(dbParameterGroup), s(loadBalancer), s(targetGroup), s(listener)),
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -411,15 +414,220 @@ func TestDatabasesAgainstRealAWS(t *testing.T) {
 	}
 }
 
+// elbName fits a load balancer or target group name into what ELBv2 accepts: at most 32 characters, alphanumeric
+// characters and hyphens only, no leading or trailing hyphen, and (for a load balancer) not beginning "internal-".
+// "infrena-live-" plus a 10-digit unix time is 23 characters and "infrena-live-tg-" plus one is 26, so nothing is
+// truncated today; the truncation is here so a longer prefix is cut to a valid name rather than rejected by AWS.
+func elbName(prefix, run string) string {
+	name := prefix + run
+	if len(name) > 32 {
+		name = name[:32]
+	}
+	return strings.TrimRight(name, "-")
+}
+
+// lingeringDependency reports whether AWS refused a delete because something still points at the resource. Deleting
+// an ALB leaves its elastic network interfaces in the subnets for a while after Cloud Control reports the load
+// balancer gone, so the security group and the subnets can be refused for a few minutes afterwards; a target group
+// is refused while a listener still forwards to it. Only these are worth waiting out — anything else is a real
+// failure, and matching on the message is deliberate: Cloud Control reports the downstream service's error text.
+func lingeringDependency(err error) bool {
+	text := err.Error()
+	for _, marker := range []string{"DependencyViolation", "dependent object", "has dependencies", "currently in use", "ResourceInUse"} {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// deleteAndConfirm deletes st and fails unless the read-back afterwards finds nothing, waiting out a lingering
+// dependency (see lingeringDependency) for up to six minutes. It is the ELB test's teardown step: the other tests
+// delete resources nothing else holds a network interface in, so they call prov.Delete directly.
+func deleteAndConfirm(t *testing.T, prov provider.Provider, st *resource.ResourceState) {
+	t.Helper()
+	ctx := context.Background()
+	start := time.Now()
+	deadline := start.Add(6 * time.Minute)
+	for {
+		err := prov.Delete(ctx, st)
+		if err == nil {
+			break
+		}
+		if !lingeringDependency(err) || time.Now().After(deadline) {
+			t.Fatalf("delete %s: %v", st.ProviderID, err)
+		}
+		t.Logf("delete %s: %v; waiting for AWS to release it", st.ProviderID, err)
+		time.Sleep(15 * time.Second)
+	}
+	t.Logf("deleted %s in %s", st.ProviderID, time.Since(start).Round(time.Millisecond))
+	if got, err := prov.Read(ctx, st); err != nil || got != nil {
+		t.Errorf("read %s after delete = %v, %v; want gone", st.ProviderID, got, err)
+	}
+}
+
+// TestLoadBalancersAgainstRealAWS covers Elastic Load Balancing v2: an Application Load Balancer, a target group
+// and a listener forwarding to it, in a dedicated VPC with two subnets in different Availability Zones (an ALB
+// must span at least two) and its own security group, so nothing depends on the account's default VPC.
+//
+// NOT free tier: an ALB costs roughly $0.0225 an hour plus LCU-hours in us-east-1, billed per hour started, so one
+// run costs well under a cent. See live/README.md.
+//
+// How long AWS takes: creating an ALB typically takes 2 to 4 minutes and deleting one 1 to 3, and the network
+// interfaces it leaves behind can hold the security group and the subnets for a few minutes more (deleteAndConfirm
+// waits that out). With the VPC, subnets, target group and listener either side of that, this test needs `go
+// test`'s own -timeout at 30m; the other tests' usual few minutes is not enough. The catalog registers this type's
+// create and update handlers with Cloud Control's own 2160-minute ceiling, which is not a prediction of either.
+//
+// Scheme is "internal", not "internet-facing", on purpose. AWS requires an internet gateway attached to the VPC
+// before it will create an internet-facing load balancer, which would mean an AWS::EC2::InternetGateway plus an
+// AWS::EC2::VPCGatewayAttachment here — and the attachment has to be deleted before the VPC, while the ALB's
+// network interfaces are still lingering in it, so the one part of teardown most likely to need a retry would get
+// another resource in the middle of it. An internal ALB exercises the same three ELBv2 types with no gateway at
+// all, and is not reachable from the internet, which a live test creating a public endpoint otherwise would be.
+//
+// Kept separate from the other tests so a run can target it alone with -run TestLoadBalancersAgainstRealAWS.
+func TestLoadBalancersAgainstRealAWS(t *testing.T) {
+	profile, region := guard(t)
+	prov, cat := configure(t, profile, region)
+	ctx := context.Background()
+	run := strconv.FormatInt(time.Now().Unix(), 10)
+	tags := m(runTag, s(run))
+
+	vpc := create(t, prov, "aws.vpc", map[string]value.Value{"region": s(region), "CidrBlock": s("10.97.0.0/16"), "Tags": tags})
+	vpcID := vpc.Attributes["VpcId"]
+	subnetA := create(t, prov, "aws.subnet", map[string]value.Value{"region": s(region), "VpcId": vpcID,
+		"CidrBlock": s("10.97.1.0/24"), "AvailabilityZone": s(region + "a"), "Tags": tags})
+	subnetB := create(t, prov, "aws.subnet", map[string]value.Value{"region": s(region), "VpcId": vpcID,
+		"CidrBlock": s("10.97.2.0/24"), "AvailabilityZone": s(region + "b"), "Tags": tags})
+
+	// Ingress on the listener's port, from the VPC's own range: an internal load balancer is only reachable from
+	// inside the VPC, so a 0.0.0.0/0 rule would claim more than this test needs.
+	ingress := l(m("ip_protocol", s("tcp"), "from_port", n(80), "to_port", n(80), "cidr_ip", s("10.97.0.0/16")))
+	sg := create(t, prov, "aws.securitygroup", map[string]value.Value{"region": s(region), "VpcId": vpcID,
+		"GroupDescription": s("infrena live " + run), "SecurityGroupIngress": ingress, "Tags": tags})
+
+	// The load balancer's subnets and the target group's VpcId have to agree — an ALB can only forward to a target
+	// group in the VPC its subnets are in — and no schema says so, so both are set explicitly from the VPC created
+	// above rather than left to AWS. Subnets is insertionOrder: false in the schema, so AWS is free to return the
+	// two in the other order; reconciliation reorders an unordered list back to the reference's order, which is why
+	// create's converged check can assert it at all. IpAddressType is set because an internal ALB must be ipv4:
+	// spelling out the value AWS would have chosen keeps it out of every later plan.
+	lbType := awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::LoadBalancer").Name
+	lb := create(t, prov, lbType, map[string]value.Value{
+		"region":         s(region),
+		"Name":           s(elbName("infrena-live-", run)),
+		"Type":           s("application"),
+		"Scheme":         s("internal"),
+		"IpAddressType":  s("ipv4"),
+		"Subnets":        l(subnetA.Attributes["SubnetId"], subnetB.Attributes["SubnetId"]),
+		"SecurityGroups": l(sg.Attributes["GroupId"]),
+		"Tags":           tags,
+	})
+
+	// Every health check value is configured, not defaulted. AWS fills in its own defaults for the ones a create
+	// leaves out (path "/", port "traffic-port", interval 30, timeout 5, thresholds, matcher 200) and reports them
+	// on every read, so a value left unset here would read back as something this test never asserted and a value
+	// set to something AWS rewrites would plan a change forever. HealthCheckTimeoutSeconds must stay below
+	// HealthCheckIntervalSeconds, including after the update below (5 < 10).
+	tgType := awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::TargetGroup").Name
+	tg := create(t, prov, tgType, map[string]value.Value{
+		"region":                     s(region),
+		"Name":                       s(elbName("infrena-live-tg-", run)),
+		"Protocol":                   s("HTTP"),
+		"Port":                       n(80),
+		"VpcId":                      vpcID,
+		"TargetType":                 s("instance"),
+		"HealthCheckEnabled":         value.Bool(true, value.SourceExplicit),
+		"HealthCheckProtocol":        s("HTTP"),
+		"HealthCheckPath":            s("/"),
+		"HealthCheckPort":            s("traffic-port"),
+		"HealthCheckIntervalSeconds": n(30),
+		"HealthCheckTimeoutSeconds":  n(5),
+		"HealthyThresholdCount":      n(2),
+		"UnhealthyThresholdCount":    n(3),
+		"Matcher":                    m("http_code", s("200")),
+		"Tags":                       tags,
+	})
+	// No targets are registered: an empty target group is legal, reports its targets as unhealthy to nobody, and
+	// keeps this test to three ELBv2 resources with no EC2 instance to pay for or wait on.
+
+	// The listener's Protocol and Port must suit the target group's — HTTP:80 to an HTTP:80 target group — and
+	// again no schema couples them, so both ends are written out. AWS answers a read of a single-target-group
+	// forward action with more than was sent (a ForwardConfig naming the same target group with weight 1, and an
+	// Order): reconciliation drops keys AWS added that the reference does not have, so this reads back as the two
+	// keys configured here.
+	listenerType := awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::Listener").Name
+	listener := create(t, prov, listenerType, map[string]value.Value{
+		"region":          s(region),
+		"LoadBalancerArn": lb.Attributes["LoadBalancerArn"],
+		"Port":            n(80),
+		"Protocol":        s("HTTP"),
+		"DefaultActions":  l(m("type", s("forward"), "target_group_arn", tg.Attributes["TargetGroupArn"])),
+		"Tags":            tags,
+	})
+
+	// Cheap, in-place updates only: ModifyTargetGroup changes a health check with no replacement and no traffic
+	// impact, and a load balancer tag is an AddTags call. Deliberately not the load balancer's Subnets or Scheme —
+	// Scheme is create-only, and changing Subnets moves the network interfaces AWS is still holding — and not the
+	// listener's Protocol or Port, which are coupled to the target group's.
+	tg = update(t, prov, tg, map[string]value.Value{"HealthCheckPath": s("/healthz"), "HealthCheckIntervalSeconds": n(10)})
+	lb = update(t, prov, lb, map[string]value.Value{"Tags": m(runTag, s(run), "Purpose", s("live-test"))})
+
+	var everything []string
+	for _, typ := range cat.Types {
+		everything = append(everything, typ.Name)
+	}
+	found, err := prov.Discover(ctx, provider.DiscoverRequest{Types: everything})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, r := range found {
+		seen[r.ProviderID] = true
+	}
+	for _, st := range []*resource.ResourceState{lb, tg, sg, subnetB, subnetA, vpc} {
+		if !seen[st.ProviderID] {
+			t.Errorf("discovery did not find %s (allow for propagation before calling it a bug)", st.ProviderID)
+		}
+	}
+	// The listener is reported, not asserted. Its list handler's schema is `oneOf` [LoadBalancerArn | ListenerArns]
+	// with no top-level `required`, and ListNeedsModel (internal/cfn/schema.go) only looks at a top-level
+	// `required` — so the catalog marks listeners plainly listable and discovery calls ListResources for them with
+	// no resource model. Whether AWS accepts that has never been checked against real Cloud Control. If this line
+	// prints, the generator's parent-resource test is what needs changing, not this test: record it in the plan's
+	// Verification log and tell James.
+	if !seen[listener.ProviderID] {
+		t.Logf("discovery did not find %s: check stderr for a ListResources failure on %s, and see the comment above",
+			listener.ProviderID, listenerType)
+	}
+
+	// Dependency order: the listener forwards to the target group and sits on the load balancer; the load balancer
+	// holds network interfaces in the subnets and uses the security group; the target group belongs to the VPC.
+	// This is also the order create's t.Cleanup deletes would run in (LIFO from creation order), so a failure
+	// partway through still tears down cleanly — though without deleteAndConfirm's wait, so a cleanup delete of the
+	// security group or the subnets can still lose a race with the load balancer's network interfaces and leave
+	// them for TestSweepLeftovers.
+	for _, st := range []*resource.ResourceState{listener, lb, tg, sg, subnetB, subnetA, vpc} {
+		deleteAndConfirm(t, prov, st)
+	}
+}
+
 // TestSweepLeftovers deletes what a crashed run left: anything tagged by this suite more than an hour ago.
 func TestSweepLeftovers(t *testing.T) {
 	profile, region := guard(t)
 	prov, cat := configure(t, profile, region)
 	cutoff := time.Now().Add(-time.Hour).Unix()
 	// Buckets and repositories sweep safely without checking for emptiness: this suite never puts objects or
-	// images in them, so anything it tagged is always empty. DB instances, subnet groups and parameter groups
-	// come first: an instance depends on the other two plus subnets, and a subnet group depends on the subnets.
+	// images in them, so anything it tagged is always empty. Listeners, load balancers and target groups come
+	// first, in that order: a load balancer's listeners go with it but a target group cannot be deleted while a
+	// listener still forwards to it, and a load balancer holds network interfaces in the subnets and the security
+	// group below. DB instances, subnet groups and parameter groups follow: an instance depends on the other two
+	// plus subnets, and a subnet group depends on the subnets.
 	order := []string{
+		awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::Listener").Name,
+		awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::LoadBalancer").Name,
+		awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::TargetGroup").Name,
 		awstest.TypeFor(t, cat, "AWS::RDS::DBInstance").Name,
 		awstest.TypeFor(t, cat, "AWS::RDS::DBSubnetGroup").Name,
 		awstest.TypeFor(t, cat, "AWS::RDS::DBParameterGroup").Name,

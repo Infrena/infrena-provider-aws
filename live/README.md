@@ -91,6 +91,33 @@ The identity needs a policy allowing:
     `rds:CreateDBParameterGroup`, `rds:DeleteDBParameterGroup`, `rds:DescribeDBParameterGroups`,
     `rds:DescribeDBParameters`, `rds:DescribeEngineDefaultParameters`, `rds:ListTagsForResource`,
     `rds:ModifyDBParameterGroup`, `rds:RemoveTagsFromResource`, `rds:ResetDBParameterGroup`
+- the handler permissions for the three ELBv2 types `TestLoadBalancersAgainstRealAWS` exercises, taken the same way
+  from each type's `handlers.*.permissions` in `schemas/CloudformationSchema.zip`
+  (`aws-elasticloadbalancingv2-loadbalancer.json`, `aws-elasticloadbalancingv2-targetgroup.json`,
+  `aws-elasticloadbalancingv2-listener.json`). The VPC, subnets and security group it also creates need nothing
+  beyond the `ec2:` actions already listed above:
+  - load balancer: `elasticloadbalancing:AddTags`, `elasticloadbalancing:CreateLoadBalancer`,
+    `elasticloadbalancing:DeleteLoadBalancer`, `elasticloadbalancing:DescribeCapacityReservation`,
+    `elasticloadbalancing:DescribeLoadBalancerAttributes`, `elasticloadbalancing:DescribeLoadBalancers`,
+    `elasticloadbalancing:DescribeTags`, `elasticloadbalancing:ModifyCapacityReservation`,
+    `elasticloadbalancing:ModifyIpPools`, `elasticloadbalancing:ModifyLoadBalancerAttributes`,
+    `elasticloadbalancing:RemoveTags`, `elasticloadbalancing:SetIpAddressType`,
+    `elasticloadbalancing:SetSecurityGroups`, `elasticloadbalancing:SetSubnets`, plus the one `ec2:` action its
+    handlers list, `ec2:DescribeIpamPools` (**already covered by the `ec2:Describe*` above**)
+  - target group: `elasticloadbalancing:AddTags`, `elasticloadbalancing:CreateTargetGroup`,
+    `elasticloadbalancing:DeleteTargetGroup`, `elasticloadbalancing:DeregisterTargets`,
+    `elasticloadbalancing:DescribeTags`, `elasticloadbalancing:DescribeTargetGroupAttributes`,
+    `elasticloadbalancing:DescribeTargetGroups`, `elasticloadbalancing:DescribeTargetHealth`,
+    `elasticloadbalancing:ModifyTargetGroup`, `elasticloadbalancing:ModifyTargetGroupAttributes`,
+    `elasticloadbalancing:RegisterTargets`, `elasticloadbalancing:RemoveTags`, plus the one `ec2:` action its
+    handlers list, `ec2:DescribeVpcs` (**already covered by the `ec2:Describe*` above**)
+  - listener: `elasticloadbalancing:AddTags`, `elasticloadbalancing:CreateListener`,
+    `elasticloadbalancing:DeleteListener`, `elasticloadbalancing:DescribeListenerAttributes`,
+    `elasticloadbalancing:DescribeListeners`, `elasticloadbalancing:DescribeTags`,
+    `elasticloadbalancing:ModifyListener`, `elasticloadbalancing:ModifyListenerAttributes`,
+    `elasticloadbalancing:RemoveTags`. Its handlers list no `ec2:` action; they do list
+    `cognito-idp:DescribeUserPoolClient`, which only an `authenticate-cognito` default action needs and this test
+    never configures — leave it out unless a run says otherwise.
 
 A missing permission shows up as `AccessDenied` naming the action; add that action and try again.
 
@@ -151,6 +178,41 @@ parameter group, and a DB instance, all named `infrena-live-<unix time>` and tag
 It deletes everything it created, in dependency order (instance, then subnet group, then parameter group, then
 the subnets, then the VPC), and is a separate test function so a run can target it alone with `-run`.
 
+`TestLoadBalancersAgainstRealAWS` creates a VPC (`10.97.0.0/16`) with two subnets in different Availability Zones
+(`10.97.1.0/24`, `10.97.2.0/24` — an Application Load Balancer must span at least two), a security group, an
+Application Load Balancer, a target group, and a listener forwarding to it, all named `infrena-live-<unix time>`
+(the target group `infrena-live-tg-<unix time>`) and tagged `infrena-live-run: <unix time>`:
+
+- **This is NOT free tier.** An ALB costs roughly $0.0225 an hour in `us-east-1` plus LCU-hours, billed per hour
+  started, so one run costs well under a cent. Nothing else it creates costs anything, and no EC2 instance is
+  registered as a target — an empty target group is legal and needs no instance to pay for or wait on.
+- the load balancer with `Name`, `Type: application`, `Scheme: internal`, `IpAddressType: ipv4`, both subnets, and
+  the security group; updated by adding a tag
+- the target group with `Protocol: HTTP`, `Port: 80`, the same VPC, `TargetType: instance`, and every health check
+  value spelled out (`HealthCheckPath: /`, `HealthCheckPort: traffic-port`, interval 30, timeout 5, thresholds 2
+  and 3, `Matcher` `http_code: 200`) rather than left to AWS's defaults, which it reports on every read; updated by
+  changing the health check path to `/healthz` and the interval to 10 seconds (the timeout must stay below it)
+- the listener with `Protocol: HTTP`, `Port: 80` and one `forward` default action naming the target group. AWS
+  answers a read of that action with more than was sent (a `ForwardConfig` and an `Order`); reconciliation drops
+  keys AWS added that the configuration does not have, so it reads back as what was configured.
+- `Scheme` is `internal`, not `internet-facing`, because AWS requires an internet gateway attached to the VPC
+  before it will create an internet-facing load balancer. That would mean an `AWS::EC2::InternetGateway` and an
+  `AWS::EC2::VPCGatewayAttachment` here, and the attachment would have to be deleted before the VPC while the
+  ALB's network interfaces are still lingering — another resource in the middle of the one part of teardown most
+  likely to need a retry. An internal ALB exercises the same three ELBv2 types, with nothing reachable from the
+  internet.
+
+It deletes everything it created in dependency order (listener, load balancer, target group, security group, the
+subnets, then the VPC), waiting out a lingering dependency at each step, and is a separate test function so a run
+can target it alone with `-run`.
+
+### The load balancer's longer timeouts
+
+Creating an ALB typically takes AWS 2 to 4 minutes and deleting one 1 to 3, and the elastic network interfaces it
+leaves in the subnets can refuse the security group and the subnets for a few minutes after Cloud Control reports
+the load balancer gone (the test waits that out, for up to six minutes per resource). A run of
+`TestLoadBalancersAgainstRealAWS` therefore needs `go test`'s own `-timeout` at `30m`.
+
 ### The DB instance's longer timeouts
 
 `AWS::RDS::DBInstance`'s create, update and delete handlers are each registered with a 2160-minute (36-hour)
@@ -163,17 +225,22 @@ below — `45m` or more is reasonable headroom; raise it further if a run is tim
 
 ## Running it
 
-A run that includes `TestDatabasesAgainstRealAWS` (whether by itself or as part of the whole package) needs a
-longer `-timeout` than the other tests alone do — see "The DB instance's longer timeouts" above:
+A run that includes `TestDatabasesAgainstRealAWS` or `TestLoadBalancersAgainstRealAWS` (whether by itself or as
+part of the whole package) needs a longer `-timeout` than the other tests alone do — see the two timeout sections
+above:
 
 ```bash
 # TestTheLifecycleAgainstRealAWS and TestStorageAndContainersAgainstRealAWS only, 30m is plenty:
 INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
   go test -tags live -count=1 -v -timeout 30m -run 'TestTheLifecycleAgainstRealAWS|TestStorageAndContainersAgainstRealAWS' ./live/
 
-# the whole package, or TestDatabasesAgainstRealAWS alone, needs the DB instance's much longer timeout:
+# TestLoadBalancersAgainstRealAWS alone: the ALB's create, delete and network interface cleanup need 30m:
 INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
-  go test -tags live -count=1 -v -timeout 45m ./live/
+  go test -tags live -count=1 -v -timeout 30m -run TestLoadBalancersAgainstRealAWS ./live/
+
+# the whole package now runs the DB instance and the ALB back to back: give it 60m:
+INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
+  go test -tags live -count=1 -v -timeout 60m ./live/
 
 INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
   go test -tags live -count=1 -v -timeout 45m -run TestDatabasesAgainstRealAWS ./live/
@@ -182,8 +249,9 @@ INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
 ## Cleaning up after a crashed run
 
 If a run is interrupted before its cleanup runs, `TestSweepLeftovers` finds and deletes anything
-this suite tagged more than an hour ago, across all ten types (buckets and repositories included — safe
-without checking for emptiness, since this suite never puts objects or images in them):
+this suite tagged more than an hour ago, across all thirteen types (buckets and repositories included — safe
+without checking for emptiness, since this suite never puts objects or images in them), listeners first, then load
+balancers, then target groups, so nothing is refused for still being in use:
 
 ```bash
 INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
