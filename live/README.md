@@ -119,6 +119,20 @@ The identity needs a policy allowing:
     `cognito-idp:DescribeUserPoolClient`, which only an `authenticate-cognito` default action needs and this test
     never configures — leave it out unless a run says otherwise.
 
+- the handler permissions for the two Route 53 types `TestDNSAgainstRealAWS` exercises, taken the same way from
+  each type's `handlers.*.permissions` in `schemas/CloudformationSchema.zip` (`aws-route53-hostedzone.json`,
+  `aws-route53-recordset.json`). The VPC it also creates needs nothing beyond the `ec2:` actions already listed
+  above:
+  - hosted zone (create/read/update/delete/list handlers, deduplicated): `route53:CreateHostedZone`,
+    `route53:CreateQueryLoggingConfig`, `route53:ChangeTagsForResource`, `route53:GetChange`,
+    `route53:GetHostedZone`, `route53:UpdateHostedZoneFeatures`, `route53:AssociateVPCWithHostedZone`,
+    `route53:ListTagsForResource`, `route53:ListQueryLoggingConfigs`, `route53:UpdateHostedZoneComment`,
+    `route53:DisassociateVPCFromHostedZone`, `route53:DeleteQueryLoggingConfig`, `route53:DeleteHostedZone`,
+    `route53:ListHostedZones`, plus the one `ec2:` action its handlers list, `ec2:DescribeVpcs` (**already
+    covered by the `ec2:Describe*` above**)
+  - record set: `route53:ListHostedZones`, `route53:GetChange`, `route53:ChangeResourceRecordSets`,
+    `route53:ListResourceRecordSets`, `route53:GetHostedZone`
+
 A missing permission shows up as `AccessDenied` naming the action; add that action and try again.
 
 ## Variables
@@ -206,6 +220,35 @@ It deletes everything it created in dependency order (listener, load balancer, t
 subnets, then the VPC), waiting out a lingering dependency at each step, and is a separate test function so a run
 can target it alone with `-run`.
 
+`TestDNSAgainstRealAWS` creates a VPC (`10.96.0.0/16`), a **private** Route 53 hosted zone
+(`infrena-live-<unix time>.internal.`, in the reserved `.internal` TLD, so it cannot collide with anything real)
+associated with that VPC, and two record sets in it (an A record and a TXT record, both named
+`<www|txt>.infrena-live-<unix time>.internal`), tagged `infrena-live-run: <unix time>` (record sets take no
+tags at all — see below):
+
+- **Cost:** a hosted zone is $0.50/month, prorated, and AWS does not charge for a zone deleted within 12 hours
+  of creation — this test's zone lives for at most a few minutes. Record set queries are negligible (this test
+  makes none; nothing here is reachable, being a private zone with no EC2 instance behind it).
+- Route 53 is a **global** type in this plugin (`gen/overlay.yaml`'s `global:` list matches `AWS::Route53::*`):
+  neither `aws.hostedzone` nor `aws.recordset` takes a region attribute, and both provider IDs start `global/`.
+- both `Name` properties are configured already in the form Route 53's own `propertyTransform` normalises them
+  to (a hosted zone's gets a trailing dot appended and is lowercased; a record set's has a trailing dot
+  stripped and is lowercased) — see the comment in `live_test.go` for the exact transform text, taken from
+  `schemas/CloudformationSchema.zip`'s `aws-route53-hostedzone.json` and `aws-route53-recordset.json`.
+- it updates the A record's `TTL` (300 to 600) and the hosted zone's `HostedZoneConfig` comment — both cheap,
+  in-place changes.
+- `AWS::Route53::RecordSet`'s list handler needs a parent hosted zone, which is not expressed as a top-level
+  `required` in its schema (the same shape of problem as the ELB listener noted above), so today this type is
+  discovered as though it were plainly listable and 2026-09-16's live run found it cannot in fact be listed
+  without one. A concurrent generator change fixes that; until it lands, this test only logs what discovery
+  reports for its record sets rather than asserting on it, with a comment explaining why.
+- a hosted zone and its record sets are quick: creates, updates and deletes each typically take AWS a few
+  seconds. `-timeout 10m` is generous headroom alongside the VPC this test also creates and destroys.
+
+It deletes everything it created in dependency order (both record sets, then the hosted zone, then the VPC —
+`DeleteHostedZone` refuses a zone that still holds anything but its default NS/SOA records), and is a separate
+test function so a run can target it alone with `-run`.
+
 ### The load balancer's longer timeouts
 
 Creating an ALB typically takes AWS 2 to 4 minutes and deleting one 1 to 3, and the elastic network interfaces it
@@ -244,14 +287,24 @@ INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
 
 INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
   go test -tags live -count=1 -v -timeout 45m -run TestDatabasesAgainstRealAWS ./live/
+
+# TestDNSAgainstRealAWS alone: a hosted zone and its record sets are quick, 10m is generous:
+INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \
+  go test -tags live -count=1 -v -timeout 10m -run TestDNSAgainstRealAWS ./live/
 ```
 
 ## Cleaning up after a crashed run
 
 If a run is interrupted before its cleanup runs, `TestSweepLeftovers` finds and deletes anything
-this suite tagged more than an hour ago, across all thirteen types (buckets and repositories included — safe
-without checking for emptiness, since this suite never puts objects or images in them), listeners first, then load
-balancers, then target groups, so nothing is refused for still being in use:
+this suite tagged more than an hour ago, across all fourteen taggable types (buckets and repositories included —
+safe without checking for emptiness, since this suite never puts objects or images in them), listeners first,
+then load balancers, then target groups, then the hosted zone right before the VPC it may be associated with, so
+nothing is refused for still being in use. `AWS::Route53::RecordSet` is not among them: its schema declares
+`tagging: {taggable: false}`, so a record set cannot be tagged and this sweep has no way to find one by the run
+tag the way it finds everything else. A crash between `TestDNSAgainstRealAWS` creating a record set and its own
+teardown running leaves that record behind untagged, which then makes the hosted zone sweep below fail (as a
+non-fatal `t.Error`, not `t.Fatal`) until the record is removed by hand — narrow and cheap, since a record set
+create is a few seconds of API calls and nothing about an orphaned record itself is billed:
 
 ```bash
 INFRENA_AWS_LIVE_PROFILE=infrena-live INFRENA_AWS_LIVE_ACCOUNT=111111111111 \

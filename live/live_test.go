@@ -109,11 +109,14 @@ func configure(t *testing.T, profile, region string) (provider.Provider, *catalo
 	loadBalancer := awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::LoadBalancer").Name
 	targetGroup := awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::TargetGroup").Name
 	listener := awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::Listener").Name
+	hostedZone := awstest.TypeFor(t, cat, "AWS::Route53::HostedZone").Name
+	recordSet := awstest.TypeFor(t, cat, "AWS::Route53::RecordSet").Name
 	prov, err := host.Configure(provider.Config{Instance: "live", Values: map[string]value.Value{
 		"profile":          s(profile),
 		"discover_regions": l(s(region)),
 		"discover_types": l(s("aws.vpc"), s("aws.subnet"), s("aws.securitygroup"), s(role), s(bucket), s(repo), s(cluster),
-			s(dbInstance), s(dbSubnetGroup), s(dbParameterGroup), s(loadBalancer), s(targetGroup), s(listener)),
+			s(dbInstance), s(dbSubnetGroup), s(dbParameterGroup), s(loadBalancer), s(targetGroup), s(listener),
+			s(hostedZone), s(recordSet)),
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -613,6 +616,129 @@ func TestLoadBalancersAgainstRealAWS(t *testing.T) {
 	}
 }
 
+// TestDNSAgainstRealAWS covers Route 53: a private hosted zone this test creates, associated with a VPC it also
+// creates, and two record sets inside that zone. Route 53 is a GLOBAL type in this plugin (gen/overlay.yaml's
+// `global:` list has "AWS::Route53::*"): aws.hostedzone and aws.recordset take no region attribute and their
+// provider IDs start "global/", so region is never set on either below.
+//
+// The zone is PRIVATE, not public: AWS::Route53::HostedZone's VPC definition in
+// schemas/CloudformationSchema.zip's aws-route53-hostedzone.json says "For public hosted zones, omit VPCs,
+// VPCId, and VPCRegion" — associating a VPC is what makes a zone private. Nothing is published to the internet
+// and no registrar is involved. The domain itself cannot collide with anything real:
+// "infrena-live-<unix time>.internal" is a fresh name each run in the .internal TLD, which is reserved (RFC
+// 8375) and cannot be registered on the public internet even by accident.
+//
+// Both AWS::Route53::HostedZone and AWS::Route53::RecordSet declare a propertyTransform on Name in their
+// schemas — CloudFormation's own drift-detection normalisation, which this plugin's reconciliation
+// (internal/ccprov/reconcile.go) does not know about — so Name is configured below already in the form AWS
+// actually stores, rather than quietly skipping the convergence assertion:
+//   - HostedZone: `Name $OR $join([Name, "."]) $OR $lowercase(Name) $OR $lowercase($join([Name, "."]))` — AWS
+//     lowercases and appends a trailing dot. zoneName is already lowercase with a trailing dot, so the
+//     transform is a no-op and what's configured reads back unchanged.
+//   - RecordSet: `$lowercase($replace(Name, /(.*)\.$/, "$1"))` — the opposite: AWS lowercases and STRIPS a
+//     trailing dot. Record names below are already lowercase with no trailing dot, for the same reason.
+//
+// A hosted zone create/read/update/delete typically takes AWS a few seconds, and so do record sets — nothing
+// like the RDS instance or the ALB above. -timeout 10m is generous headroom alongside the VPC this test also
+// creates and destroys.
+//
+// Kept separate from the other tests so a run can target it alone with -run TestDNSAgainstRealAWS.
+func TestDNSAgainstRealAWS(t *testing.T) {
+	profile, region := guard(t)
+	prov, cat := configure(t, profile, region)
+	ctx := context.Background()
+	run := strconv.FormatInt(time.Now().Unix(), 10)
+	tags := m(runTag, s(run))
+	zoneName := "infrena-live-" + run + ".internal." // lowercase, trailing dot: see the propertyTransform comment above
+
+	vpc := create(t, prov, "aws.vpc", map[string]value.Value{"region": s(region), "CidrBlock": s("10.96.0.0/16"), "Tags": tags})
+	vpcID := vpc.Attributes["VpcId"]
+
+	// VPCs is a list of {VPCId, VPCRegion} (schema names); reconciliation matches a configured key against a
+	// property's snake_case form (internal/ccprov/reconcile.go's matchProp), so "vpc_id"/"vpc_region" here
+	// match VPCId/VPCRegion the same way the ELB tests above write "http_code" for Matcher's HttpCode.
+	zoneType := awstest.TypeFor(t, cat, "AWS::Route53::HostedZone").Name
+	zone := create(t, prov, zoneType, map[string]value.Value{
+		"Name":             s(zoneName),
+		"HostedZoneConfig": m("comment", s("infrena live "+run)),
+		"VPCs":             l(m("vpc_id", vpcID, "vpc_region", s(region))),
+		"HostedZoneTags":   tags,
+	})
+	zoneID := zone.Attributes["Id"]
+
+	// HostedZoneId is set explicitly on every record from the zone just created, rather than left to
+	// HostedZoneName, and each record's Name and Type are written out in full — none of this is coupled by the
+	// schema, the same reasoning as the load balancer/target group/listener coupling above.
+	recordType := awstest.TypeFor(t, cat, "AWS::Route53::RecordSet").Name
+	aName := "www." + strings.TrimSuffix(zoneName, ".") // no trailing dot: see the propertyTransform comment above
+	aRecord := create(t, prov, recordType, map[string]value.Value{
+		"Name":            s(aName),
+		"Type":            s("A"),
+		"HostedZoneId":    zoneID,
+		"ResourceRecords": l(s("192.0.2.1")),
+		"TTL":             s("300"),
+	})
+
+	txtName := "txt." + strings.TrimSuffix(zoneName, ".")
+	txtRecord := create(t, prov, recordType, map[string]value.Value{
+		"Name":         s(txtName),
+		"Type":         s("TXT"),
+		"HostedZoneId": zoneID,
+		// A TXT value must itself be wrapped in quotes: that is Route 53's own format for this record type, not
+		// something this plugin or AWS adds.
+		"ResourceRecords": l(s(`"infrena live test"`)),
+		"TTL":             s("300"),
+	})
+
+	// Update something cheap and in place on each resource type: the A record's TTL, and the zone's comment.
+	aRecord = update(t, prov, aRecord, map[string]value.Value{"TTL": s("600")})
+	zone = update(t, prov, zone, map[string]value.Value{"HostedZoneConfig": m("comment", s("infrena live "+run+" updated"))})
+
+	var everything []string
+	for _, typ := range cat.Types {
+		everything = append(everything, typ.Name)
+	}
+	found, err := prov.Discover(ctx, provider.DiscoverRequest{Types: everything})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, r := range found {
+		seen[r.ProviderID] = true
+	}
+	if !seen[zone.ProviderID] {
+		t.Errorf("discovery did not find %s (allow for propagation before calling it a bug)", zone.ProviderID)
+	}
+	// Record sets are never discovered, and that is correct rather than a gap. AWS::Route53::RecordSet's list
+	// handler needs a parent hosted zone (its handlerSchema is `oneOf` [HostedZoneId | HostedZoneName], not a
+	// top-level `required`), so the catalog marks it as needing a parent since `3d0f88f` and discovery skips it,
+	// naming it once on stderr. A run on 2026-09-17 printed exactly that: "not discovering
+	// aws.elasticloadbalancingv2.listener, aws.recordset: listing them needs a parent resource, which discovery
+	// does not have". Left as a log rather than an assertion on absence: what matters is that discovery does not
+	// FAIL on these, which the run above proves, and asserting a resource stays unfound would pass for the wrong
+	// reason the day someone teaches discovery to walk parents.
+	for _, st := range []*resource.ResourceState{aRecord, txtRecord} {
+		t.Logf("discovery of %s %s: seen=%v (see the comment above; not asserted)", st.Type, st.ProviderID, seen[st.ProviderID])
+	}
+
+	// Dependency order: the record sets before the hosted zone (DeleteHostedZone refuses a zone that still
+	// holds anything but its default NS/SOA records), the hosted zone before the VPC it is associated with.
+	// deleteAndConfirm wraps only the VPC delete: disassociating a private zone happens as part of deleting the
+	// zone itself, so a lingering association afterward is unlikely, but the wait costs nothing if a run
+	// disagrees.
+	for _, st := range []*resource.ResourceState{aRecord, txtRecord, zone} {
+		start := time.Now()
+		if err := prov.Delete(ctx, st); err != nil {
+			t.Fatalf("delete %s: %v", st.ProviderID, err)
+		}
+		t.Logf("deleted %s in %s", st.ProviderID, time.Since(start).Round(time.Millisecond))
+		if got, err := prov.Read(ctx, st); err != nil || got != nil {
+			t.Errorf("read %s after delete = %v, %v; want gone", st.ProviderID, got, err)
+		}
+	}
+	deleteAndConfirm(t, prov, vpc)
+}
+
 // TestSweepLeftovers deletes what a crashed run left: anything tagged by this suite more than an hour ago.
 func TestSweepLeftovers(t *testing.T) {
 	profile, region := guard(t)
@@ -623,7 +749,16 @@ func TestSweepLeftovers(t *testing.T) {
 	// first, in that order: a load balancer's listeners go with it but a target group cannot be deleted while a
 	// listener still forwards to it, and a load balancer holds network interfaces in the subnets and the security
 	// group below. DB instances, subnet groups and parameter groups follow: an instance depends on the other two
-	// plus subnets, and a subnet group depends on the subnets.
+	// plus subnets, and a subnet group depends on the subnets. The hosted zone comes right before the VPC it may
+	// be associated with, for the same reason the security group and subnets do.
+	//
+	// AWS::Route53::RecordSet is deliberately not in this list: its schema declares tagging: {taggable: false},
+	// so unlike every other type here it cannot be tagged and therefore cannot be found by run tag at all. A
+	// crash between TestDNSAgainstRealAWS creating a record set and its own teardown running leaves that record
+	// behind untagged; DeleteHostedZone then refuses to remove the zone below until it is gone, which surfaces
+	// here as a failed delete (t.Error, not t.Fatal, so it does not block the rest of this sweep) rather than a
+	// silent leak. Narrow and cheap: a record set create is a few seconds of API calls, and nothing about an
+	// orphaned record itself is billed.
 	order := []string{
 		awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::Listener").Name,
 		awstest.TypeFor(t, cat, "AWS::ElasticLoadBalancingV2::LoadBalancer").Name,
@@ -635,6 +770,7 @@ func TestSweepLeftovers(t *testing.T) {
 		awstest.TypeFor(t, cat, "AWS::ECR::Repository").Name,
 		awstest.TypeFor(t, cat, "AWS::S3::Bucket").Name,
 		awstest.TypeFor(t, cat, "AWS::IAM::Role").Name,
+		awstest.TypeFor(t, cat, "AWS::Route53::HostedZone").Name,
 		"aws.securitygroup", "aws.subnet", "aws.vpc",
 	}
 	found, err := prov.Discover(context.Background(), provider.DiscoverRequest{Types: order})
@@ -642,11 +778,18 @@ func TestSweepLeftovers(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, typ := range order {
+		// The tag property's own name, not always "Tags": AWS::Route53::HostedZone's is "HostedZoneTags"
+		// (catalog.Type.TagsAsMap holds whatever the schema calls it; every other type swept here happens to
+		// call it "Tags").
+		tagAttr := "Tags"
+		if ct, ok := cat.Lookup(typ); ok && ct.TagsAsMap != "" {
+			tagAttr = ct.TagsAsMap
+		}
 		for _, r := range found {
 			if r.Type != typ {
 				continue
 			}
-			tags, _ := r.Attributes["Tags"].Raw.(map[string]value.Value)
+			tags, _ := r.Attributes[tagAttr].Raw.(map[string]value.Value)
 			started, err := strconv.ParseInt(fmt.Sprint(tags[runTag].Raw), 10, 64)
 			if err != nil || started >= cutoff {
 				continue
