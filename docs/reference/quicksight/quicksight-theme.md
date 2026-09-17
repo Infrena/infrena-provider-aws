@@ -14,7 +14,7 @@ Region attribute: `region`
 |-----------|-----------------|------|-------|------------|-------------|
 | `Arn` |  | `string` | computed |  | <p>The Amazon Resource Name (ARN) of the theme.</p> |
 | `AwsAccountId` | aws_account_id | `string` | required, replaces on change |  |  |
-| `BaseThemeId` | base_theme_id | `string` | required |  |  |
+| `BaseThemeId` | base_theme_id | `string` | required | aws.quicksight.theme.ThemeId |  |
 | `Configuration` |  | `map` | required |  | <p>The theme configuration. This configuration contains all of the display properties for |
 | `CreatedTime` | created_time | `string` | computed |  | <p>The date and time that the theme was created.</p> |
 | `LastUpdatedTime` | last_updated_time | `string` | computed |  | <p>The date and time that the theme was last updated.</p> |

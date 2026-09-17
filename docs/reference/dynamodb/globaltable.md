@@ -32,7 +32,7 @@ Region attribute: `region`
 | `TimeToLiveSpecification` | time_to_live_specification | `map` | optional, computed, provider-chosen |  |  |
 | `WarmThroughput` | warm_throughput | `map` | optional, computed, provider-chosen |  |  |
 | `WriteOnDemandThroughputSettings` | write_on_demand_throughput_settings | `map` | optional, computed, provider-chosen |  |  |
-| `WriteProvisionedThroughputSettings` | write_provisioned_throughput_settings | `map` | optional, computed, provider-chosen |  |  |
+| `WriteProvisionedThroughputSettings` | write_provisioned_throughput_settings | `map` | optional, computed, provider-chosen, write-only |  |  |
 
 Supports update: yes
 

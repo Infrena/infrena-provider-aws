@@ -23,8 +23,8 @@ Region attribute: `aws_region`
 | `StreamsKmsKey` | streams_kms_key | `map` | optional, computed, provider-chosen |  | The ARN of a KMS Key used for encrypting data during transmission from the source to destination locations. |
 | `StreamsKmsRole` | streams_kms_role | `string` | optional, computed, provider-chosen |  | The ARN of the KMS Key or Alias Key role used to define permissions on KMS Key usage. |
 | `Tags` |  | `map` | optional, computed, provider-chosen, tags map |  |  |
-| `TelemetrySinkConfigArn` | telemetry_sink_config_arn | `string` | optional, computed, provider-chosen |  | ARN of a Config resource of type TelemetrySinkConfig used for telemetry data sink configuration. |
-| `TrackingConfigArn` | tracking_config_arn | `string` | required |  |  |
+| `TelemetrySinkConfigArn` | telemetry_sink_config_arn | `string` | optional, computed, provider-chosen | aws.config.Arn | ARN of a Config resource of type TelemetrySinkConfig used for telemetry data sink configuration. |
+| `TrackingConfigArn` | tracking_config_arn | `string` | required | aws.config.Arn |  |
 
 Supports update: yes
 

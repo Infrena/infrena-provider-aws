@@ -12,7 +12,7 @@ Region attribute: `region`
 
 | Attribute | Also written as | Kind | Flags | References | Description |
 |-----------|-----------------|------|-------|------------|-------------|
-| `AllowedStorageProfileIds` | allowed_storage_profile_ids | `list` | optional, computed, provider-chosen |  |  |
+| `AllowedStorageProfileIds` | allowed_storage_profile_ids | `list` | optional, computed, provider-chosen | aws.storageprofile.StorageProfileId |  |
 | `Arn` |  | `string` | computed |  |  |
 | `DefaultBudgetAction` | default_budget_action | `string` | optional, computed, provider-chosen |  |  |
 | `Description` |  | `string` | optional, computed, provider-chosen |  |  |

@@ -22,7 +22,7 @@ Region attribute: `region`
 | `FrameworkId` | framework_id | `string` | optional, computed, provider-chosen, replaces on change |  | The identifier for the specified framework. |
 | `Name` |  | `string` | optional, computed, provider-chosen, write-only |  | The name of the related assessment. |
 | `Roles` |  | `list` | optional, computed, provider-chosen |  | The list of roles for the specified assessment. |
-| `Scope` |  | `map` | optional, computed, provider-chosen |  | The wrapper that contains the AWS accounts and AWS services in scope for the assessment. |
+| `Scope` |  | `map` | optional, computed, provider-chosen, write-only |  | The wrapper that contains the AWS accounts and AWS services in scope for the assessment. |
 | `Status` |  | `string` | optional, computed, provider-chosen |  | The status of the specified assessment. |
 | `Tags` |  | `map` | optional, computed, provider-chosen, tags map |  | The tags associated with the assessment. |
 

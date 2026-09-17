@@ -16,7 +16,7 @@ Region attribute: `region`
 | `AssociationId` | association_id | `string` | computed |  | The unique identifier of the association |
 | `Configuration` |  | `map` | required |  | The configuration that directs how AgentSpace interacts with the given service |
 | `CreatedAt` | created_at | `string` | computed |  | The timestamp when the association was created |
-| `LinkedAssociationIds` | linked_association_ids | `list` | optional, computed, provider-chosen, write-only |  | Set of linked association IDs for parent-child relationships |
+| `LinkedAssociationIds` | linked_association_ids | `list` | optional, computed, provider-chosen, write-only | aws.devopsagent.association.AssociationId | Set of linked association IDs for parent-child relationships |
 | `ServiceId` | service_id | `string` | required | aws.devopsagent.service.ServiceId | The identifier for the associated service. For SourceAws and Aws configurations, this must be 'aws'. For all other service types, this is a UUID generated from the RegisterService command |
 | `UpdatedAt` | updated_at | `string` | computed |  | The timestamp when the association was last updated |
 

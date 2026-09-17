@@ -19,7 +19,7 @@ Region attribute: `region`
 | `EncryptionKeyArn` | encryption_key_arn | `string` | optional, computed, provider-chosen, replaces on change |  |  |
 | `MaxRetentionDays` | max_retention_days | `integer` | required, replaces on change |  |  |
 | `MinRetentionDays` | min_retention_days | `integer` | required, replaces on change |  |  |
-| `MpaApprovalTeamArn` | mpa_approval_team_arn | `string` | optional, computed, provider-chosen |  |  |
+| `MpaApprovalTeamArn` | mpa_approval_team_arn | `string` | optional, computed, provider-chosen | aws.approvalteam.Arn |  |
 | `Notifications` |  | `map` | optional, computed, provider-chosen |  |  |
 | `VaultState` | vault_state | `string` | computed |  |  |
 | `VaultType` | vault_type | `string` | computed |  |  |

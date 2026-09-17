@@ -27,7 +27,7 @@ Region attribute: `region`
 | `ServiceType` | service_type | `string` | optional, computed, provider-chosen, replaces on change |  |  |
 | `Tags` |  | `map` | optional, computed, provider-chosen, tags map |  |  |
 | `TlsConfig` | tls_config | `map` | optional, computed, provider-chosen |  |  |
-| `ValidationCertificateArn` | validation_certificate_arn | `string` | optional, computed, provider-chosen, replaces on change, write-only |  |  |
+| `ValidationCertificateArn` | validation_certificate_arn | `string` | optional, computed, provider-chosen, replaces on change, write-only | aws.iot.certificate.Arn |  |
 
 Supports update: yes
 

@@ -17,7 +17,7 @@ Region attribute: `region`
 | `Description` |  | `string` | optional, computed, provider-chosen |  | The description of the phone number. |
 | `PhoneNumberArn` | phone_number_arn | `string` | computed |  | The phone number ARN |
 | `Prefix` |  | `string` | optional, computed, provider-chosen, replaces on change, write-only |  | The phone number prefix. |
-| `SourcePhoneNumberArn` | source_phone_number_arn | `string` | optional, computed, provider-chosen, replaces on change |  | The source phone number arn. |
+| `SourcePhoneNumberArn` | source_phone_number_arn | `string` | optional, computed, provider-chosen, replaces on change | aws.connect.phonenumber.PhoneNumberArn | The source phone number arn. |
 | `Tags` |  | `map` | optional, computed, provider-chosen, tags map |  | One or more tags. |
 | `TargetArn` | target_arn | `string` | required |  | The ARN of the target the phone number is claimed to. |
 | `Type` | type_value | `string` | optional, computed, provider-chosen, replaces on change |  | The phone number type |

@@ -20,7 +20,7 @@ Region attribute: `region`
 | `EntityId` | entity_id | `string` | optional, computed, provider-chosen, replaces on change | aws.entity.EntityId | The ID of the entity. |
 | `EntityName` | entity_name | `string` | required |  | The name of the entity. |
 | `HasChildEntities` | has_child_entities | `boolean` | computed |  | A Boolean value that specifies whether the entity has child entities or not. |
-| `ParentEntityId` | parent_entity_id | `string` | optional, computed, provider-chosen |  | The ID of the parent entity. |
+| `ParentEntityId` | parent_entity_id | `string` | optional, computed, provider-chosen | aws.entity.EntityId | The ID of the parent entity. |
 | `Status` |  | `map` | computed |  | The current status of the entity. |
 | `Tags` |  | `map` | optional, computed, provider-chosen |  | A key-value pair to associate with a resource. |
 | `UpdateDateTime` | update_date_time | `string` | computed |  | The last date and time when the entity was updated. |

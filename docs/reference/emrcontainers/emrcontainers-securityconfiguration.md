@@ -16,7 +16,7 @@ Region attribute: `region`
 | `ContainerProvider` | container_provider | `map` | optional, computed, provider-chosen, replaces on change |  | Container provider information. |
 | `Id` |  | `string` | computed |  | The ID of the security configuration. |
 | `Name` |  | `string` | optional, computed, provider-chosen, replaces on change |  | The name of the security configuration. |
-| `SecurityConfigurationData` | security_configuration_data | `map` | required, replaces on change |  | Security configuration data containing encryption and authorization settings. |
+| `SecurityConfigurationData` | security_configuration_data | `map` | required, replaces on change, write-only |  | Security configuration data containing encryption and authorization settings. |
 | `Tags` |  | `map` | optional, computed, provider-chosen, tags map |  | An array of key-value pairs to apply to this security configuration. |
 
 Supports update: yes

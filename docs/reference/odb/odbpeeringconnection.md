@@ -21,7 +21,7 @@ Region attribute: `region`
 | `PeerNetworkArn` | peer_network_arn | `string` | computed |  | The Amazon Resource Name (ARN) of the peer network. |
 | `PeerNetworkCidrs` | peer_network_cidrs | `list` | computed |  | The CIDR blocks for the ODB peering connection. |
 | `PeerNetworkId` | peer_network_id | `string` | optional, computed, provider-chosen, replaces on change, write-only |  | The unique identifier of the peer network. |
-| `PeerNetworkRouteTableIds` | peer_network_route_table_ids | `list` | optional, computed, provider-chosen, replaces on change, write-only |  | The unique identifier of the VPC route table for which a route to the ODB network is automatically created during peering connection establishment. |
+| `PeerNetworkRouteTableIds` | peer_network_route_table_ids | `list` | optional, computed, provider-chosen, replaces on change, write-only | aws.routetable.RouteTableId | The unique identifier of the VPC route table for which a route to the ODB network is automatically created during peering connection establishment. |
 | `Tags` |  | `map` | optional, computed, provider-chosen, tags map |  | Tags to assign to the Odb peering connection. |
 
 Supports update: yes

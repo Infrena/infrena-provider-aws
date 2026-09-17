@@ -13,7 +13,7 @@ Region attribute: `region`
 | Attribute | Also written as | Kind | Flags | References | Description |
 |-----------|-----------------|------|-------|------------|-------------|
 | `AgentAvailabilityTimer` | agent_availability_timer | `string` | optional, computed, provider-chosen |  | Whether agents with this routing profile will have their routing order calculated based on longest idle time or time since their last inbound contact. |
-| `DefaultOutboundQueueArn` | default_outbound_queue_arn | `string` | required |  | The identifier of the default outbound queue for this routing profile. |
+| `DefaultOutboundQueueArn` | default_outbound_queue_arn | `string` | required | aws.connect.queue.QueueArn | The identifier of the default outbound queue for this routing profile. |
 | `Description` |  | `string` | required |  | The description of the routing profile. |
 | `InstanceArn` | instance_arn | `string` | required | aws.connect.instance.Arn | The identifier of the Amazon Connect instance. |
 | `ManualAssignmentQueueConfigs` | manual_assignment_queue_configs | `list` | optional, computed, provider-chosen |  | The manual assignment queues to associate with this routing profile. |

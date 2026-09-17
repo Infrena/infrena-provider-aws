@@ -21,7 +21,7 @@ Region attribute: `region`
 | `Fields` |  | `list` | optional, computed, provider-chosen |  | The list of task template's fields |
 | `InstanceArn` | instance_arn | `string` | required | aws.connect.instance.Arn | The identifier (arn) of the instance. |
 | `Name` |  | `string` | optional, computed, provider-chosen |  | The name of the task template. |
-| `SelfAssignContactFlowArn` | self_assign_contact_flow_arn | `string` | optional, computed, provider-chosen |  | The identifier of the contact flow. |
+| `SelfAssignContactFlowArn` | self_assign_contact_flow_arn | `string` | optional, computed, provider-chosen | aws.contactflow.ContactFlowArn | The identifier of the contact flow. |
 | `Status` |  | `string` | optional, computed, provider-chosen |  | The status of the task template |
 | `Tags` |  | `map` | optional, computed, provider-chosen, tags map |  | One or more tags. |
 

@@ -19,7 +19,7 @@ Region attribute: `region`
 | `DeliveryStreamEncryptionConfigurationInput` | delivery_stream_encryption_configuration_input | `map` | optional, computed, provider-chosen |  |  |
 | `DeliveryStreamName` | delivery_stream_name | `string` | optional, computed, provider-chosen, replaces on change |  |  |
 | `DeliveryStreamType` | delivery_stream_type | `string` | optional, computed, provider-chosen, replaces on change |  |  |
-| `DirectPutSourceConfiguration` | direct_put_source_configuration | `map` | optional, computed, provider-chosen, replaces on change |  |  |
+| `DirectPutSourceConfiguration` | direct_put_source_configuration | `map` | optional, computed, provider-chosen, replaces on change, write-only |  |  |
 | `ElasticsearchDestinationConfiguration` | elasticsearch_destination_configuration | `map` | optional, computed, provider-chosen, write-only |  |  |
 | `ExtendedS3DestinationConfiguration` | extended_s3_destination_configuration | `map` | optional, computed, provider-chosen |  |  |
 | `HttpEndpointDestinationConfiguration` | http_endpoint_destination_configuration | `map` | optional, computed, provider-chosen |  |  |

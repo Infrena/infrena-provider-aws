@@ -22,7 +22,7 @@ Region attribute: `region`
 | `ConfigurationRevision` | configuration_revision | `string` | computed |  | The revision of the current actual configuration. |
 | `ConsoleURLs` | console_ur_ls | `list` | computed |  |  |
 | `DataReplicationMode` | data_replication_mode | `string` | optional, computed, provider-chosen |  |  |
-| `DataReplicationPrimaryBrokerArn` | data_replication_primary_broker_arn | `string` | optional, computed, provider-chosen, write-only |  | The ARN of the primary broker that is used to replicate data from in a data replication pair when creating a replica. |
+| `DataReplicationPrimaryBrokerArn` | data_replication_primary_broker_arn | `string` | optional, computed, provider-chosen, write-only | aws.broker.Arn | The ARN of the primary broker that is used to replicate data from in a data replication pair when creating a replica. |
 | `DeploymentMode` | deployment_mode | `string` | required, replaces on change |  |  |
 | `EncryptionOptions` | encryption_options | `map` | optional, computed, provider-chosen, replaces on change |  |  |
 | `EngineType` | engine_type | `string` | required, replaces on change |  |  |

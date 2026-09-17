@@ -14,7 +14,7 @@ Region attribute: `region`
 |-----------|-----------------|------|-------|------------|-------------|
 | `AccessEndpoint` | access_endpoint | `string` | optional, computed, provider-chosen |  | The AccessEndpoint is the URL that you provide to your users for them to interact with the Transfer Family web app. You can specify a custom URL or use the default value. |
 | `Arn` |  | `string` | computed |  | Specifies the unique Amazon Resource Name (ARN) for the web app. |
-| `EndpointDetails` | endpoint_details | `map` | optional, computed, provider-chosen |  |  |
+| `EndpointDetails` | endpoint_details | `map` | optional, computed, provider-chosen, write-only |  |  |
 | `IdentityProviderDetails` | identity_provider_details | `map` | required |  | You can provide a structure that contains the details for the identity provider to use with your web app. |
 | `Tags` |  | `map` | optional, computed, provider-chosen, tags map |  | Key-value pairs that can be used to group and search for web apps. |
 | `VpcEndpointId` | vpc_endpoint_id | `string` | computed |  |  |

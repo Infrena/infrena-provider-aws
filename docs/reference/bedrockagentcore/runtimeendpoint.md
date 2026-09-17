@@ -14,7 +14,7 @@ Region attribute: `region`
 |-----------|-----------------|------|-------|------------|-------------|
 | `AgentRuntimeArn` | agent_runtime_arn | `string` | computed |  | The ARN of the Agent Runtime |
 | `AgentRuntimeEndpointArn` | agent_runtime_endpoint_arn | `string` | computed |  | The Amazon Resource Name (ARN) of the AgentCore Runtime. |
-| `AgentRuntimeId` | agent_runtime_id | `string` | required, replaces on change |  | The ID of the parent Agent Runtime |
+| `AgentRuntimeId` | agent_runtime_id | `string` | required, replaces on change | aws.runtime.AgentRuntimeId | The ID of the parent Agent Runtime |
 | `AgentRuntimeVersion` | agent_runtime_version | `string` | optional, computed, provider-chosen |  | The version of the AgentCore Runtime to use for the endpoint. |
 | `CreatedAt` | created_at | `string` | computed |  | The timestamp when the Agent Runtime Endpoint was created |
 | `Description` |  | `string` | optional, computed, provider-chosen |  | The description of the AgentCore Runtime endpoint. |
