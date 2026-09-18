@@ -36,6 +36,41 @@ func (pl *Plugin) Name() string { return PluginName }
 // Version reports this build's version.
 func (pl *Plugin) Version() string { return Version }
 
+// MaxConcurrency is how many operations infrena may run against this plugin at
+// once (plugin protocol 5). It REPLACES the host's own per-provider default of
+// 8 rather than merely capping it.
+//
+// The number is derived, and here is the derivation, because the SDK is right
+// that a bare number reads as measured and the host will act on it.
+//
+// CLOUD CONTROL ALLOWS ABOUT 137 SIMULTANEOUS REQUESTS. One infrena operation
+// is at most ONE simultaneous request: crud.go sends a single create, update or
+// delete and then await() polls GetResourceRequestStatus one call at a time,
+// sleeping with backoff in between, so an operation holds no more than one
+// request open at any instant and spends most of its life holding none. N
+// concurrent operations therefore peak at N simultaneous requests, and usually
+// far fewer.
+//
+// So 24 peaks at about 17% of what the account allows. That margin is the
+// point, and it is not timidity: the quota belongs to the ACCOUNT, not to this
+// process. A colleague's apply, a CI run, the console and anything else in the
+// account draw on the same budget, and infrena taking a fifth of it leaves room
+// for five more of itself before anybody is throttled.
+//
+// It is three times the host's default, which is what makes it worth declaring
+// at all — the SDK warns against restating 8, because a guess dressed as a
+// claim is worth less than silence.
+//
+// IT IS A CEILING, NOT A TARGET. The global --parallelism (default 10) still
+// bounds every provider together, so this changes nothing until somebody raises
+// that; what it does is make raising it safe rather than a gamble.
+//
+// Changing it is this one constant. If throttling ever shows up in practice,
+// lower it — ccprov classifies a throttle as retryable, so the symptom is a
+// slower apply rather than a failed one, which is exactly the wrong signal to
+// wait for.
+func (pl *Plugin) MaxConcurrency() int { return 24 }
+
 // Definitions are the embedded catalog's. They need no configuration and make no network call.
 func (pl *Plugin) Definitions() []*schema.ResourceDefinition {
 	cat, err := catalog.Embedded()
