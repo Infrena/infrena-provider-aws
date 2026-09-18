@@ -35,6 +35,24 @@ is the current one. The e2e suite passes against a real infrena binary; the live
 first passed on 2026-09-14 (VPC, subnet, security group, IAM role). It still needs James's approval each
 time; see `live/README.md` before attempting it.
 
+## Throttling: adaptive retry, and a question already answered
+
+**The Cloud Control and EC2 clients use the SDK's ADAPTIVE retryer, not the standard one**
+(`ccprov.clients.retryer`). Standard mode backs off one request at a time, which does not
+lower the rate a fan-out puts on the API — a refresh reads eight resources at once, and on
+2026-09-18 that kept a real account throttled straight through infrena's own five attempts,
+the retries themselves being part of the load. Adaptive mode paces the whole client from a
+token bucket that measures throttled responses. The per-region client cache is what gives
+the bucket a life longer than one request, so do not "simplify" it away.
+
+A configuration that already names a retryer (`AWS_RETRY_MODE`, the shared config file) wins.
+An operator who has said what their account needs has already answered the question.
+
+**`X-Amz-Retry-After`: asked and answered — Cloud Control does not send it.** A temporary
+measurement printed the header's value on every throttled failure; a real throttle on
+2026-09-18 reported `absent`. So there is no retry-after hint to carry, and the plugin
+protocol does NOT need a field for one. Do not re-open this without new evidence.
+
 ## Where the contract lives
 
 The protocol and the interfaces are defined in the infrena repository, not here:
