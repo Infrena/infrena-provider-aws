@@ -50,19 +50,32 @@ func TestTheManifestDescribesThisPlugin(t *testing.T) {
 // TestTheManifestFloorIsAtLeastTheRequiredRelease. go.mod's require is the oldest infrena release CI
 // verifies this plugin against, so the manifest's floor must admit at least that release, and never
 // admit a release published under the product's old name (which cannot pair with this plugin's
-// module path, CLI, or plugin binary name). The floor is 0.7.1: the release that fixed Update and
-// Delete to receive the refreshed observation instead of the last persisted state (infrena commit
-// 1399f20), which this plugin's Update relies on directly now that it no longer re-reads the resource
-// before computing its patch. 0.7.0 speaks the same protocol 4 but still hands Update stale state and
-// must be refused, as must every 0.6.x release, including 0.6.2 (which fixed a compiler bug where a
-// whole-resource reference into an aliased attribute (`vpc: ${vpc}`, `vpc_id: ${vpc}`) wrongly failed
-// with "declares no reference") — those speak protocol 3.
+// module path, CLI, or plugin binary name).
+//
+// THE FLOOR IS 0.12.0 SINCE 2026-09-18, and it is now decided by the PROTOCOL. This binary speaks
+// plugin protocol 5; every host from 0.7.1 to 0.11.1 speaks at most 4 and refuses it at the
+// handshake, so admitting them would be claiming a pairing that cannot connect. `Supported` being a
+// set protects an old plugin on a new host, and nothing protects the reverse.
+//
+// The previous floor's reasoning is kept in plugin.yaml because it still governs the NEXT one: a
+// floor follows what the binary genuinely cannot run without, not what go.mod happens to require.
+// It was 0.7.1, the release that fixed Update and Delete to receive the refreshed observation
+// rather than the last persisted state (infrena 1399f20), which this plugin's Update relies on
+// directly. That requirement has not gone away — it is simply implied by anything at or above
+// 0.12.0.
 func TestTheManifestFloorIsAtLeastTheRequiredRelease(t *testing.T) {
 	m := readManifest(t)
 	if m.Infrena.IsZero() {
 		t.Fatal("plugin.yaml has no infrena: floor, so it claims to work with releases under the old name too")
 	}
-	for version, want := range map[string]bool{"0.3.9": false, "0.4.9": false, "0.5.0": false, "0.5.9": false, "0.6.0": false, "0.6.1": false, "0.6.2": false, "0.6.9": false, "0.7.0": false, "0.7.1": true} {
+	for version, want := range map[string]bool{
+		// Under the old name, or speaking protocol 3.
+		"0.3.9": false, "0.4.9": false, "0.5.9": false, "0.6.2": false,
+		// Protocol 4: fine for the previous release of this plugin, too old for this one.
+		"0.7.0": false, "0.7.1": false, "0.11.1": false,
+		// Protocol 5.
+		"0.12.0": true, "0.12.9": true, "1.0.0": true,
+	} {
 		if got := m.AllowsInfrena(version); got != want {
 			t.Errorf("plugin.yaml's infrena: %q allows %s = %v, want %v", m.Infrena, version, got, want)
 		}

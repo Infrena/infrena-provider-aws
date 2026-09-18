@@ -5,7 +5,7 @@ name: aws
 version: 0.6.0
 # The protocol THIS RELEASE'S binary speaks: exactly the pluginproto.Version of the infrena go.mod requires. It changes
 # in the same commit as that require (internal/awsprov/manifest_test.go and scripts/release-check refuse a mismatch).
-protocol: [4]
+protocol: [5]
 platforms: [linux/amd64, linux/arm64, linux/arm, linux/386, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64]
 description: The AWS provider for infrena, serving every resource type AWS Cloud Control API supports.
 # The oldest infrena release this plugin works with. 0.6.0 added References, which the catalog declares so
@@ -19,8 +19,14 @@ description: The AWS provider for infrena, serving every resource type AWS Cloud
 # it: every release from 0.7.1 up speaks protocol 4 and hands Update the refreshed observation, and nothing this
 # plugin imports changed between them — pkg/pluginproto, pluginsdk, plugintest, schema, value and resource have an
 # empty diff across v0.7.1..v0.11.1 — so raising this floor would refuse hosts 0.7.1 to 0.11.0 that work perfectly.
-# internal/awsprov/manifest_test.go asserts 0.7.1 is admitted, so a raised floor fails the suite as well. What the
-# floor must never admit is anything below 0.7.1, which hands Update stale state to diff against. Releases before
-# 0.4.0 were published under the product's previous name and cannot pair with this plugin at all.
-infrena: ">= 0.7.1"
+# internal/awsprov/manifest_test.go asserts the boundary, so a floor and a test move together.
+#
+# RAISED TO 0.12.0 ON 2026-09-18, and the reasoning above is now history rather than the rule. This binary speaks
+# protocol 5, and every host from 0.7.1 to 0.11.1 speaks at most 4 and refuses it at the handshake. The floor is
+# forced by the protocol, not chosen: `Supported` being a SET protects an OLD plugin on a NEW host, which is the
+# direction that matters day to day, and nothing protects a new plugin on an old host.
+#
+# The older reasoning is kept because it still governs the NEXT floor decision: a floor must follow what the binary
+# genuinely cannot run without, not what go.mod happens to require, or it refuses hosts that work perfectly well.
+infrena: ">= 0.12.0"
 source: https://github.com/infrena/infrena-provider-aws
