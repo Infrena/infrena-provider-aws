@@ -73,7 +73,15 @@ unchanged. The cold build is the number that will creep if more services arrive;
 before adding one, and add a dependency only with a reason written down.
 
 **How infrena is depended on.** infrena is private. `go.mod` REQUIRES a real infrena version (currently
-`v0.7.1`, which speaks plugin protocol 4) and has **no `replace`**. Two ways to build:
+`v0.11.1`, which speaks plugin protocol 4) and has **no `replace`**. Two ways to build:
+
+**The require and `plugin.yaml`'s `infrena:` floor are different numbers on purpose.** The require is the
+NEWEST host this plugin is tested against; the floor is the OLDEST host that accepts the binary, which is
+protocol-driven. They move together only when `pluginproto.Version` moves. So the require is `v0.11.1` while
+the floor stays `>= 0.7.1` — every release from 0.7.1 up speaks protocol 4 and hands `Update` the refreshed
+observation, and raising the floor would refuse hosts that work (`internal/awsprov/manifest_test.go` asserts
+0.7.1 is admitted, so a raised floor also fails the suite). Bumping the pin is NOT a reason to bump the floor;
+any prose claiming the floor tracks the require is wrong.
 
 - **Local, against your checkout:** a gitignored `go.work` (`go work init . ../infrena`) substitutes the
   sibling checkout's WORKING TREE, committed or not — the fast loop while both repos change daily. Run
@@ -81,6 +89,16 @@ before adding one, and add a dependency only with a reason written down.
 - **Pinned, as CI and releases build:** `GOWORK=off GOPRIVATE='github.com/infrena/*' go test -count=1 ./...`.
   This fetches the required version over git, so it needs credentials for `github.com/infrena/infrena`
   (for example `gh auth setup-git`). `go get` and `go mod tidy` ignore `go.work` and always need them.
+
+**`GOWORK=off` does NOT make the e2e suite pinned.** `e2e/e2e_test.go`'s `TestMain` builds the infrena binary
+from `INFRENA_SRC`, defaulting to the sibling CHECKOUT at `../../infrena`, so `GOWORK=off` governs only this
+module's own resolution while e2e still runs against whatever is on disk there — which is routinely ahead of
+the tag. To exercise a real release, point `INFRENA_SRC` at a `git archive` of that tag in a temp dir. Claiming
+a pinned e2e pass without doing that is wrong, and was claimed once (2026-09-17) before being caught.
+
+**There is no `INFRENA_REQUIRE_PLUGIN` in this repository** — that is an infrena-repo variable, and setting it
+here does nothing. The skip guards are the literal `E2E SKIPPED:` line e2e writes to stderr, and the live
+suite's `INFRENA_AWS_LIVE_PROFILE`/`INFRENA_AWS_LIVE_ACCOUNT`. Check for those rather than trusting a flag.
 
 CI's blocking job builds pinned; a second, non-blocking job builds against infrena's `main` through a
 workspace, as early warning. `bump-infrena.yml` opens a PR when infrena tags a newer release. All three
