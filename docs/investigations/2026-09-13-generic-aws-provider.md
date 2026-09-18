@@ -1,7 +1,10 @@
 # Can the AWS plugin be generic instead of handwritten per resource?
 
-**Date:** 2026-09-13. **Branch:** `spike-generic-aws` (off `first-slice`). **Proofs of concept:** `spikes/generic-aws/`,
-all throwaway. **Pinned versions:** aws-sdk-go-v2 v1.47.0, service/ec2 v1.332.0, service/cloudcontrol v1.38.0,
+**Date:** 2026-09-13. **Branch:** `spike-generic-aws` (off `first-slice`). **Proofs of concept:** built in
+`spikes/generic-aws/`, throwaway by design and **deleted on 2026-09-17** before the repository was made public —
+they were a separate module, never part of the build, and still imported the pre-rename module path. What they
+proved is recorded below; the code itself is recoverable from history if it is ever wanted again.
+**Pinned versions:** aws-sdk-go-v2 v1.47.0, service/ec2 v1.332.0, service/cloudcontrol v1.38.0,
 service/cloudformation v1.81.0, smithy-go v1.28.1, infrena v0.2.0 (host tests) / `main` at `5bc47a3`.
 
 Every claim below was checked against source, the account, or AWS documentation. The verification log is at the end.
@@ -50,7 +53,7 @@ per-operation Go code. Only a resource layer removes the per-resource *knowledge
 
 ### A. Runtime discovery and invocation with the SDK and Smithy runtime
 
-**How it works (proven, `spikes/generic-aws/smithyinvoke`).** Load a service's Smithy JSON model at runtime. Build
+**How it works (proven in the `smithyinvoke` spike, since deleted).** Load a service's Smithy JSON model at runtime. Build
 `*smithy.Schema` values for an operation's input and output with smithy-go's public `smithy.NewSchema` and
 `Schema.AddMember`, carrying the protocol traits (`xmlName`, `ec2QueryName`, `xmlFlattened`, `jsonName`). A small generic
 value implements `smithy.Serializable` / `smithy.Deserializable` by walking a `map[string]any` against the schema.
@@ -79,7 +82,7 @@ smithy-go's own `transport/http/protocol/ec2query` codec (public; `awsjson`, `aw
 
 ### B. Go reflection over generated SDK types
 
-**How it works (proven, `spikes/generic-aws/reflectinvoke`).** `reflect.ValueOf(client).MethodByName("CreateVpc")`, build
+**How it works (proven in the `reflectinvoke` spike, since deleted).** `reflect.ValueOf(client).MethodByName("CreateVpc")`, build
 the `*XInput` with `reflect.New`, fill it from a map through `encoding/json` (field names match, case-insensitively),
 call, and marshal the output back to a map.
 
@@ -122,7 +125,7 @@ implement create, read, update and delete, which fields force replacement, how t
 
 ### E. AWS Cloud Control API + CloudFormation resource type schemas (not in the original list; recommended)
 
-**How it works (proven live, `spikes/generic-aws/cmd/cloudcontrol-poc` and `cfnschema`).**
+**How it works (proven live in the `cloudcontrol-poc` and `cfnschema` spikes, since deleted).**
 
 - **Operations:** eight operations cover every supported resource type: `CreateResource(TypeName, DesiredState JSON,
   ClientToken)`, `GetResource(TypeName, Identifier)`, `UpdateResource(TypeName, Identifier, PatchDocument = RFC 6902

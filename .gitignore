@@ -1,6 +1,7 @@
 /infrena-plugin-aws
 /bin/
 /dist/
+/.claude/
 /go.work
 /go.work.sum
 /schemas/

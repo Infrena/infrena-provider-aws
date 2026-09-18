@@ -8,16 +8,42 @@ prints every attribute, its spellings, and the type's import ID shape.
 
 **Documentation:** [service guides, a reference page for every type, examples and modules](docs/README.md).
 
-## Building it, and where infrena finds it
+## Installing it
+
+Every release publishes a binary for each supported platform, named the way `infrena plugins install`
+expects: `infrena-plugin-aws_<version>_<goos>_<goarch>.tar.gz`, `.zip` for Windows, alongside a
+`SHA256SUMS` file covering all of them.
+
+```bash
+infrena plugins install aws
+```
+
+To install by hand, download the archive for your platform from the
+[releases page](https://github.com/infrena/infrena-provider-aws/releases), check it against
+`SHA256SUMS`, and put the extracted `infrena-plugin-aws` binary where infrena looks for plugins:
+
+```bash
+sha256sum --check --ignore-missing SHA256SUMS
+tar -xzf infrena-plugin-aws_<version>_linux_amd64.tar.gz
+mkdir -p ~/.local/share/infrena/plugins
+mv infrena-plugin-aws_<version>_linux_amd64/infrena-plugin-aws ~/.local/share/infrena/plugins/
+```
+
+infrena looks for `infrena-plugin-aws` in, in order: `--plugin-dir`, `INFRENA_PLUGIN_PATH`,
+`<project>/.infra/plugins`, `~/.local/share/infrena/plugins`, then `$PATH`.
+
+Each release states the infrena versions it works with. `plugin.yaml`'s `infrena:` floor is the oldest
+host that accepts the binary, which is not the same as the version the plugin is built against — see
+[the roadmap](docs/ROADMAP.md) for what each release changed.
+
+## Building it from source
 
 ```bash
 go work init . ../infrena          # once, for local work against a sibling infrena checkout (go.work is gitignored)
 go build ./cmd/infrena-plugin-aws
 ```
 
-infrena looks for `infrena-plugin-aws` in, in order: `--plugin-dir`, `INFRENA_PLUGIN_PATH`,
-`<project>/.infra/plugins`, `~/.local/share/infrena/plugins`, then `$PATH`. Put the built binary in one
-of those, or pass `--plugin-dir` pointing at it.
+Put the built binary in one of the directories above, or pass `--plugin-dir` pointing at it.
 
 ## Type names
 

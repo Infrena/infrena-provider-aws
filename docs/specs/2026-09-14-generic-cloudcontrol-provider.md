@@ -4,7 +4,8 @@
 (Tasks 1–17 done); e2e passes 12/12 against infrena v0.4.0; the live suite against real AWS is pending James's
 approval and has not run. **Supersedes** Tasks 5–6 of
 `docs/plans/2026-09-13-first-slice-vpc-subnet.md` (handwritten `aws.vpc`/`aws.subnet`). **Evidence:**
-`docs/investigations/2026-09-13-generic-aws-provider.md` and `spikes/generic-aws/`. **Contract:** infrena **v0.3.0**
+`docs/investigations/2026-09-13-generic-aws-provider.md` (and the throwaway `spikes/generic-aws/` proofs of concept
+it describes, deleted 2026-09-17 and recoverable from history). **Contract:** infrena **v0.3.0**
 (`45deb30`): plugin protocol 2, `schema.Attribute.Optional` and `Aliases` (PLAN §14.1), `lifecycle: ignore_changes`
 (§14.2, host-only).
 
