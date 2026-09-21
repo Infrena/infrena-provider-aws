@@ -1,0 +1,289 @@
+# Reference edges: review
+
+> **Decided on 2026-09-14, extended 2026-09-17.** 786 accepted, 152 approved, 18 pending, 35 rejected, out of 991 edges in `gen/references.lock.json`. Only accepted and approved edges reach the catalog. Pending edges stay out until their target is approved.
+>
+> The 2026-09-17 pass settled 45 of the 46 pending edges: 30 approved and 15 rejected, leaving 1. It ran in two
+> halves. The first judged 28 edges on the verdicts already recorded here. The second read both sides' schemas for
+> the 18 that had never been reviewed or were marked unsure, and decided on what the schema says rather than on
+> what the names suggest — which reversed the outcome for three of them. (The counts above previously said
+> 785 accepted / 24 rejected, one generation stale against the generator's own 786 / 23; the figures here now match
+> `gen/references.lock.json` exactly.)
+
+Generated from `gen/references.lock.json` and the derivation over bundle `543f4b1846d7`. Verdicts are a reading of property names and descriptions, not verified against AWS.
+
+## How to act on this
+
+- **Approve a target:** add its CloudFormation type to `references.approve_targets`. Every tier-2 edge pointing at it becomes `approved`.
+- **Refuse a target:** add it to `references.reject_targets`. Every edge pointing at it becomes `rejected`, whatever its tier, even if the target is also approved.
+- **Refuse one edge:** add `Type.Property` to `references.reject`. That works on tier 1 too.
+- **Trust a target across services:** add it to `references.cross_service_targets`. This moves locked edges between tiers, so generation refuses it until run with `-accept-reclassified-references`.
+- Then run `go run ./cmd/gen-cloudcontrol` and commit the overlay, lock and catalog diff together. Every edge whose status changed is printed.
+- A schema refresh that derives an edge the lock does not hold fails generation. Review the new edges, then run it with `-accept-new-references`.
+
+## Counts
+
+| status | edges | reaches the catalog |
+| --- | ---: | --- |
+| accepted | 786 | yes |
+| approved | 166 | yes |
+| pending | 1 | no |
+| rejected | 38 | no |
+
+Candidate properties: 1503. Resolved to an edge: 991 (65.9%). Unresolved: 285 ambiguous, 143 no such type, 84 target lacks the attribute. Only top-level properties are considered: infrena refuses references on nested attributes.
+
+The infrena session measured 1614 candidates and 832/161 tier 1/tier 2 over every AWS type in the bundle; this run takes sources and targets from the 1584 provisionable types only, and picks the target attribute in a slightly different order, so a few edges land in other buckets.
+
+All four `requirements:` in the overlay are backed by an accepted edge (Subnet.VpcId, RouteTable.VpcId, Route.RouteTableId, DBSubnetGroup.SubnetIds).
+
+## Decisions
+
+### 1. Cross-service exact matches need an allowlisted target
+
+An exact name match is tier 1 only when source and target are in the same AWS service, or the target is one of `references.cross_service_targets`: `AWS::IAM::Role`, `AWS::EC2::Subnet`, `AWS::EC2::SecurityGroup`, `AWS::EC2::VPC`, `AWS::EC2::PrefixList`, `AWS::EC2::TransitGateway`, `AWS::KMS::Key`, `AWS::Logs::LogGroup`, `AWS::S3::Bucket`, `AWS::Lambda::Function`. Any other cross-service exact match is tier 2.
+
+That moved 30 locked edges from tier 1 accepted to tier 2. Their status now:
+
+- `AWS::AmazonMQ::Broker.ResourceShareArns` -> `AWS::RAM::ResourceShare.Arn`: pending
+- `AWS::ApiGatewayV2::Stage.ClientCertificateId` -> `AWS::ApiGateway::ClientCertificate.ClientCertificateId`: pending
+- `AWS::ApplicationAutoScaling::ScalableTarget.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::ApplicationAutoScaling::ScalingPolicy.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::CUR::ReportDefinition.BillingViewArn` -> `AWS::Billing::BillingView.Arn`: pending
+- `AWS::DataSync::Task.SourceLocationArn` -> `AWS::MediaTailor::SourceLocation.Arn`: pending
+- `AWS::Detective::MemberInvitation.MemberId` -> `AWS::GuardDuty::Member.MemberId`: pending
+- `AWS::EC2::FlowLog.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::EC2::Route.CoreNetworkArn` -> `AWS::NetworkManager::CoreNetwork.CoreNetworkArn`: pending
+- `AWS::EC2::Route.OdbNetworkArn` -> `AWS::ODB::OdbNetwork.OdbNetworkArn`: pending
+- `AWS::EC2::VPCEndpoint.ResourceConfigurationArn` -> `AWS::VpcLattice::ResourceConfiguration.Arn`: pending
+- `AWS::EC2::VPCEndpoint.ServiceNetworkArn` -> `AWS::VpcLattice::ServiceNetwork.Arn`: pending
+- `AWS::IdentityStore::GroupMembership.MemberId` -> `AWS::GuardDuty::Member.MemberId`: pending
+- `AWS::IoT::DomainConfiguration.ServerCertificateArns` -> `AWS::IAM::ServerCertificate.Arn`: pending
+- `AWS::IoTWireless::WirelessDevice.ThingArn` -> `AWS::IoT::Thing.Arn`: pending
+- `AWS::IoTWireless::WirelessGateway.ThingArn` -> `AWS::IoT::Thing.Arn`: pending
+- `AWS::LakeFormation::Tag.CatalogId` -> `AWS::Glue::Catalog.CatalogId`: pending
+- `AWS::Lambda::LayerVersionPermission.OrganizationId` -> `AWS::Organizations::Organization.Id`: pending
+- `AWS::MediaPackage::Asset.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::NetworkManager::DirectConnectGatewayAttachment.DirectConnectGatewayArn` -> `AWS::DirectConnect::DirectConnectGateway.DirectConnectGatewayArn`: pending
+- `AWS::Notifications::OrganizationalUnitAssociation.OrganizationalUnitId` -> `AWS::Organizations::OrganizationalUnit.Id`: pending
+- `AWS::RolesAnywhere::Profile.ManagedPolicyArns` -> `AWS::IAM::ManagedPolicy.PolicyArn`: pending
+- `AWS::Route53GlobalResolver::HostedZoneAssociation.HostedZoneId` -> `AWS::Route53::HostedZone.Id`: pending
+- `AWS::Route53Profiles::ProfileAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::Route53Resolver::ResolverConfig.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::Route53Resolver::ResolverDNSSECConfig.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+- `AWS::ServiceCatalog::CloudFormationProvisionedProduct.NotificationArns` -> `AWS::Connect::Notification.Arn`: rejected
+- `AWS::ServiceCatalog::LaunchNotificationConstraint.NotificationArns` -> `AWS::Connect::Notification.Arn`: rejected
+- `AWS::ServiceCatalog::TagOptionAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`: rejected
+
+### 2. Approved targets
+
+| target | approved edges |
+| --- | ---: |
+| `AWS::IAM::Role` | 83 |
+| `AWS::EC2::SecurityGroup` | 14 |
+| `AWS::EC2::IPAMPool` | 8 |
+| `AWS::EC2::Subnet` | 7 |
+| `AWS::DMS::Endpoint` | 4 |
+| `AWS::EC2::TransitGatewayAttachment` | 4 |
+| `AWS::EC2::PrefixList` | 3 |
+| `AWS::EC2::VPC` | 3 |
+| `AWS::KMS::Key` | 2 |
+| `AWS::Logs::LogGroup` | 2 |
+| `AWS::Transfer::Profile` | 2 |
+| `AWS::EC2::TransitGateway` | 1 |
+| `AWS::EC2::Volume` | 1 |
+| `AWS::Lambda::Function` | 1 |
+| `AWS::MSK::Cluster` | 1 |
+| **total** | **136** |
+
+No edge moved by decision 1 targets an approved type, so all of these are suffix matches.
+
+### 3. Rejected
+
+Every edge from another service to `AWS::Connect::Notification`, `AWS::Lambda::Version`, `AWS::ResilienceHubV2::System` and `AWS::ApiGateway::Resource` (`reject_targets`), plus four single edges (`reject`): the three transit gateway route table ids matched to `AWS::EC2::RouteTable`, and Route 53 Resolver's query log config id matched to `AWS::GroundStation::Config`.
+
+- `AWS::ApplicationAutoScaling::ScalableTarget.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::ApplicationAutoScaling::ScalingPolicy.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::ApplicationInsights::Application.SNSNotificationArn` -> `AWS::Connect::Notification.Arn`, tier 2
+- `AWS::CloudFormation::HookDefaultVersion.TypeVersionArn` -> `AWS::Lambda::Version.FunctionArn`, tier 2
+- `AWS::CloudFormation::ResourceDefaultVersion.TypeVersionArn` -> `AWS::Lambda::Version.FunctionArn`, tier 2
+- `AWS::EC2::FlowLog.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::EC2::TransitGateway.AssociationDefaultRouteTableId` -> `AWS::EC2::RouteTable.RouteTableId`, tier 2
+- `AWS::EC2::TransitGateway.PropagationDefaultRouteTableId` -> `AWS::EC2::RouteTable.RouteTableId`, tier 2
+- `AWS::EC2::TransitGatewayPolicyTableEntry.TargetRouteTableId` -> `AWS::EC2::RouteTable.RouteTableId`, tier 2
+- `AWS::EC2::VPCEndpointConnectionNotification.ConnectionNotificationArn` -> `AWS::Connect::Notification.Arn`, tier 2
+- `AWS::MediaPackage::Asset.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::RDS::DBCluster.DBSystemId` -> `AWS::ResilienceHubV2::System.SystemId`, tier 2
+- `AWS::RDS::DBCluster.SourceDbClusterResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2
+- `AWS::RDS::DBInstance.DBSystemId` -> `AWS::ResilienceHubV2::System.SystemId`, tier 2
+- `AWS::RDS::DBInstance.SourceDbiResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2
+- `AWS::Route53Profiles::ProfileAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::Route53Resolver::ResolverConfig.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::Route53Resolver::ResolverDNSSECConfig.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation.ResolverQueryLogConfigId` -> `AWS::GroundStation::Config.Id`, tier 2
+- `AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+- `AWS::ServiceCatalog::CloudFormationProvisionedProduct.NotificationArns` -> `AWS::Connect::Notification.Arn`, tier 2 (was tier 1)
+- `AWS::ServiceCatalog::LaunchNotificationConstraint.NotificationArns` -> `AWS::Connect::Notification.Arn`, tier 2 (was tier 1)
+- `AWS::ServiceCatalog::TagOptionAssociation.ResourceId` -> `AWS::ApiGateway::Resource.ResourceId`, tier 2 (was tier 1)
+
+`AWS::ApiGateway::Method.ResourceId` holds a real API Gateway resource id. The decision was that `reject_targets` refuses only edges from other services, so this same-service edge is accepted again; the RDS edges that fabricated a link to `AWS::ApiGateway::Resource` stay rejected.
+
+## Still pending
+
+1 edge, not in the catalog.
+
+| target | at | edges | verdict | sources |
+| --- | --- | ---: | --- | --- |
+| `AWS::Organizations::OrganizationalUnit` | `Id` | 1 | unsure: the source legally holds a value this type cannot represent | `AWS::Notifications::OrganizationalUnitAssociation.OrganizationalUnitId` |
+
+Its pattern is `^(r-[0-9a-z]{4,32})|(ou-[0-9a-z]{4,32}-[a-z0-9]{8,32})$` — an Organizations **root** id or an **OU** id.
+`AWS::Organizations::OrganizationalUnit.Id` is constrained to `^ou-...$` alone, and no `AWS::Organizations::Root` type
+exists in the catalog to carry the other case. The edge is right whenever the value is an OU and wrong whenever it is
+a root, so it stays out until someone decides whether silently resolving nothing for root-valued edges is acceptable.
+
+## Decided on 2026-09-17
+
+45 edges left this list: 30 approved, 15 rejected. The second half of the pass read both sides' schemas instead of
+their names, and that **reversed three edges a name-reading had accepted**, which is the reason this section exists:
+
+- `AWS::IoT::DomainConfiguration.ServerCertificateArns` -> `AWS::IAM::ServerCertificate.Arn`: **rejected.** Named for
+  server certificates, but its own pattern is `^arn:aws...:acm:...:certificate/...$` — it accepts ACM certificate
+  ARNs only, never IAM's `arn:aws:iam::<account>:server-certificate/<name>`. The right target is
+  `AWS::CertificateManager::Certificate`. The property name points at the wrong service.
+- `AWS::LakeFormation::DataCellsFilter.TableCatalogId` and `AWS::LakeFormation::Tag.CatalogId` ->
+  `AWS::Glue::Catalog.CatalogId`: **rejected.** Both resolve to `CatalogIdString`, exactly 12 characters, and
+  `Tag.CatalogId`'s description says "The identifier for the Data Catalog. By default, the account ID." It is an
+  account id, not a catalog resource.
+
+Two approvals rest on structure alone, their schemas carrying no description text whatsoever, and were included
+deliberately rather than left pending: `AWS::IAM::ManagedPolicy` (from `RolesAnywhere::Profile.ManagedPolicyArns`,
+which commonly names an AWS-owned policy no configuration created, so the edge often resolves to nothing — a
+coverage limit, not a wrong type) and `AWS::Route53::HostedZone` (from `Route53GlobalResolver::HostedZoneAssociation`).
+
+Three approved edges name an attribute that is not the target's primary identifier. Each is a real unique `readOnly`
+attribute rather than a mis-picked one, but worth knowing if edge resolution ever assumes a strict identifier match:
+`AWS::IoT::Thing.Arn` (identifier is `ThingName`), `AWS::NetworkManager::CoreNetwork.CoreNetworkArn` (identifier is
+`CoreNetworkId`), and `AWS::EKS::CertificateAuthority.Id` (identifier is the composite `[ClusterName, Id]`, so `Id`
+alone is half of it, scoped by the cluster the edge already sits on).
+
+The 12 rejected in the first half were fabrications of the name-matching heuristic: a Detective or IdentityStore
+member id is not a GuardDuty member, a Signer platform is not an Amplify form, an Outpost LAG is not a Direct
+Connect LAG, DataSync locations are neither GameLift locations nor MediaTailor source locations, EC2 host resource
+groups belong to License Manager, Inspector rules packages are not Panorama packages, a QBusiness IAM identity
+provider is not a WorkSpaces Web one, and a managed notification configuration is AWS-owned rather than the
+customer-created type.
+
+## Superseded: the 46 that were pending
+
+Kept for the reasoning, not as a list of open questions. Marked * where the edge was an exact cross-service match before decision 1; those were never reviewed as tier 2.
+
+| target | at | edges | verdict | sources |
+| --- | --- | ---: | --- | --- |
+| `AWS::Glue::Catalog` | `CatalogId` | 2 | unsure -> REJECTED: the schema says the id is an account id | `AWS::LakeFormation::DataCellsFilter.TableCatalogId`, `AWS::LakeFormation::Tag.CatalogId`* |
+| `AWS::GroundStation::Config` | `Arn` | 2 | looks right: the two MissionProfile config arns (the Route 53 Resolver edge to this target is rejected) | `AWS::GroundStation::MissionProfile.TelemetrySinkConfigArn`, `AWS::GroundStation::MissionProfile.TrackingConfigArn` |
+| `AWS::GuardDuty::Member` | `MemberId` | 2 | FABRICATED: Detective's MemberId is an account id; IdentityStore's is a user or group | `AWS::Detective::MemberInvitation.MemberId`*, `AWS::IdentityStore::GroupMembership.MemberId`* |
+| `AWS::IoT::Thing` | `Arn` | 2 | not reviewed | `AWS::IoTWireless::WirelessDevice.ThingArn`*, `AWS::IoTWireless::WirelessGateway.ThingArn`* |
+| `AWS::Notifications::NotificationConfiguration` | `Arn` | 2 | probably FABRICATED: a managed notification configuration is AWS-owned, not this resource type | `AWS::Notifications::ManagedNotificationAccountContactAssociation.ManagedNotificationConfigurationArn`, `AWS::Notifications::ManagedNotificationAdditionalChannelAssociation.ManagedNotificationConfigurationArn` |
+| `AWS::AmazonMQ::Broker` | `Arn` | 1 | looks right (self reference) | `AWS::AmazonMQ::Broker.DataReplicationPrimaryBrokerArn` |
+| `AWS::AmplifyUIBuilder::Form` | `Id` | 1 | FABRICATED: Signer's PlatformId is a signing platform | `AWS::Signer::SigningProfile.PlatformId` |
+| `AWS::ApiGateway::ClientCertificate` | `ClientCertificateId` | 1 | not reviewed | `AWS::ApiGatewayV2::Stage.ClientCertificateId`* |
+| `AWS::BedrockAgentCore::Runtime` | `AgentRuntimeId` | 1 | looks right | `AWS::BedrockAgentCore::RuntimeEndpoint.AgentRuntimeId` |
+| `AWS::Billing::BillingView` | `Arn` | 1 | not reviewed | `AWS::CUR::ReportDefinition.BillingViewArn`* |
+| `AWS::Connect::ContactFlow` | `ContactFlowArn` | 1 | looks right | `AWS::Connect::TaskTemplate.SelfAssignContactFlowArn` |
+| `AWS::Connect::PhoneNumber` | `PhoneNumberArn` | 1 | looks right (self reference) | `AWS::Connect::PhoneNumber.SourcePhoneNumberArn` |
+| `AWS::Connect::Queue` | `QueueArn` | 1 | looks right | `AWS::Connect::RoutingProfile.DefaultOutboundQueueArn` |
+| `AWS::Deadline::Limit` | `LimitId` | 1 | FABRICATED: a BedrockAgentCore gateway rate limit is not a Deadline limit | `AWS::BedrockAgentCore::GatewayRateLimit.RateLimitId` |
+| `AWS::Deadline::StorageProfile` | `StorageProfileId` | 1 | looks right | `AWS::Deadline::Queue.AllowedStorageProfileIds` |
+| `AWS::DevOpsAgent::Association` | `AssociationId` | 1 | looks right (self reference) | `AWS::DevOpsAgent::Association.LinkedAssociationIds` |
+| `AWS::DirectConnect::DirectConnectGateway` | `DirectConnectGatewayArn` | 1 | not reviewed | `AWS::NetworkManager::DirectConnectGatewayAttachment.DirectConnectGatewayArn`* |
+| `AWS::DirectConnect::Lag` | `LagId` | 1 | FABRICATED: an Outpost LAG, not a Direct Connect LAG | `AWS::EC2::LocalGatewayVirtualInterface.OutpostLagId` |
+| `AWS::EC2::RouteTable` | `RouteTableId` | 1 | looks right for ODB's peer network route tables (the three transit gateway route table edges are rejected) | `AWS::ODB::OdbPeeringConnection.PeerNetworkRouteTableIds` |
+| `AWS::EKS::CertificateAuthority` | `Id` | 1 | unsure: check what Cluster.ActiveCertificateAuthorityId holds | `AWS::EKS::Cluster.ActiveCertificateAuthorityId` |
+| `AWS::GameLift::Location` | `LocationArn` | 1 | FABRICATED: a DataSync location, not a GameLift location | `AWS::DataSync::Task.DestinationLocationArn` |
+| `AWS::IAM::ManagedPolicy` | `PolicyArn` | 1 | not reviewed | `AWS::RolesAnywhere::Profile.ManagedPolicyArns`* |
+| `AWS::IAM::ServerCertificate` | `Arn` | 1 | not reviewed | `AWS::IoT::DomainConfiguration.ServerCertificateArns`* |
+| `AWS::Inspector::ResourceGroup` | `Arn` | 1 | FABRICATED: EC2 host resource groups belong to License Manager | `AWS::EC2::Instance.HostResourceGroupArn` |
+| `AWS::IoT::Certificate` | `Arn` | 1 | looks right | `AWS::IoT::DomainConfiguration.ValidationCertificateArn` |
+| `AWS::IoTTwinMaker::Entity` | `EntityId` | 1 | looks right (self reference) | `AWS::IoTTwinMaker::Entity.ParentEntityId` |
+| `AWS::MPA::ApprovalTeam` | `Arn` | 1 | looks right | `AWS::Backup::LogicallyAirGappedBackupVault.MpaApprovalTeamArn` |
+| `AWS::MediaTailor::SourceLocation` | `Arn` | 1 | FABRICATED: a DataSync source location | `AWS::DataSync::Task.SourceLocationArn`* |
+| `AWS::NetworkManager::CoreNetwork` | `CoreNetworkArn` | 1 | not reviewed | `AWS::EC2::Route.CoreNetworkArn`* |
+| `AWS::ODB::OdbNetwork` | `OdbNetworkArn` | 1 | not reviewed | `AWS::EC2::Route.OdbNetworkArn`* |
+| `AWS::Organizations::Organization` | `Id` | 1 | not reviewed | `AWS::Lambda::LayerVersionPermission.OrganizationId`* |
+| `AWS::Organizations::OrganizationalUnit` | `Id` | 1 | not reviewed | `AWS::Notifications::OrganizationalUnitAssociation.OrganizationalUnitId`* |
+| `AWS::Panorama::Package` | `Arn` | 1 | FABRICATED: Inspector rules packages | `AWS::Inspector::AssessmentTemplate.RulesPackageArns` |
+| `AWS::QuickSight::Folder` | `Arn` | 1 | looks right (self reference) | `AWS::QuickSight::Folder.ParentFolderArn` |
+| `AWS::QuickSight::Theme` | `ThemeId` | 1 | looks right (self reference) | `AWS::QuickSight::Theme.BaseThemeId` |
+| `AWS::RAM::ResourceShare` | `Arn` | 1 | not reviewed | `AWS::AmazonMQ::Broker.ResourceShareArns`* |
+| `AWS::Route53::HostedZone` | `Id` | 1 | not reviewed | `AWS::Route53GlobalResolver::HostedZoneAssociation.HostedZoneId`* |
+| `AWS::ServiceCatalog::Portfolio` | `Id` | 1 | looks right | `AWS::ServiceCatalog::PortfolioProductAssociation.SourcePortfolioId` |
+| `AWS::VpcLattice::ResourceConfiguration` | `Arn` | 1 | not reviewed | `AWS::EC2::VPCEndpoint.ResourceConfigurationArn`* |
+| `AWS::VpcLattice::ServiceNetwork` | `Arn` | 1 | not reviewed | `AWS::EC2::VPCEndpoint.ServiceNetworkArn`* |
+| `AWS::WorkSpacesWeb::IdentityProvider` | `IdentityProviderArn` | 1 | FABRICATED: QBusiness wants an IAM identity provider | `AWS::QBusiness::Application.IamIdentityProviderArn` |
+
+## Unresolved: ambiguous (285 properties, 51 candidate sets)
+
+More than one type still matched after the same-service tiebreak, so no edge was written. Nothing is guessed. A future overlay entry could pin these by hand; the biggest sets are the most valuable.
+
+- **104** among `AWS::KMS::Key`, `AWS::PaymentCryptography::Key`: `AWS::APS::Workspace.KmsKeyArn`, `AWS::ApiGateway::UsagePlanKey.KeyId`, `AWS::Backup::BackupVault.EncryptionKeyArn`, `AWS::Backup::LogicallyAirGappedBackupVault.EncryptionKeyArn`, `AWS::BackupGateway::Hypervisor.KmsKeyArn`, `AWS::Bedrock::Agent.CustomerEncryptionKeyArn`, `AWS::Bedrock::AutomatedReasoningPolicy.KmsKeyId`, `AWS::Bedrock::Blueprint.KmsKeyId`, `AWS::Bedrock::DataAutomationProject.KmsKeyId`, `AWS::Bedrock::Flow.CustomerEncryptionKeyArn`, `AWS::Bedrock::Guardrail.KmsKeyArn`, `AWS::Bedrock::Prompt.CustomerEncryptionKeyArn`, `AWS::Bedrock::Session.EncryptionKeyArn`, `AWS::BedrockAgentCore::ConfigurationBundle.KmsKeyArn`, `AWS::BedrockAgentCore::Dataset.KmsKeyArn`, `AWS::BedrockAgentCore::Evaluator.KmsKeyArn`, `AWS::BedrockAgentCore::Gateway.KmsKeyArn`, `AWS::BedrockAgentCore::Memory.EncryptionKeyArn`, `AWS::BedrockAgentCore::PolicyEngine.EncryptionKeyArn`, `AWS::CleanRooms::IdMappingTable.KmsKeyArn`, `AWS::CleanRooms::IntermediateTable.KmsKeyArn`, `AWS::CleanRoomsML::ConfiguredModelAlgorithm.KmsKeyArn`, `AWS::CloudTrail::EventDataStore.KmsKeyId`, `AWS::CloudTrail::Trail.KMSKeyId`, `AWS::CodeCommit::Repository.KmsKeyId`, `AWS::CodeStarConnections::RepositoryLink.EncryptionKeyArn`, `AWS::Comprehend::DocumentClassifier.ModelKmsKeyId`, `AWS::Comprehend::DocumentClassifier.VolumeKmsKeyId`, `AWS::Config::DeliveryChannel.S3KmsKeyArn`, `AWS::DMS::Endpoint.KmsKeyId`, `AWS::DMS::InstanceProfile.KmsKeyArn`, `AWS::DataBrew::Job.EncryptionKeyArn`, `AWS::Deadline::Farm.KmsKeyArn`, `AWS::DevOpsAgent::AgentSpace.KmsKeyArn`, `AWS::DevOpsAgent::Service.KmsKeyArn`, `AWS::DocDBElastic::Cluster.KmsKeyId`, `AWS::EC2::Volume.KmsKeyId`, `AWS::EFS::FileSystem.KmsKeyId`, `AWS::EMR::Step.EncryptionKeyArn`, `AWS::EMR::Studio.EncryptionKeyArn`, `AWS::EVS::Environment.KmsKeyId`, `AWS::ElastiCache::ReplicationGroup.KmsKeyId`, `AWS::ElastiCache::ServerlessCache.KmsKeyId`, `AWS::ElastiCache::ServerlessCacheSnapshot.KmsKeyId`, `AWS::FinSpace::Environment.KmsKeyId`, `AWS::Glue::Integration.KmsKeyId`, `AWS::HealthImaging::Datastore.KmsKeyArn`, `AWS::HealthLake::DataTransformationProfile.KmsKeyId`, `AWS::ImageBuilder::Component.KmsKeyId`, `AWS::ImageBuilder::ContainerRecipe.KmsKeyId`, `AWS::ImageBuilder::Workflow.KmsKeyId`, `AWS::IoT::EncryptionConfiguration.KmsKeyArn`, `AWS::IoTSiteWise::Workspace.KmsKeyId`, `AWS::KinesisVideo::Stream.KmsKeyId`, `AWS::Lambda::CapacityProvider.KmsKeyArn`, `AWS::Lambda::EventSourceMapping.KmsKeyArn`, `AWS::Lambda::Function.KmsKeyArn`, `AWS::Location::GeofenceCollection.KmsKeyId`, `AWS::Location::Tracker.KmsKeyId`, `AWS::Logs::LogAnomalyDetector.KmsKeyId`, `AWS::Logs::LogGroup.KmsKeyId`, `AWS::LookoutEquipment::InferenceScheduler.ServerSideKmsKeyId`, `AWS::M2::Application.KmsKeyId`, `AWS::M2::Environment.KmsKeyId`, `AWS::MemoryDB::Cluster.KmsKeyId`, `AWS::Neptune::DBCluster.KmsKeyId`, `AWS::OpenSearchService::Application.KmsKeyArn`, `AWS::Personalize::DatasetGroup.KmsKeyArn`, `AWS::RDS::CustomDBEngineVersion.KMSKeyId`, `AWS::RDS::DBCluster.KmsKeyId`, `AWS::RDS::DBCluster.PerformanceInsightsKmsKeyId`, `AWS::RDS::DBInstance.AutomaticBackupReplicationKmsKeyId`, `AWS::RDS::DBInstance.KmsKeyId`, `AWS::RDS::DBInstance.PerformanceInsightsKMSKeyId`, `AWS::RDS::Integration.KMSKeyId`, `AWS::Redshift::Cluster.KmsKeyId`, `AWS::Redshift::Cluster.MasterPasswordSecretKmsKeyId`, `AWS::Redshift::Integration.KMSKeyId`, `AWS::RedshiftServerless::Namespace.AdminPasswordSecretKmsKeyId`, `AWS::RedshiftServerless::Namespace.KmsKeyId`, `AWS::Rekognition::StreamProcessor.KmsKeyId`, `AWS::ResilienceHubV2::Policy.KmsKeyId`, `AWS::ResilienceHubV2::Service.KmsKeyId`, `AWS::ResilienceHubV2::System.KmsKeyId`, `AWS::S3Files::FileSystem.KmsKeyId`, `AWS::SES::MailManagerArchive.KmsKeyArn`, `AWS::SNS::Topic.KmsMasterKeyId`, `AWS::SQS::Queue.KmsMasterKeyId`, `AWS::SSM::ResourceDataSync.KMSKeyArn`, `AWS::SageMaker::Domain.KmsKeyId`, `AWS::SageMaker::EndpointConfig.KmsKeyId`, `AWS::SageMaker::NotebookInstance.KmsKeyId`, `AWS::SageMaker::PartnerApp.KmsKeyId`, `AWS::Scheduler::Schedule.KmsKeyArn`, `AWS::SecretsManager::Secret.KmsKeyId`, `AWS::SecurityAgent::AgentSpace.KmsKeyId`, `AWS::SecurityAgent::Application.DefaultKmsKeyId`, `AWS::SecurityAgent::SecurityRequirementPack.KmsKeyId`, `AWS::SecurityHub::ConnectorV2.KmsKeyArn`, `AWS::Synthetics::Canary.KmsKeyArn`, `AWS::Timestream::Database.KmsKeyId`, `AWS::Timestream::ScheduledQuery.KmsKeyId`, `AWS::WorkSpacesThinClient::Environment.KmsKeyArn`, `AWS::WorkspacesInstances::Volume.KmsKeyId`
+- **39** among `AWS::ApiGateway::Account`, `AWS::CertificateManager::Account`, `AWS::Organizations::Account`: `AWS::BillingConductor::BillingGroup.PrimaryAccountId`, `AWS::BillingConductor::CustomLineItem.AccountId`, `AWS::Config::AggregationAuthorization.AuthorizedAccountId`, `AWS::Connect::DataLakeAssociation.TargetAccountId`, `AWS::DataZone::EnvironmentProfile.AwsAccountId`, `AWS::Detective::OrganizationAdmin.AccountId`, `AWS::EC2::TransitGatewayPeeringAttachment.PeerAccountId`, `AWS::FIS::TargetAccountConfiguration.AccountId`, `AWS::GameLift::Fleet.PeerVpcAwsAccountId`, `AWS::InternetMonitor::Monitor.LinkedAccountId`, `AWS::IoT::AccountAuditConfiguration.AccountId`, `AWS::IoT::Logging.AccountId`, `AWS::Logs::LogAnomalyDetector.AccountId`, `AWS::Proton::EnvironmentAccountConnection.EnvironmentAccountId`, `AWS::Proton::EnvironmentAccountConnection.ManagementAccountId`, `AWS::QuickSight::ActionConnector.AwsAccountId`, `AWS::QuickSight::Agent.AwsAccountId`, `AWS::QuickSight::Analysis.AwsAccountId`, `AWS::QuickSight::CustomPermissions.AwsAccountId`, `AWS::QuickSight::DLPSetting.AwsAccountId`, `AWS::QuickSight::Dashboard.AwsAccountId`, `AWS::QuickSight::DataSet.AwsAccountId`, `AWS::QuickSight::DataSource.AwsAccountId`, `AWS::QuickSight::Flow.AwsAccountId`, `AWS::QuickSight::Folder.AwsAccountId`, `AWS::QuickSight::KnowledgeBase.AwsAccountId`, `AWS::QuickSight::LimitsProfile.AccountId`, `AWS::QuickSight::RefreshSchedule.AwsAccountId`, `AWS::QuickSight::Space.AwsAccountId`, `AWS::QuickSight::Template.AwsAccountId`, `AWS::QuickSight::Theme.AwsAccountId`, `AWS::QuickSight::Topic.AwsAccountId`, `AWS::QuickSight::TopicV2.AwsAccountId`, `AWS::QuickSight::VPCConnection.AwsAccountId`, `AWS::S3::AccessPoint.BucketAccountId`, `AWS::S3Express::AccessPoint.BucketAccountId`, `AWS::SecurityHub::DelegatedAdmin.AdminAccountId`, `AWS::ServiceCatalog::PortfolioShare.AccountId`, `AWS::WellArchitected::Workload.AccountIds`
+- **13** among `AWS::MSK::Topic`, `AWS::QuickSight::Topic`, `AWS::SNS::Topic`: `AWS::ApplicationInsights::Application.OpsItemSNSTopicArn`, `AWS::Chatbot::MicrosoftTeamsChannelConfiguration.SnsTopicArns`, `AWS::Chatbot::SlackChannelConfiguration.SnsTopicArns`, `AWS::DMS::EventSubscription.SnsTopicArn`, `AWS::DocDB::EventSubscription.SnsTopicArn`, `AWS::ElastiCache::CacheCluster.NotificationTopicArn`, `AWS::ElastiCache::ReplicationGroup.NotificationTopicArn`, `AWS::FMS::NotificationChannel.SnsTopicArn`, `AWS::ImageBuilder::InfrastructureConfiguration.SnsTopicArn`, `AWS::MemoryDB::Cluster.SnsTopicArn`, `AWS::Neptune::EventSubscription.SnsTopicArn`, `AWS::RDS::EventSubscription.SnsTopicArn`, `AWS::Redshift::EventSubscription.SnsTopicArn`
+- **12** among `AWS::BedrockAgentCore::Gateway`, `AWS::IoTSiteWise::Gateway`, `AWS::MediaConnect::Gateway`: `AWS::DirectConnect::DirectConnectGatewayAssociation.AssociatedGatewayId`, `AWS::DirectConnect::PrivateVirtualInterface.VirtualGatewayId`, `AWS::EC2::GatewayRouteTableAssociation.GatewayId`, `AWS::EC2::LocalGatewayRouteTable.LocalGatewayId`, `AWS::EC2::LocalGatewayVirtualInterfaceGroup.LocalGatewayId`, `AWS::EC2::Route.GatewayId`, `AWS::EC2::Route.LocalGatewayId`, `AWS::RTBFabric::InboundExternalLink.GatewayId`, `AWS::RTBFabric::Link.GatewayId`, `AWS::RTBFabric::Link.PeerGatewayId`, `AWS::RTBFabric::LinkRoutingRule.GatewayId`, `AWS::RTBFabric::OutboundExternalLink.GatewayId`
+- **12** among `AWS::Connect::Instance`, `AWS::EC2::Instance`, `AWS::Lightsail::Instance`, `AWS::SSO::Instance`, `AWS::ServiceDiscovery::Instance`: `AWS::AutoScaling::AutoScalingGroup.InstanceId`, `AWS::AutoScaling::LaunchConfiguration.InstanceId`, `AWS::ConnectCampaigns::Campaign.ConnectInstanceArn`, `AWS::ConnectCampaignsV2::Campaign.ConnectInstanceId`, `AWS::DMS::ReplicationTask.ReplicationInstanceArn`, `AWS::Deadline::Monitor.IdentityCenterInstanceArn`, `AWS::EMR::Studio.IdcInstanceArn`, `AWS::Glue::IdentityCenterConfiguration.InstanceArn`, `AWS::QBusiness::Application.IdentityCenterInstanceArn`, `AWS::SCN::Dataset.InstanceId`, `AWS::SCN::Namespace.InstanceId`, `AWS::SSM::Association.InstanceId`
+- **10** among `AWS::ACMPCA::Certificate`, `AWS::CertificateManager::Certificate`, `AWS::DMS::Certificate`, `AWS::IoT::Certificate`, `AWS::Lightsail::Certificate`, `AWS::Transfer::Certificate`: `AWS::ApiGateway::DomainName.CertificateArn`, `AWS::ApiGateway::DomainName.OwnershipVerificationCertificateArn`, `AWS::ApiGateway::DomainName.RegionalCertificateArn`, `AWS::ApiGateway::DomainNameV2.CertificateArn`, `AWS::AppSync::DomainName.CertificateArn`, `AWS::EC2::CustomerGateway.CertificateArn`, `AWS::EC2::EnclaveCertificateIamRoleAssociation.CertificateArn`, `AWS::EC2::VerifiedAccessEndpoint.DomainCertificateArn`, `AWS::RTBFabric::ResponderGateway.AcmCertificateArn`, `AWS::VpcLattice::Service.CertificateArn`
+- **9** among `AWS::IAM::Group`, `AWS::IdentityStore::Group`, `AWS::ResourceGroups::Group`, `AWS::Synthetics::Group`, `AWS::XRay::Group`: `AWS::Connect::SecurityProfile.AllowedAccessControlHierarchyGroupId`, `AWS::Connect::User.HierarchyGroupArn`, `AWS::Connect::UserHierarchyGroup.ParentGroupArn`, `AWS::EC2::PlacementGroup.ParentGroupId`, `AWS::EC2::SecurityGroupEgress.GroupId`, `AWS::EC2::SecurityGroupIngress.GroupId`, `AWS::EC2::SecurityGroupVpcAssociation.GroupId`, `AWS::RoboMaker::Robot.GreengrassGroupId`, `AWS::VpcLattice::ResourceConfiguration.ResourceConfigurationGroupId`
+- **6** among `AWS::ImageBuilder::Image`, `AWS::SageMaker::Image`: `AWS::AppStream::ImageBuilder.ImageArn`, `AWS::AutoScaling::LaunchConfiguration.ImageId`, `AWS::CodeBuild::Fleet.ImageId`, `AWS::EC2::Instance.ImageId`, `AWS::Lambda::MicrovmImage.BaseImageArn`, `AWS::RDS::CustomDBEngineVersion.ImageId`
+- **5** among `AWS::EFS::FileSystem`, `AWS::S3Files::FileSystem`: `AWS::DataSync::LocationEFS.EfsFilesystemArn`, `AWS::DataSync::LocationFSxLustre.FsxFilesystemArn`, `AWS::DataSync::LocationFSxOpenZFS.FsxFilesystemArn`, `AWS::DataSync::LocationFSxWindows.FsxFilesystemArn`, `AWS::FSx::DataRepositoryAssociation.FileSystemId`
+- **4** among `AWS::BedrockAgentCore::Policy`, `AWS::FMS::Policy`, `AWS::IoT::Policy`, `AWS::Organizations::Policy`, `AWS::ResilienceHubV2::Policy`, `AWS::VerifiedPermissions::Policy`: `AWS::Bedrock::AutomatedReasoningPolicyVersion.PolicyArn`, `AWS::EMR::StudioSessionMapping.SessionPolicyArn`, `AWS::QuickSight::ApprovalPolicy.PolicyId`, `AWS::SES::MailManagerIngressPoint.TrafficPolicyId`
+- **4** among `AWS::CloudTrail::Channel`, `AWS::IVS::Channel`, `AWS::IoTAnalytics::Channel`, `AWS::MSK::Channel`, `AWS::MediaPackage::Channel`, `AWS::MediaPackageV2::Channel`, `AWS::MediaTailor::Channel`: `AWS::Chatbot::MicrosoftTeamsChannelConfiguration.TeamsChannelId`, `AWS::Chatbot::SlackChannelConfiguration.SlackChannelId`, `AWS::Notifications::ManagedNotificationAdditionalChannelAssociation.ChannelArn`, `AWS::SupportApp::SlackChannelConfiguration.ChannelId`
+- **4** among `AWS::IoT::Stream`, `AWS::Kinesis::Stream`, `AWS::KinesisVideo::Stream`, `AWS::QLDB::Stream`: `AWS::MediaConnect::FlowOutput.StreamId`, `AWS::MediaConnect::FlowSource.StreamId`, `AWS::MediaTailor::PrefetchSchedule.StreamId`, `AWS::WorkSpacesWeb::UserAccessLoggingSettings.KinesisStreamArn`
+- **3** among `AWS::ACMPCA::CertificateAuthority`, `AWS::EKS::CertificateAuthority`: `AWS::CertificateManager::Certificate.CertificateAuthorityArn`, `AWS::PCAConnectorAD::Connector.CertificateAuthorityArn`, `AWS::PCAConnectorSCEP::Connector.CertificateAuthorityArn`
+- **3** among `AWS::Amplify::App`, `AWS::ResilienceHub::App`, `AWS::SageMaker::App`: `AWS::AmplifyUIBuilder::Component.AppId`, `AWS::AmplifyUIBuilder::Form.AppId`, `AWS::AmplifyUIBuilder::Theme.AppId`
+- **3** among `AWS::AppRunner::Service`, `AWS::DevOpsAgent::Service`, `AWS::ECS::Service`, `AWS::RefactorSpaces::Service`, `AWS::ResilienceHubV2::Service`, `AWS::ServiceDiscovery::Service`, `AWS::VpcLattice::Service`: `AWS::EC2::VPCEndpointConnectionNotification.ServiceId`, `AWS::EC2::VPCEndpointServicePermissions.ServiceId`, `AWS::Route53::KeySigningKey.KeyManagementServiceArn`
+- **3** among `AWS::CodeConnections::Connection`, `AWS::CodeStarConnections::Connection`, `AWS::DataZone::Connection`, `AWS::DirectConnect::Connection`, `AWS::Events::Connection`, `AWS::Glue::Connection`, `AWS::Interconnect::Connection`: `AWS::ApiGatewayV2::Integration.ConnectionId`, `AWS::CloudFormation::Publisher.ConnectionArn`, `AWS::CodeGuruReviewer::RepositoryAssociation.ConnectionArn`
+- **3** among `AWS::ElasticLoadBalancing::LoadBalancer`, `AWS::ElasticLoadBalancingV2::LoadBalancer`, `AWS::Lightsail::LoadBalancer`: `AWS::EC2::TrafficMirrorTarget.NetworkLoadBalancerArn`, `AWS::EC2::VPCEndpointService.GatewayLoadBalancerArns`, `AWS::EC2::VPCEndpointService.NetworkLoadBalancerArns`
+- **3** among `AWS::Lightsail::Bucket`, `AWS::S3::Bucket`, `AWS::S3Outposts::Bucket`: `AWS::DRS::LaunchConfigurationTemplate.ExportBucketArn`, `AWS::DataSync::LocationS3.S3BucketArn`, `AWS::MWAA::Environment.SourceBucketArn`
+- **2** among `AWS::AccountAccess::Application`, `AWS::AppConfig::Application`, `AWS::AppIntegrations::Application`, `AWS::AppStream::Application`, `AWS::ApplicationInsights::Application`, `AWS::CodeDeploy::Application`, `AWS::EMRServerless::Application`, `AWS::ElasticBeanstalk::Application`, `AWS::KinesisAnalyticsV2::Application`, `AWS::M2::Application`, `AWS::OpenSearchService::Application`, `AWS::QBusiness::Application`, `AWS::RefactorSpaces::Application`, `AWS::SSO::Application`, `AWS::SecurityAgent::Application`, `AWS::ServerlessRepo::Application`, `AWS::ServiceCatalogAppRegistry::Application`, `AWS::SystemsManagerSAP::Application`: `AWS::RedshiftServerless::Namespace.RedshiftIdcApplicationArn`, `AWS::S3::AccessGrant.ApplicationArn`
+- **2** among `AWS::ApiGateway::Model`, `AWS::ApiGatewayV2::Model`, `AWS::SageMaker::Model`: `AWS::Comprehend::Flywheel.ActiveModelArn`, `AWS::Wisdom::AIPrompt.ModelId`
+- **2** among `AWS::AppFlow::Flow`, `AWS::Bedrock::Flow`, `AWS::MediaConnect::Flow`, `AWS::QuickSight::Flow`: `AWS::ConnectCampaignsV2::Campaign.ConnectCampaignFlowArn`, `AWS::EMR::Step.JobFlowId`
+- **2** among `AWS::AppSync::Type`, `AWS::Cassandra::Type`: `AWS::CloudFormation::HookTypeConfig.TypeArn`, `AWS::CloudFormation::TypeActivation.PublicTypeArn`
+- **2** among `AWS::Bedrock::Blueprint`, `AWS::Glue::Blueprint`: `AWS::Lightsail::Database.RelationalDatabaseBlueprintId`, `AWS::Lightsail::Instance.BlueprintId`
+- **2** among `AWS::Cases::Template`, `AWS::PCAConnectorAD::Template`, `AWS::QuickSight::Template`, `AWS::SES::Template`: `AWS::ACMPCA::Certificate.TemplateArn`, `AWS::CustomerProfiles::ObjectType.TemplateId`
+- **2** among `AWS::CloudFront::Function`, `AWS::Lambda::Function`, `AWS::MediaTailor::Function`: `AWS::IoT::Authorizer.AuthorizerFunctionArn`, `AWS::IoT::CertificateProvider.LambdaFunctionArn`
+- **2** among `AWS::CloudHSM::Cluster`, `AWS::DSQL::Cluster`, `AWS::DocDBElastic::Cluster`, `AWS::ECS::Cluster`, `AWS::EKS::Cluster`, `AWS::MSK::Cluster`, `AWS::MediaLive::Cluster`, `AWS::MemoryDB::Cluster`, `AWS::PCS::Cluster`, `AWS::Redshift::Cluster`, `AWS::Route53RecoveryControl::Cluster`, `AWS::SageMaker::Cluster`: `AWS::ElastiCache::ReplicationGroup.PrimaryClusterId`, `AWS::ElastiCache::ReplicationGroup.SnapshottingClusterId`
+- **2** among `AWS::EC2::VPCEndpoint`, `AWS::OpenSearchServerless::VpcEndpoint`: `AWS::DataSync::Agent.VpcEndpointId`, `AWS::PCAConnectorSCEP::Connector.VpcEndpointId`
+- **2** among `AWS::IoTWireless::Destination`, `AWS::Logs::Destination`: `AWS::Route53Resolver::ResolverQueryLoggingConfig.DestinationArn`, `AWS::VpcLattice::AccessLogSubscription.DestinationArn`
+- **2** among `AWS::MediaLive::Network`, `AWS::Wickr::Network`: `AWS::EC2::TrafficMirrorSession.VirtualNetworkId`, `AWS::ODB::OdbPeeringConnection.PeerNetworkId`
+- **2** among `AWS::SageMaker::Artifact`, `AWS::SecurityAgent::Artifact`: `AWS::ServiceCatalog::CloudFormationProvisionedProduct.ProvisioningArtifactId`, `AWS::ServiceCatalog::ServiceActionAssociation.ProvisioningArtifactId`
+- **1** among `AWS::ACMPCA::Permission`, `AWS::Lambda::Permission`, `AWS::QBusiness::Permission`, `AWS::RAM::Permission`: `AWS::EC2::FlowLog.DeliverLogsPermissionArn`
+- **1** among `AWS::APS::Workspace`, `AWS::AWSExternalAnthropic::Workspace`, `AWS::Connect::Workspace`, `AWS::Grafana::Workspace`, `AWS::IoTSiteWise::Workspace`, `AWS::IoTTwinMaker::Workspace`, `AWS::WorkSpaces::Workspace`: `AWS::Chatbot::SlackChannelConfiguration.SlackWorkspaceId`
+- **1** among `AWS::AccountAccess::Entitlement`, `AWS::AppStream::Entitlement`: `AWS::MediaConnect::FlowSource.EntitlementArn`
+- **1** among `AWS::AmazonMQ::Configuration`, `AWS::MSK::Configuration`, `AWS::Omics::Configuration`: `AWS::DataZone::Environment.EnvironmentConfigurationId`
+- **1** among `AWS::ApiGatewayV2::Integration`, `AWS::CustomerProfiles::Integration`, `AWS::Glue::Integration`, `AWS::Logs::Integration`, `AWS::RDS::Integration`, `AWS::Redshift::Integration`: `AWS::Connect::IntegrationAssociation.IntegrationArn`
+- **1** among `AWS::AppConfig::Environment`, `AWS::DataZone::Environment`, `AWS::EVS::Environment`, `AWS::ElasticBeanstalk::Environment`, `AWS::FinSpace::Environment`, `AWS::M2::Environment`, `AWS::MWAA::Environment`, `AWS::RefactorSpaces::Environment`, `AWS::WorkSpacesThinClient::Environment`: `AWS::Interconnect::Connection.EnvironmentId`
+- **1** among `AWS::AppFlow::Connector`, `AWS::Config::Connector`, `AWS::InspectorV2::Connector`, `AWS::KafkaConnect::Connector`, `AWS::PCAConnectorAD::Connector`, `AWS::PCAConnectorSCEP::Connector`, `AWS::SecurityHub::Connector`, `AWS::Transfer::Connector`: `AWS::SSM::CloudConnector.ConfigConnectorArn`
+- **1** among `AWS::AppStream::User`, `AWS::Connect::User`, `AWS::ElastiCache::User`, `AWS::IAM::User`, `AWS::IdentityStore::User`, `AWS::MemoryDB::User`, `AWS::Transfer::User`: `AWS::IVS::IngestConfiguration.UserId`
+- **1** among `AWS::BedrockAgentCore::Dataset`, `AWS::DataBrew::Dataset`, `AWS::DataExchange::DataSet`, `AWS::Forecast::Dataset`, `AWS::IoTAnalytics::Dataset`, `AWS::IoTSiteWise::Dataset`, `AWS::Personalize::Dataset`, `AWS::QuickSight::DataSet`, `AWS::Rekognition::Dataset`, `AWS::SCN::Dataset`: `AWS::Connect::DataLakeAssociation.DataSetId`
+- **1** among `AWS::CodeConnections::Host`, `AWS::EC2::Host`: `AWS::CodeStarConnections::Connection.HostArn`
+- **1** among `AWS::Connect::Rule`, `AWS::Events::Rule`, `AWS::Rbin::Rule`, `AWS::VpcLattice::Rule`: `AWS::GuardDuty::CustomDetectionRuleAssociation.RuleId`
+- **1** among `AWS::DMS::Endpoint`, `AWS::EMRContainers::Endpoint`, `AWS::Events::Endpoint`, `AWS::S3Outposts::Endpoint`, `AWS::SageMaker::Endpoint`: `AWS::EC2::TrafficMirrorTarget.GatewayLoadBalancerEndpointId`
+- **1** among `AWS::DMS::InstanceProfile`, `AWS::IAM::InstanceProfile`: `AWS::PCS::ComputeNodeGroup.IamInstanceProfileArn`
+- **1** among `AWS::DataSync::Task`, `AWS::IoTSiteWise::Task`: `AWS::SSM::MaintenanceWindowTask.TaskArn`
+- **1** among `AWS::DevOpsAgent::Asset`, `AWS::IoTSiteWise::Asset`, `AWS::MediaPackage::Asset`: `AWS::EC2::Host.AssetId`
+- **1** among `AWS::EFS::AccessPoint`, `AWS::S3::AccessPoint`, `AWS::S3Express::AccessPoint`, `AWS::S3Files::AccessPoint`, `AWS::S3ObjectLambda::AccessPoint`, `AWS::S3Outposts::AccessPoint`: `AWS::DataSync::LocationEFS.AccessPointArn`
+- **1** among `AWS::Glue::Database`, `AWS::Lightsail::Database`, `AWS::Timestream::Database`: `AWS::SystemsManagerSAP::Application.DatabaseArn`
+- **1** among `AWS::NetworkManager::Device`, `AWS::SageMaker::Device`: `AWS::Braket::SpendingLimit.DeviceArn`
+- **1** among `AWS::NetworkManager::Site`, `AWS::Outposts::Site`: `AWS::EVS::Environment.SiteId`
+- **1** among `AWS::PricingPlanManager::Subscription`, `AWS::SNS::Subscription`: `AWS::SES::MailManagerAddonInstance.AddonSubscriptionId`
+- **1** among `AWS::RedshiftServerless::Namespace`, `AWS::S3Tables::Namespace`, `AWS::SCN::Namespace`: `AWS::ServiceDiscovery::Service.NamespaceId`
+
+## Unresolved: target lacks the attribute (84)
+
+One type matched, but it has no `Id`/`Arn`, `<Segment>Id`/`<Segment>Arn`, or single matching primary identifier. Many are correct negatives: generic `ResourceArn`s, owner account ids, snapshots.
+
+`AWS::AuditManager::Assessment.FrameworkId`, `AWS::AutoScaling::LaunchConfiguration.RamDiskId`, `AWS::Backup::RestoreTestingSelection.ProtectedResourceArns`, `AWS::Bedrock::ResourcePolicy.ResourceArn`, `AWS::BedrockAgentCore::ResourcePolicy.ResourceArn`, `AWS::Chatbot::MicrosoftTeamsChannelConfiguration.CustomizationResourceArns`, `AWS::Chatbot::MicrosoftTeamsChannelConfiguration.TeamsTenantId`, `AWS::Chatbot::SlackChannelConfiguration.CustomizationResourceArns`, `AWS::CloudFormation::HookDefaultVersion.VersionId`, `AWS::CloudFormation::ModuleDefaultVersion.VersionId`, `AWS::CloudFormation::ResourceDefaultVersion.VersionId`, `AWS::CloudTrail::ResourcePolicy.ResourceArn`, `AWS::CloudWatch::Alarm.ThresholdMetricId`, `AWS::CodeStarConnections::RepositoryLink.OwnerId`, `AWS::CodeStarNotifications::NotificationRule.EventTypeId`, `AWS::CodeStarNotifications::NotificationRule.EventTypeIds`, `AWS::Connect::ContactFlowModuleAlias.ContactFlowModuleId`, `AWS::Connect::ContactFlowModuleVersion.ContactFlowModuleId`, `AWS::Connect::ContactFlowVersion.ContactFlowId`, `AWS::Connect::User.DirectoryUserId`, `AWS::DataSync::Agent.SecurityGroupArns`, `AWS::DataSync::Agent.SubnetArns`, `AWS::DataSync::LocationFSxLustre.SecurityGroupArns`, `AWS::DataSync::LocationFSxONTAP.SecurityGroupArns`, `AWS::DataSync::LocationFSxOpenZFS.SecurityGroupArns`, `AWS::DataSync::LocationFSxWindows.SecurityGroupArns`, `AWS::EC2::CapacityReservation.PlacementGroupArn`, `AWS::EC2::CapacityReservation.UnusedReservationBillingOwnerId`, `AWS::EC2::EIPAssociation.AllocationId`, `AWS::EC2::Instance.RamdiskId`, `AWS::EC2::NatGateway.AllocationId`, `AWS::EC2::NatGateway.SecondaryAllocationIds`, `AWS::EC2::SecurityGroupIngress.SourceSecurityGroupOwnerId`, `AWS::EC2::TrafficMirrorSession.OwnerId`, `AWS::EC2::VPCPeeringConnection.PeerOwnerId`, `AWS::EC2::Volume.SnapshotId`, `AWS::ECS::Daemon.CapacityProviderArns`, `AWS::ElastiCache::CacheCluster.SnapshotArns`, `AWS::ElastiCache::ReplicationGroup.SnapshotArns`, `AWS::ElasticBeanstalk::ConfigurationTemplate.EnvironmentId`, `AWS::ElasticBeanstalk::ConfigurationTemplate.PlatformArn`, `AWS::ElasticBeanstalk::Environment.PlatformArn`, `AWS::GameLift::MatchmakingConfiguration.RuleSetArn`, `AWS::Glue::IntegrationResourceProperty.ResourceArn`, `AWS::Kinesis::ResourcePolicy.ResourceArn`, `AWS::Lambda::ResourcePolicy.ResourceArn`, `AWS::Lex::ResourcePolicy.ResourceArn`, `AWS::Logs::DeliveryDestination.DestinationResourceArn`, `AWS::Logs::DeliverySource.ResourceArn`, `AWS::MemoryDB::Cluster.SnapshotArns`, `AWS::NetworkManager::ConnectPeer.SubnetArn`, `AWS::NetworkManager::CustomerGatewayAssociation.CustomerGatewayArn`, `AWS::NetworkManager::SiteToSiteVpnAttachment.VpnConnectionArn`, `AWS::NetworkManager::TransitGatewayRouteTableAttachment.TransitGatewayRouteTableArn`, `AWS::NetworkManager::VpcAttachment.SubnetArns`, `AWS::NetworkManager::VpcAttachment.VpcArn`, `AWS::Omics::RunCache.CacheBucketOwnerId`, `AWS::Omics::Workflow.WorkflowBucketOwnerId`, `AWS::Omics::WorkflowVersion.WorkflowBucketOwnerId`, `AWS::PaymentCryptography::Alias.KeyArn`, `AWS::Personalize::Solution.RecipeArn`, `AWS::PricingPlanManager::Subscription.ResourceArns`, `AWS::QuickSight::KnowledgeBase.PrimaryOwnerArn`, `AWS::RAM::ResourceShare.ResourceArns`, `AWS::RDS::DBInstance.DomainAuthSecretArn`, `AWS::RedshiftServerless::Workgroup.SnapshotArn`, `AWS::Route53GlobalResolver::HostedZoneAssociation.ResourceArn`, `AWS::Route53Profiles::ProfileResourceAssociation.ResourceArn`, `AWS::SES::MailManagerIngressPoint.RuleSetId`, `AWS::SMSVOICE::ResourcePolicy.ResourceArn`, `AWS::SSM::ResourcePolicy.ResourceArn`, `AWS::SSMContacts::ContactChannel.ContactId`, `AWS::SSMContacts::Plan.ContactId`, `AWS::SSMContacts::Plan.RotationIds`, `AWS::SSMContacts::Rotation.ContactIds`, `AWS::ServerlessRepo::Application.SpdxLicenseId`, `AWS::Shield::Protection.HealthCheckArns`, `AWS::Shield::Protection.ResourceArn`, `AWS::SupportApp::SlackWorkspaceConfiguration.VersionId`, `AWS::Synthetics::Group.ResourceArns`, `AWS::VpcLattice::ResourcePolicy.ResourceArn`, `AWS::WAFv2::LoggingConfiguration.ResourceArn`, `AWS::WAFv2::WebACLAssociation.ResourceArn`, `AWS::WorkspacesInstances::Volume.SnapshotId`
+
+## Unresolved: no such type (143)
+
+No provisionable type's last segment matches, even as a suffix. These are mostly correct negatives, such as AMIs, availability zones and kernels, which CloudFormation does not manage.
+
+`AWS::AmplifyUIBuilder::Component.SourceId`, `AWS::ApiGateway::ApiKey.CustomerId`, `AWS::ApiGateway::ApiKey.GenerateDistinctId`, `AWS::ApiGateway::Resource.ParentId`, `AWS::ApiGateway::VpcLink.TargetArns`, `AWS::ApiGatewayV2::Api.CredentialsArn`, `AWS::ApiGatewayV2::Authorizer.AuthorizerCredentialsArn`, `AWS::ApiGatewayV2::Integration.CredentialsArn`, `AWS::AppFlow::ConnectorProfile.KMSArn`, `AWS::AppFlow::Flow.KMSArn`, `AWS::ApplicationAutoScaling::ScalingPolicy.ScalingTargetId`, `AWS::AutoScaling::AutoScalingGroup.AvailabilityZoneIds`, `AWS::AutoScaling::LaunchConfiguration.KernelId`, `AWS::BcmPricingCalculator::BillScenario.CostCategoryGroupSharingPreferenceArn`, `AWS::Cases::Case.CustomerId`, `AWS::Chatbot::MicrosoftTeamsChannelConfiguration.TeamId`, `AWS::CloudWatch::MetricStream.FirehoseArn`, `AWS::Cognito::ManagedLoginBranding.ClientId`, `AWS::Cognito::Terms.ClientId`, `AWS::Cognito::UserPoolRiskConfigurationAttachment.ClientId`, `AWS::Cognito::UserPoolUICustomizationAttachment.ClientId`, `AWS::Config::RemediationConfiguration.TargetId`, `AWS::Connect::Instance.DirectoryId`, `AWS::Connect::PhoneNumber.TargetArn`, `AWS::DMS::EventSubscription.SourceIds`, `AWS::DataBrew::Ruleset.TargetArn`, `AWS::DataSync::LocationFSxONTAP.StorageVirtualMachineArn`, `AWS::DataZone::GroupProfile.RolePrincipalArn`, `AWS::Deadline::MeteredProduct.ProductId`, `AWS::DocDB::EventSubscription.SourceIds`, `AWS::DynamoDB::GlobalTable.GlobalTableSourceArn`, `AWS::EC2::CapacityReservation.AvailabilityZoneId`, `AWS::EC2::CapacityReservation.OutPostArn`, `AWS::EC2::Host.OutpostArn`, `AWS::EC2::Instance.KernelId`, `AWS::EC2::NetworkInsightsAnalysis.FilterInArns`, `AWS::EC2::NetworkInsightsAnalysis.FilterOutArns`, `AWS::EC2::Subnet.AvailabilityZoneId`, `AWS::EC2::Subnet.OutpostArn`, `AWS::EC2::TransitGatewayMeteringPolicy.MiddleboxAttachmentIds`, `AWS::EC2::Volume.AvailabilityZoneId`, `AWS::EC2::Volume.OutpostArn`, `AWS::ECR::PullThroughCacheRule.CredentialArn`, `AWS::ECR::PullTimeUpdateExclusion.PrincipalArn`, `AWS::ECS::TaskSet.ExternalId`, `AWS::EKS::AccessEntry.PrincipalArn`, `AWS::EntityResolution::PolicyStatement.StatementId`, `AWS::EventSchemas::Discoverer.SourceArn`, `AWS::EventSchemas::RegistryPolicy.RevisionId`, `AWS::Events::Archive.SourceArn`, `AWS::Events::EventBusPolicy.StatementId`, `AWS::Glue::Integration.SourceArn`, `AWS::Glue::Integration.TargetArn`, `AWS::GreengrassV2::Deployment.ParentTargetArn`, `AWS::GreengrassV2::Deployment.TargetArn`, `AWS::GuardDuty::Master.InvitationId`, `AWS::IdentityStore::Group.IdentityStoreId`, `AWS::IdentityStore::GroupMembership.IdentityStoreId`, `AWS::IdentityStore::User.IdentityStoreId`, `AWS::IoT::SecurityProfile.TargetArns`, `AWS::IoTFleetWise::Campaign.TargetArn`, `AWS::IoTSiteWise::Asset.AssetExternalId`, `AWS::IoTSiteWise::AssetModel.AssetModelExternalId`, `AWS::Lambda::EventSourceMapping.EventSourceArn`, `AWS::Lambda::Permission.SourceArn`, `AWS::Lightsail::Bucket.BundleId`, `AWS::Lightsail::Database.RelationalDatabaseBundleId`, `AWS::Lightsail::Distribution.BundleId`, `AWS::Lightsail::Instance.BundleId`, `AWS::Location::TrackerConsumer.ConsumerArn`, `AWS::Logs::Destination.TargetArn`, `AWS::MediaConnect::Bridge.PlacementArn`, `AWS::MediaConnect::FlowOutput.RemoteId`, `AWS::MediaLive::SignalMap.DiscoveryEntryPointArn`, `AWS::MediaPackage::Asset.SourceArn`, `AWS::Neptune::EventSubscription.SourceIds`, `AWS::NetworkFlowMonitor::Monitor.ScopeArn`, `AWS::NetworkManager::ConnectAttachment.TransportAttachmentId`, `AWS::NetworkManager::TransitGatewayRouteTableAttachment.PeeringId`, `AWS::ODB::CloudExadataInfrastructure.AvailabilityZoneId`, `AWS::ODB::OdbNetwork.AvailabilityZoneId`, `AWS::Organizations::Account.ParentIds`, `AWS::Organizations::OrganizationalUnit.ParentId`, `AWS::Organizations::Policy.TargetIds`, `AWS::PCAConnectorAD::Connector.DirectoryId`, `AWS::PCAConnectorAD::DirectoryRegistration.DirectoryId`, `AWS::PCS::ComputeNodeGroup.AmiId`, `AWS::QBusiness::Permission.StatementId`, `AWS::QuickSight::Agent.IconId`, `AWS::QuickSight::OAuthClientApplication.ClientId`, `AWS::RDS::DBInstance.SourceDBInstanceAutomatedBackupsArn`, `AWS::RDS::DBInstance.TdeCredentialArn`, `AWS::RDS::EventSubscription.SourceIds`, `AWS::RDS::Integration.SourceArn`, `AWS::RDS::Integration.TargetArn`, `AWS::Redshift::EventSubscription.SourceIds`, `AWS::Redshift::Integration.SourceArn`, `AWS::Redshift::Integration.TargetArn`, `AWS::RedshiftServerless::Workgroup.RecoveryPointId`, `AWS::RoboMaker::RobotApplication.CurrentRevisionId`, `AWS::RoboMaker::RobotApplicationVersion.CurrentRevisionId`, `AWS::RoboMaker::SimulationApplication.CurrentRevisionId`, `AWS::RoboMaker::SimulationApplicationVersion.CurrentRevisionId`, `AWS::Route53Resolver::OutpostResolver.OutpostArn`, `AWS::Route53Resolver::ResolverEndpoint.OutpostArn`, `AWS::S3::AccessGrantsInstance.IdentityCenterArn`, `AWS::S3Outposts::Bucket.OutpostId`, `AWS::S3Outposts::Endpoint.OutpostId`, `AWS::SMSVOICE::ConfigurationSet.DefaultSenderId`, `AWS::SMSVOICE::SenderId.SenderId`, `AWS::SSM::MaintenanceWindowTarget.WindowId`, `AWS::SSM::MaintenanceWindowTask.WindowId`, `AWS::SSM::ServiceSetting.SettingId`, `AWS::SSMContacts::Rotation.TimeZoneId`, `AWS::SSO::Application.ApplicationProviderArn`, `AWS::SSO::ApplicationAssignment.PrincipalId`, `AWS::SSO::Assignment.PrincipalId`, `AWS::SSO::Assignment.TargetId`, `AWS::SecretsManager::SecretTargetAttachment.TargetId`, `AWS::SecurityHub::PolicyAssociation.TargetId`, `AWS::SecurityHub::ProductSubscription.ProductArn`, `AWS::SecurityHub::Standard.StandardsArn`, `AWS::ServiceCatalog::CloudFormationProvisionedProduct.PathId`, `AWS::ServiceCatalog::CloudFormationProvisionedProduct.ProductId`, `AWS::ServiceCatalog::LaunchNotificationConstraint.ProductId`, `AWS::ServiceCatalog::LaunchRoleConstraint.ProductId`, `AWS::ServiceCatalog::LaunchTemplateConstraint.ProductId`, `AWS::ServiceCatalog::PortfolioProductAssociation.ProductId`, `AWS::ServiceCatalog::ResourceUpdateConstraint.ProductId`, `AWS::ServiceCatalog::ServiceActionAssociation.ProductId`, `AWS::ServiceCatalog::StackSetConstraint.ProductId`, `AWS::Signer::ProfilePermission.StatementId`, `AWS::StepFunctions::StateMachineVersion.StateMachineRevisionId`, `AWS::SupportApp::SlackChannelConfiguration.TeamId`, `AWS::SupportApp::SlackWorkspaceConfiguration.TeamId`, `AWS::SupportAuthZ::SupportPermit.SupportCaseDisplayId`, `AWS::Transfer::Profile.As2Id`, `AWS::WorkSpaces::Workspace.BundleId`, `AWS::WorkSpaces::Workspace.DirectoryId`, `AWS::WorkSpaces::WorkspacesPool.BundleId`, `AWS::WorkSpaces::WorkspacesPool.DirectoryId`, `AWS::WorkSpacesThinClient::Environment.DesiredSoftwareSetId`, `AWS::WorkSpacesThinClient::Environment.DesktopArn`

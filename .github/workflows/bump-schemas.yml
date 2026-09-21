@@ -1,0 +1,62 @@
+name: Bump AWS schemas
+
+# AWS publishes CloudFormation resource schemas continually. This regenerates the catalog from the newest bundle and
+# proposes the diff. The name lock only grows (J3), so a regeneration never renames a type; a new warning in
+# gen/warnings.txt is a reason to read the PR, not to merge it blind.
+
+on:
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  GOTOOLCHAIN: local
+  GOWORK: "off"
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: infrena-provider-aws
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+          cache-dependency-path: infrena-provider-aws/go.sum
+      - name: Fetch the bundle and regenerate
+        id: gen
+        working-directory: infrena-provider-aws
+        run: |
+          set -euo pipefail
+          scripts/fetch-schemas
+          go run ./cmd/gen-cloudcontrol
+          if git diff --quiet -- internal/catalog/catalog.json.gz gen/names.lock.json gen/warnings.txt; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Test the new catalog
+        if: steps.gen.outputs.changed == 'true'
+        working-directory: infrena-provider-aws
+        run: go vet ./... && go test -count=1 ./...
+      - name: Open the PR
+        if: steps.gen.outputs.changed == 'true'
+        working-directory: infrena-provider-aws
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="bump-schemas-$(date +%Y-%m-%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add internal/catalog/catalog.json.gz gen/names.lock.json gen/warnings.txt
+          git commit -m "Regenerate the catalog from this week's AWS schemas" -- internal/catalog/catalog.json.gz gen/names.lock.json gen/warnings.txt
+          git push origin "$branch"
+          gh pr create --title "AWS schemas $(date +%Y-%m-%d)" \
+            --body "Regenerated from the newest us-east-1 schema bundle. The unit suite passed. Read the gen/warnings.txt diff for new secret-looking properties before merging."

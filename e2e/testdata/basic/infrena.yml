@@ -1,0 +1,45 @@
+project: demo
+
+infrena: ">= 0.5"
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    discover_regions: [us-east-1]
+    discover_types: [aws.vpc, aws.subnet, aws.securitygroup]
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  vpc:
+    type: aws.vpc
+    cidr: 10.0.0.0/16
+    tags:
+      team: platform
+
+  private_a:
+    type: aws.subnet
+    vpc: ${vpc}
+    cidr: 10.0.1.0/24
+    az: us-east-1a
+
+  web:
+    type: aws.securitygroup
+    description: web servers
+    vpc_id: ${vpc}
+    ingress:
+      - ip_protocol: tcp
+        from_port: 443
+        to_port: 443
+        cidr_ip: 0.0.0.0/0
+      - ip_protocol: tcp
+        from_port: 80
+        to_port: 80
+        cidr_ip: 0.0.0.0/0

@@ -1,0 +1,63 @@
+infrena: ">= 0.7"
+
+project: route53-example
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+  domain_name:
+    type: string
+    default: example.com
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  zone:
+    type: aws.hostedzone
+    name: ${var.domain_name}
+    hosted_zone_tags:
+      Environment: dev
+      ManagedBy: infrena
+
+  www:
+    type: aws.recordset
+    name: www.${var.domain_name}
+    type_value: A
+    hosted_zone_id: ${zone}
+    resource_records:
+      - 192.0.2.1
+    ttl: "300"
+
+  api:
+    type: aws.recordset
+    name: api.${var.domain_name}
+    type_value: A
+    hosted_zone_id: ${zone}
+    resource_records:
+      - 192.0.2.2
+    ttl: "300"
+
+  mail:
+    type: aws.recordset
+    name: ${var.domain_name}
+    type_value: MX
+    hosted_zone_id: ${zone}
+    resource_records:
+      - "10 mail.${var.domain_name}"
+    ttl: "300"
+
+  txt_spf:
+    type: aws.recordset
+    name: ${var.domain_name}
+    type_value: TXT
+    hosted_zone_id: ${zone}
+    resource_records:
+      - "\"v=spf1 ip4:192.0.2.1 -all\""
+    ttl: "300"

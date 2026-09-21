@@ -1,0 +1,55 @@
+infrena: ">= 0.7"
+
+project: logs-example
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  app_logs:
+    type: aws.loggroup
+    log_group_name: /app/backend
+    retention_in_days: 30
+    tags:
+      Application: backend
+      Environment: dev
+
+  error_metric:
+    type: aws.metricfilter
+    log_group_name: ${app_logs.log_group_name}
+    filter_name: ErrorCount
+    filter_pattern: "[ERROR]"
+    metric_transformations:
+      - metric_name: ErrorCount
+        metric_namespace: ApplicationMetrics
+        metric_value: "1"
+
+  http_4xx_metric:
+    type: aws.metricfilter
+    log_group_name: ${app_logs.log_group_name}
+    filter_name: HTTP4xx
+    filter_pattern: "{ ($.statusCode >= 400) && ($.statusCode < 500) }"
+    metric_transformations:
+      - metric_name: HTTP4xxCount
+        metric_namespace: ApplicationMetrics
+        metric_value: "1"
+
+  http_5xx_metric:
+    type: aws.metricfilter
+    log_group_name: ${app_logs.log_group_name}
+    filter_name: HTTP5xx
+    filter_pattern: "{ ($.statusCode >= 500) && ($.statusCode < 600) }"
+    metric_transformations:
+      - metric_name: HTTP5xxCount
+        metric_namespace: ApplicationMetrics
+        metric_value: "1"

@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# measure-load: how much longer `infrena validate` takes with this plugin's full catalog than with the fake plugin.
+# Plan decision P7: acceptable up to 500 ms extra (median of 11 runs). Exits non-zero above that. infrena is the
+# release go.mod requires, downloaded with gh.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/plugins" "$work/aws" "$work/fake"
+
+# The infrena release go.mod requires, so the measurement uses the host this plugin is built and tested against.
+version="$(awk '$1 == "github.com/infrena/infrena" { sub(/^v/, "", $2); print $2 }' go.mod)"
+if [[ -z "$version" ]]; then
+  echo "measure-load: go.mod does not require github.com/infrena/infrena" >&2
+  exit 1
+fi
+gh release download "v$version" --repo Infrena/infrena --pattern "infrena_${version}_linux_amd64.tar.gz" --dir "$work"
+tar -xzf "$work/infrena_${version}_linux_amd64.tar.gz" -C "$work"
+infrena="$(find "$work" -type f -name infrena -perm -u+x | head -1)"
+go build -o "$work/plugins/infrena-plugin-aws" ./cmd/infrena-plugin-aws
+# The fake plugin, from FAKE_PLUGIN_SRC or whichever sibling checkout exists.
+fake_src="${FAKE_PLUGIN_SRC:-}"
+if [[ -z "$fake_src" ]]; then
+  for candidate in ../infrena-provider-fake ../infrena-plugin-fake; do
+    if [[ -d "$candidate/cmd/infrena-plugin-fake" ]]; then
+      fake_src="$candidate"
+      break
+    fi
+  done
+fi
+if [[ -z "$fake_src" ]]; then
+  echo "measure-load: no infrena-provider-fake checkout next to this one; set FAKE_PLUGIN_SRC" >&2
+  exit 1
+fi
+GOWORK=off go -C "$fake_src" build -o "$work/plugins/infrena-plugin-fake" ./cmd/infrena-plugin-fake
+
+cat > "$work/aws/infrena.yml" <<'EOF'
+project: measure
+environments:
+  dev: {}
+providers:
+  - plugin: aws
+    defaults:
+      region: us-east-1
+resources:
+  vpc:
+    type: aws.vpc
+    cidr: 10.0.0.0/16
+EOF
+cat > "$work/fake/infrena.yml" <<'EOF'
+project: measure
+environments:
+  dev: {}
+resources:
+  net:
+    type: fake.network
+    cidr: 10.0.0.0/16
+EOF
+
+export HOME="$work" AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \
+  AWS_ACCESS_KEY_ID=measure AWS_SECRET_ACCESS_KEY=measure AWS_EC2_METADATA_DISABLED=true INFRENA_PLUGIN_PATH=
+median() { sort -n | awk '{v[NR]=$1} END {print v[int((NR+1)/2)]}'; }
+timed() {
+  local dir="$1"
+  for _ in $(seq 11); do
+    start=$(date +%s%N)
+    (cd "$dir" && "$infrena" validate dev --plugin-dir "$work/plugins" >/dev/null)
+    end=$(date +%s%N)
+    echo $(( (end - start) / 1000000 ))
+  done | median
+}
+fake_ms="$(timed "$work/fake")"
+aws_ms="$(timed "$work/aws")"
+extra=$(( aws_ms - fake_ms ))
+echo "infrena validate, median of 11: fake plugin ${fake_ms} ms, aws plugin ${aws_ms} ms, extra ${extra} ms (gate 500 ms)"
+[ "$extra" -le 500 ]

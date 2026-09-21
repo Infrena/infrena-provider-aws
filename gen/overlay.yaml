@@ -1,0 +1,243 @@
+# The hand-maintained part of generation. Every name here is validated against the schema bundle; a
+# misspelt type or property fails generation.
+
+# Types that are not regional. They get no region attribute, their provider IDs start with "global/", and Cloud
+# Control is called in us-east-1 for them.
+global:
+  - "AWS::IAM::*"
+  - "AWS::Organizations::*"
+  - "AWS::CloudFront::*"
+  - "AWS::Route53::*"
+
+# What `discover`, and `import` (which discovers first), look at when an instance sets no discover_types (P4).
+discover_default:
+  - AWS::EC2::VPC
+  - AWS::EC2::Subnet
+  - AWS::EC2::SecurityGroup
+  - AWS::EC2::InternetGateway
+  - AWS::EC2::RouteTable
+  - AWS::EC2::Route
+  - AWS::EC2::Instance
+  - AWS::S3::Bucket
+  - AWS::IAM::Role
+  - AWS::IAM::ManagedPolicy
+  - AWS::RDS::DBInstance
+  - AWS::RDS::DBSubnetGroup
+  - AWS::Lambda::Function
+  - AWS::ECS::Cluster
+  - AWS::ECS::Service
+
+# Friendly names, shown in plans (J5, J10). Listed first, so infrena's Display picks them.
+aliases:
+  AWS::EC2::VPC:
+    CidrBlock: [cidr]
+  AWS::EC2::Subnet:
+    CidrBlock: [cidr]
+    AvailabilityZone: [az]
+    VpcId: [vpc]
+  AWS::EC2::SecurityGroup:
+    GroupName: [name]
+    GroupDescription: [description]
+    SecurityGroupIngress: [ingress]
+    SecurityGroupEgress: [egress]
+    VpcId: [vpc]
+  AWS::EC2::Route:
+    DestinationCidrBlock: [destination_cidr]
+  AWS::EC2::Instance:
+    ImageId: [ami]
+  AWS::S3::Bucket:
+    BucketName: [name]
+  AWS::IAM::Role:
+    RoleName: [name]
+    AssumeRolePolicyDocument: [assume_role_policy]
+  AWS::IAM::ManagedPolicy:
+    ManagedPolicyName: [name]
+    PolicyDocument: [policy]
+  AWS::RDS::DBInstance:
+    DBInstanceIdentifier: [identifier]
+    DBInstanceClass: [instance_class]
+    MasterUsername: [username]
+    MasterUserPassword: [password]
+  AWS::RDS::DBSubnetGroup:
+    DBSubnetGroupName: [name]
+    DBSubnetGroupDescription: [description]
+  AWS::Lambda::Function:
+    FunctionName: [name]
+  AWS::ECS::Cluster:
+    ClusterName: [name]
+
+# Secrets. Seeded from the write-only properties whose names look secret, excluding client tokens, ARNs and
+# on/off flags. The generator warns about new candidates in gen/warnings.txt.
+sensitive:
+  AWS::Amplify::App: [AccessToken, OauthToken]
+  AWS::BackupGateway::Hypervisor: [Password]
+  AWS::CodeBuild::SourceCredential: [Token]
+  AWS::Connect::User: [Password]
+  AWS::DMS::Endpoint: [Password]
+  AWS::DataSync::LocationFSxWindows: [Password]
+  AWS::DataSync::LocationObjectStorage: [SecretKey]
+  AWS::DataSync::LocationSMB: [Password]
+  AWS::DirectoryService::SimpleAD: [Password]
+  AWS::DocDBElastic::Cluster: [AdminUserPassword]
+  AWS::ElastiCache::ReplicationGroup: [AuthToken]
+  AWS::ElastiCache::User: [Passwords]
+  AWS::IAM::SAMLProvider: [AddPrivateKey]
+  AWS::IAM::ServerCertificate: [PrivateKey]
+  AWS::Invoicing::ProcurementPortalPreference: [ProcurementPortalSharedSecret]
+  AWS::Lightsail::Database: [MasterUserPassword]
+  AWS::QuickSight::DataSource: [Credentials]
+  AWS::QuickSight::OAuthClientApplication: [ClientSecret]
+  AWS::RDS::DBCluster: [MasterUserPassword]
+  AWS::RDS::DBInstance: [MasterUserPassword, TdeCredentialPassword]
+  AWS::Redshift::Cluster: [MasterUserPassword]
+  AWS::RedshiftServerless::Namespace: [AdminUserPassword]
+  AWS::SecretsManager::Secret: [SecretString]
+  AWS::SystemsManagerSAP::Application: [Credentials]
+  AWS::Timestream::InfluxDBCluster: [Password]
+  AWS::Timestream::InfluxDBInstance: [Password]
+  AWS::Transfer::Certificate: [PrivateKey]
+
+requirements:
+  AWS::EC2::Subnet:
+    - name: vpc
+      types: [AWS::EC2::VPC]
+      description: A subnet must be created inside a VPC
+  AWS::EC2::RouteTable:
+    - name: vpc
+      types: [AWS::EC2::VPC]
+      description: A route table belongs to a VPC
+  AWS::EC2::Route:
+    - name: route_table
+      types: [AWS::EC2::RouteTable]
+      description: A route belongs to a route table
+  AWS::RDS::DBSubnetGroup:
+    - name: subnets
+      types: [AWS::EC2::Subnet]
+      description: A DB subnet group needs subnets
+
+# Reference edges: which attribute holds another resource's identifier. The generator
+# derives them from property names and records every one in gen/references.lock.json. Tier 1 (an exact type-name
+# match within one service, or to a type under cross_service_targets) is accepted without review; tier 2 (a suffix
+# match, like MonitoringRoleArn -> AWS::IAM::Role, or any other cross-service exact match) reaches the catalog only
+# once its target type is listed under approve_targets. See docs/references-review.md.
+references:
+  # Targets an exact match from another service may reach as tier 1. Generic names like ResourceId match some other
+  # service's type exactly and wrongly, so every other cross-service exact match is tier 2. Changing this list moves
+  # locked edges between tiers: regenerate with -accept-reclassified-references.
+  cross_service_targets:
+    - AWS::IAM::Role
+    - AWS::EC2::Subnet
+    - AWS::EC2::SecurityGroup
+    - AWS::EC2::VPC
+    - AWS::EC2::PrefixList
+    - AWS::EC2::TransitGateway
+    - AWS::KMS::Key
+    - AWS::Logs::LogGroup
+    - AWS::S3::Bucket
+    - AWS::Lambda::Function
+  # Target types whose tier-2 edges are approved, all at once. See docs/references-review.md.
+  approve_targets:
+    - AWS::IAM::Role
+    - AWS::EC2::SecurityGroup
+    - AWS::EC2::IPAMPool
+    - AWS::EC2::Subnet
+    - AWS::DMS::Endpoint
+    - AWS::EC2::TransitGatewayAttachment
+    - AWS::EC2::VPC
+    - AWS::EC2::PrefixList
+    - AWS::Logs::LogGroup
+    - AWS::Transfer::Profile
+    - AWS::KMS::Key
+    - AWS::Lambda::Function
+    - AWS::MSK::Cluster
+    - AWS::EC2::TransitGateway
+    - AWS::EC2::Volume
+    # Reviewed 2026-09-17. Eight of these are self-references, where a resource points at its own type and the
+    # target is therefore not in question: AmazonMQ Broker, Connect PhoneNumber, IoTTwinMaker Entity, QuickSight
+    # Folder and Theme, DevOpsAgent Association.
+    - AWS::GroundStation::Config
+    - AWS::AmazonMQ::Broker
+    - AWS::BedrockAgentCore::Runtime
+    - AWS::Connect::ContactFlow
+    - AWS::Connect::PhoneNumber
+    - AWS::Connect::Queue
+    - AWS::Deadline::StorageProfile
+    - AWS::DevOpsAgent::Association
+    - AWS::EC2::RouteTable
+    - AWS::IoT::Certificate
+    - AWS::IoTTwinMaker::Entity
+    - AWS::MPA::ApprovalTeam
+    - AWS::QuickSight::Folder
+    - AWS::QuickSight::Theme
+    - AWS::ServiceCatalog::Portfolio
+    # Reviewed 2026-09-17 against both sides' schemas rather than their names. The clearest: EC2::Route.OdbNetworkArn
+    # and ODB::OdbNetwork.OdbNetworkArn carry identical descriptions, and CUR::ReportDefinition.BillingViewArn's own
+    # pattern spells out the target's `billingview/` ARN segment. Two rest on structure alone, their schemas
+    # carrying no description text at all, and are included deliberately: IAM::ManagedPolicy (from
+    # RolesAnywhere::Profile.ManagedPolicyArns, which often names an AWS-owned policy no configuration created, so
+    # the edge frequently resolves to nothing — a coverage limit, not a wrong type) and Route53::HostedZone (from
+    # Route53GlobalResolver::HostedZoneAssociation, whose every property is description-less).
+    # Three name an attribute that is not the target's primary identifier, each a real unique readOnly attribute
+    # rather than a mis-picked one: IoT::Thing.Arn (identifier is ThingName), NetworkManager::CoreNetwork
+    # .CoreNetworkArn (identifier is CoreNetworkId) and EKS::CertificateAuthority.Id (identifier is the composite
+    # [ClusterName, Id], so Id alone is half of it, scoped by the cluster the edge already sits on).
+    - AWS::IoT::Thing
+    - AWS::ApiGateway::ClientCertificate
+    - AWS::Billing::BillingView
+    - AWS::DirectConnect::DirectConnectGateway
+    - AWS::IAM::ManagedPolicy
+    - AWS::NetworkManager::CoreNetwork
+    - AWS::ODB::OdbNetwork
+    - AWS::Organizations::Organization
+    - AWS::RAM::ResourceShare
+    - AWS::Route53::HostedZone
+    - AWS::VpcLattice::ResourceConfiguration
+    - AWS::VpcLattice::ServiceNetwork
+    - AWS::EKS::CertificateAuthority
+  # Target types every edge to which from another service is refused, whatever its tier. The heuristic's cross-service
+  # matches to these were fabricated; edges from the target's own service are judged normally.
+  reject_targets:
+    - AWS::Connect::Notification
+    - AWS::Lambda::Version
+    - AWS::ResilienceHubV2::System
+    - AWS::ApiGateway::Resource
+  # Specific Type.Property edges refused, whatever their tier.
+  reject:
+    # Transit gateway route table ids, not VPC route tables.
+    - AWS::EC2::TransitGateway.AssociationDefaultRouteTableId
+    - AWS::EC2::TransitGateway.PropagationDefaultRouteTableId
+    - AWS::EC2::TransitGatewayPolicyTableEntry.TargetRouteTableId
+    # A Route 53 Resolver query log config, not a Ground Station config.
+    - AWS::Route53Resolver::ResolverQueryLoggingConfigAssociation.ResolverQueryLogConfigId
+    # Reviewed 2026-09-17. Each of these matched on name and not on meaning: the heuristic's false positives.
+    # An account id, and a user or group id, not a GuardDuty member.
+    - AWS::Detective::MemberInvitation.MemberId
+    - AWS::IdentityStore::GroupMembership.MemberId
+    # A code-signing platform, not an Amplify form.
+    - AWS::Signer::SigningProfile.PlatformId
+    # A Bedrock AgentCore gateway rate limit, not a Deadline limit.
+    - AWS::BedrockAgentCore::GatewayRateLimit.RateLimitId
+    # An Outpost link aggregation group, not a Direct Connect LAG.
+    - AWS::EC2::LocalGatewayVirtualInterface.OutpostLagId
+    # DataSync locations, not a GameLift location or a MediaTailor source location.
+    - AWS::DataSync::Task.DestinationLocationArn
+    - AWS::DataSync::Task.SourceLocationArn
+    # EC2 host resource groups belong to License Manager, not Inspector.
+    - AWS::EC2::Instance.HostResourceGroupArn
+    # Inspector rules packages, not a Panorama package.
+    - AWS::Inspector::AssessmentTemplate.RulesPackageArns
+    # An IAM identity provider, not a WorkSpaces Web one.
+    - AWS::QBusiness::Application.IamIdentityProviderArn
+    # A managed notification configuration is AWS-owned, not the customer-created type.
+    - AWS::Notifications::ManagedNotificationAccountContactAssociation.ManagedNotificationConfigurationArn
+    - AWS::Notifications::ManagedNotificationAdditionalChannelAssociation.ManagedNotificationConfigurationArn
+    # Reviewed 2026-09-17 against the schemas. Each of these is refused on the schema's own text, not on a hunch.
+    # Named for server certificates, but its pattern accepts ACM certificate ARNs only
+    # (^arn:aws...:acm:...:certificate/...$), never IAM's ^arn:aws:iam::<account>:server-certificate/<name>. The
+    # right target would be AWS::CertificateManager::Certificate.
+    - AWS::IoT::DomainConfiguration.ServerCertificateArns
+    # A Lake Formation catalog id is an AWS account id, not an AWS::Glue::Catalog resource: both resolve to
+    # CatalogIdString, which is exactly 12 characters, and Tag.CatalogId's own description says "The identifier for
+    # the Data Catalog. By default, the account ID."
+    - AWS::LakeFormation::DataCellsFilter.TableCatalogId
+    - AWS::LakeFormation::Tag.CatalogId

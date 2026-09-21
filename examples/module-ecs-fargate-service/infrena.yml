@@ -1,0 +1,52 @@
+infrena: ">= 0.7"
+
+project: module-ecs-fargate-service
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+modules:
+  - ../../modules/vpc
+  - ../../modules/ecs-fargate-service
+
+resources:
+  network:
+    type: module.vpc
+    name: ecs-vpc
+    cidr: 10.0.0.0/16
+    azs:
+      - us-east-1a
+      - us-east-1b
+
+  ecs_sg:
+    type: aws.securitygroup
+    description: ECS tasks security group
+    vpc_id: ${network.vpc_id}
+    ingress:
+      - ip_protocol: tcp
+        from_port: 80
+        to_port: 80
+        cidr_ip: 10.0.0.0/16
+
+  service:
+    type: module.ecs_fargate_service
+    name: web-app
+    image: nginx:latest
+    cpu: "256"
+    memory: "512"
+    subnet_ids:
+      - ${network.private_subnet_1_id}
+      - ${network.private_subnet_2_id}
+    security_group_ids:
+      - ${ecs_sg.GroupId}
+    region: ${var.aws_region}

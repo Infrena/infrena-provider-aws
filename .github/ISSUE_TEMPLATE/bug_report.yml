@@ -1,0 +1,51 @@
+name: Bug report
+description: A resource type behaves differently from how it is documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If this is a security problem, do not open an issue.
+        Use [private vulnerability reporting](../../security/advisories/new) instead.
+
+        If a type is missing entirely, check
+        [docs/README.md](../../blob/main/docs/README.md) first: six CloudFormation
+        types have no read handler and are deliberately excluded.
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: The plugin version and the engine version.
+      placeholder: aws 0.7.0, infrena 0.14.0
+    validations:
+      required: true
+
+  - type: input
+    id: type
+    attributes:
+      label: Resource type
+      placeholder: aws.ec2.instance
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you ran, and what it did. Redact account ids and ARNs you would rather not publish.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: The resource as you declared it
+      render: yaml

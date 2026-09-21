@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/infrena/infrena-provider-aws/security/advisories/new
+    about: Report privately. Do not open a public issue for a security problem.
+  - name: A problem in the engine rather than this provider
+    url: https://github.com/infrena/infrena/issues
+    about: Planning, state, configuration and the CLI live in the engine repository.

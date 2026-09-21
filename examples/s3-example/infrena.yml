@@ -1,0 +1,59 @@
+infrena: ">= 0.7"
+
+project: s3-example
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  app_bucket:
+    type: aws.s3.bucket
+    name: app-data-bucket-prod-example
+    versioning_configuration:
+      Status: Enabled
+    bucket_encryption:
+      Rules:
+        - ApplyServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+    public_access_block_configuration:
+      BlockPublicAcls: true
+      BlockPublicPolicy: true
+      IgnorePublicAcls: true
+      RestrictPublicBuckets: true
+    tags:
+      Environment: production
+      Application: data-pipeline
+
+  app_bucket_policy:
+    type: aws.s3.bucketpolicy
+    bucket: app-data-bucket-prod-example
+    policy_document: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:*",
+            "Resource": [
+              "arn:aws:s3:::app-data-bucket-prod-example",
+              "arn:aws:s3:::app-data-bucket-prod-example/*"
+            ],
+            "Condition": {
+              "Bool": {
+                "aws:SecureTransport": "false"
+              }
+            }
+          }
+        ]
+      }

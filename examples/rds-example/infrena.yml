@@ -1,0 +1,87 @@
+infrena: ">= 0.7"
+
+project: rds-example
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+  db_password:
+    type: string
+    default: "ChangeMe123!"
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  vpc:
+    type: aws.vpc
+    cidr: 10.0.0.0/16
+    tags:
+      Name: rds-demo
+
+  private_a:
+    type: aws.subnet
+    vpc: ${vpc}
+    cidr: 10.0.1.0/24
+    az: us-east-1a
+
+  private_b:
+    type: aws.subnet
+    vpc: ${vpc}
+    cidr: 10.0.2.0/24
+    az: us-east-1b
+
+  db_sg:
+    type: aws.securitygroup
+    description: Database access
+    vpc_id: ${vpc}
+    ingress:
+      - ip_protocol: tcp
+        from_port: 5432
+        to_port: 5432
+        cidr_ip: 10.0.0.0/16
+
+  db_subnets:
+    type: aws.rds.dbsubnetgroup
+    description: Subnets for RDS database
+    subnet_ids:
+      - ${private_a}
+      - ${private_b}
+    tags:
+      Environment: dev
+
+  db_params:
+    type: aws.rds.dbparametergroup
+    description: Parameters for PostgreSQL
+    family: postgres15
+    parameters:
+      log_statement: ddl
+      shared_preload_libraries: pg_stat_statements
+    tags:
+      Environment: dev
+
+  db:
+    type: aws.rds.dbinstance
+    engine: postgres
+    instance_class: db.t3.micro
+    identifier: demo-db
+    username: admin
+    password: ${var.db_password}
+    allocated_storage: "20"
+    storage_type: gp3
+    db_subnet_group_name: ${db_subnets.db_subnet_group_name}
+    db_parameter_group_name: ${db_params.db_parameter_group_name}
+    vpc_security_groups:
+      - ${db_sg.group_id}
+    backup_retention_period: 7
+    deletion_protection: false
+    storage_encrypted: true
+    publicly_accessible: false
+    tags:
+      Environment: dev

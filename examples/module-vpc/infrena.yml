@@ -1,0 +1,28 @@
+infrena: ">= 0.7"
+
+project: module-vpc
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+modules:
+  - ../../modules/vpc
+
+resources:
+  network:
+    type: module.vpc
+    name: demo-vpc
+    cidr: 10.0.0.0/16
+    azs:
+      - us-east-1a
+      - us-east-1b

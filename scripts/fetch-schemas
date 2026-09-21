@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# fetch-schemas: download AWS's CloudFormation resource schema bundle for us-east-1, which the generator reads.
+# The bundle is not committed (about 3 MB, changes weekly); its SHA-256 is recorded in the generated catalog.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+mkdir -p schemas
+curl -fsSL -o schemas/CloudformationSchema.zip https://schema.cloudformation.us-east-1.amazonaws.com/CloudformationSchema.zip
+sha256sum schemas/CloudformationSchema.zip

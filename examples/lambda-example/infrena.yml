@@ -1,0 +1,75 @@
+infrena: ">= 0.7"
+
+project: lambda-example
+
+environments:
+  dev: {}
+
+variables:
+  aws_region:
+    type: string
+    default: us-east-1
+
+providers:
+  - plugin: aws
+    defaults:
+      region: ${var.aws_region}
+
+resources:
+  lambda_execution_role:
+    type: aws.role
+    name: lambda-execution-role
+    assume_role_policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+    managed_policy_arns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  api_function:
+    type: aws.lambda.function
+    name: api-handler
+    role: ${lambda_execution_role.Arn}
+    handler: index.handler
+    runtime: python3.12
+    memory_size: 512
+    timeout: 30
+    code:
+      S3Bucket: lambda-code-bucket
+      S3Key: api-handler.zip
+    environment:
+      Variables:
+        ENVIRONMENT: dev
+        LOG_LEVEL: INFO
+    tags:
+      Application: myapp
+      Environment: dev
+
+  api_permission:
+    type: aws.lambda.permission
+    function_name: ${api_function.FunctionName}
+    principal: apigateway.amazonaws.com
+    action: lambda:InvokeFunction
+    source_arn: arn:aws:execute-api:us-east-1:123456789012:abcdefg1234/*/*/*
+
+  api_url:
+    type: aws.url
+    target_function_arn: ${api_function.Arn}
+    auth_type: NONE
+    cors:
+      AllowOrigins:
+        - "*"
+      AllowMethods:
+        - GET
+        - POST
+      AllowHeaders:
+        - Content-Type

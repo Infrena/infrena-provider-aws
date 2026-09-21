@@ -1,0 +1,96 @@
+inputs:
+  name:
+    type: string
+  image:
+    type: string
+    default: nginx:latest
+  cpu:
+    type: string
+    default: "256"
+  memory:
+    type: string
+    default: "512"
+  subnet_ids:
+    type: list
+  security_group_ids:
+    type: list
+  region:
+    type: string
+    default: us-east-1
+
+resources:
+  cluster:
+    type: aws.ecs.cluster
+    cluster_name: ${var.name}-cluster
+    tags:
+      Environment: dev
+
+  log_group:
+    type: aws.loggroup
+    log_group_name: /ecs/${var.name}
+    retention_in_days: 7
+
+  task_execution_role:
+    type: aws.role
+    role_name: ${var.name}-ecs-task-execution-role
+    assume_role_policy: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "ecs-tasks.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      }
+    managed_policy_arns:
+      - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  task_definition:
+    type: aws.ecs.taskdefinition
+    family: ${var.name}
+    cpu: ${var.cpu}
+    memory: ${var.memory}
+    network_mode: awsvpc
+    requires_compatibilities:
+      - FARGATE
+    execution_role_arn: ${task_execution_role.Arn}
+    container_definitions:
+      - name: app
+        image: ${var.image}
+        portMappings:
+          - containerPort: 80
+            hostPort: 80
+            protocol: tcp
+        logConfiguration:
+          logDriver: awslogs
+          options:
+            awslogs-group: ${log_group.LogGroupName}
+            awslogs-region: ${var.region}
+            awslogs-stream-prefix: ecs
+    tags:
+      Environment: dev
+
+  service:
+    type: aws.ecs.service
+    cluster: ${cluster.ClusterName}
+    service_name: ${var.name}-service
+    task_definition: ${task_definition.TaskDefinitionArn}
+    desired_count: 1
+    launch_type: FARGATE
+    network_configuration:
+      awsvpcConfiguration:
+        subnets: ${var.subnet_ids}
+        securityGroups: ${var.security_group_ids}
+        assignPublicIp: DISABLED
+    tags:
+      Environment: dev
+
+outputs:
+  cluster_name:
+    value: ${cluster.ClusterName}
+  service_name:
+    value: ${service.ServiceName}

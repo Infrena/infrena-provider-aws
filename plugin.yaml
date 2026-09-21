@@ -1,0 +1,31 @@
+# plugin.yaml: what this plugin is, and what it works with.
+# Read at a release TAG, never at the default branch, which describes unreleased code.
+manifest: 2
+name: aws
+version: 0.7.0
+# The protocol THIS RELEASE'S binary speaks: exactly the pluginproto.Version of the infrena go.mod requires. It changes
+# in the same commit as that require (internal/awsprov/manifest_test.go and scripts/release-check refuse a mismatch).
+protocol: [5]
+platforms: [linux/amd64, linux/arm64, linux/arm, linux/386, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64]
+description: The AWS provider for infrena, serving every resource type AWS Cloud Control API supports.
+# The oldest infrena release this plugin works with. 0.6.0 added References, which the catalog declares so
+# `VpcId: ${vpc}` works, and protocol 3. 0.6.2 fixed a compiler bug: a whole-resource reference into an attribute
+# written with an alias (`vpc: ${vpc}`, `vpc_id: ${vpc}`) wrongly failed with "declares no reference", only the
+# canonical AWS name working. 0.7.0 moved to protocol 4 and taught discovery to name resources from their Name
+# tag and import --generate to write whole-resource references between resources imported together. 0.7.1 fixed
+# Update and Delete to receive the refreshed observation instead of the last persisted state (infrena commit
+# 1399f20), which this plugin no longer works around (internal/ccprov/patch.go's Update reads current.Attributes
+# straight, not a fresh read). go.mod requires 0.11.1 as of 2026-09-17, and the floor deliberately does NOT follow
+# it: every release from 0.7.1 up speaks protocol 4 and hands Update the refreshed observation, and nothing this
+# plugin imports changed between them — pkg/pluginproto, pluginsdk, plugintest, schema, value and resource have an
+# empty diff across v0.7.1..v0.11.1 — so raising this floor would refuse hosts 0.7.1 to 0.11.0 that work perfectly.
+# internal/awsprov/manifest_test.go asserts the boundary, so a floor and a test move together.
+#
+# RAISED TO 0.14.0. The binary speaks protocol 5, and the floor names the
+# oldest release that accepts it. The protocol has not moved since, so the floor has moved only
+# because earlier releases were withdrawn: a floor may name only a release that exists.
+# Supported being a SET is what protects an OLD plugin on a NEW host, which is the direction
+# that matters day to day; nothing protects a new plugin on an old host, so this is forced
+# rather than chosen.
+infrena: ">= 0.14.0"
+source: https://github.com/infrena/infrena-provider-aws

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# check-examples: compile every example project under examples/ with a real infrena and this plugin, so a wrong
+# attribute name, kind or reference in documentation fails here instead of in a reader's terminal.
+#
+# INFRENA_SRC is the infrena checkout to build (default ../infrena). No AWS call is made: `validate` only compiles,
+# and the AWS variables point nowhere.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+src="${INFRENA_SRC:-../infrena}"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/plugins"
+(cd "$src" && go build -o "$work/infrena" ./cmd/infrena)
+go build -o "$work/plugins/infrena-plugin-aws" ./cmd/infrena-plugin-aws
+
+export HOME="$work" INFRENA_PLUGIN_PATH= AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null \
+  AWS_ACCESS_KEY_ID=check AWS_SECRET_ACCESS_KEY=check AWS_EC2_METADATA_DISABLED=true \
+  AWS_ENDPOINT_URL_CLOUDCONTROL=http://127.0.0.1:1 AWS_ENDPOINT_URL_STS=http://127.0.0.1:1
+
+failed=0
+checked=0
+for dir in examples/*/; do
+  [[ -f "$dir/infrena.yml" ]] || continue
+  checked=$((checked + 1))
+  env_name="$(sed -n '/^environments:/,/^[a-z]/{s/^  \([a-z0-9_-]*\):.*/\1/p}' "$dir/infrena.yml" | head -1)"
+  if out="$(cd "$dir" && "$work/infrena" validate ${env_name:+"$env_name"} --plugin-dir "$work/plugins" 2>&1)"; then
+    echo "ok   $dir"
+  else
+    echo "FAIL $dir"
+    printf '%s\n' "$out" | sed 's/^/     /'
+    failed=$((failed + 1))
+  fi
+done
+echo "check-examples: $checked checked, $failed failed"
+[[ "$checked" -gt 0 && "$failed" -eq 0 ]]
